@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Pause, Play, Repeat, RotateCcw, SkipBack, SkipForward, Volume2 } from 'lucide-react';
 import { MillaPicker } from '@/components/milla/MillaPicker';
 import { cn } from '@/lib/utils';
-import { MILLA_COPY, formatNum } from '@/lib/milla-i18n';
+import { MILLA_COPY, formatDigitsInText, formatNum } from '@/lib/milla-i18n';
 import { RECITERS, getEveryAyahAudioUrl, type ReciterId } from '@/lib/quran-data';
 import { useMillaStore, type PlaybackSpeed } from '@/store/milla-store';
 
@@ -307,7 +307,7 @@ export function AudioPlayerBar({
           className="inline-flex min-h-[48px] items-center justify-center rounded-xl border border-border bg-background px-3.5 text-xs font-bold text-foreground transition-colors hover:bg-secondary"
           aria-label="تغيير سرعة التلاوة"
         >
-          {playbackSpeed}x
+          {formatDigitsInText(`${playbackSpeed}×`, language)}
         </button>
       </div>
     </section>

@@ -6,6 +6,13 @@ export function formatNum(num: number, language: AppLanguage): string {
   return language === 'ar' ? toArabicDigits(num) : String(num);
 }
 
+const ARABIC_DIGIT_CHARS = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'] as const;
+
+export function formatDigitsInText(text: string, language: AppLanguage): string {
+  if (language !== 'ar') return text;
+  return text.replace(/[0-9]/g, (d) => ARABIC_DIGIT_CHARS[Number(d)] ?? d);
+}
+
 export function getSurahDisplayName(surah: SurahEntry, language: AppLanguage): string {
   if (language === 'en') return `${surah.nameEn} (${surah.nameAr})`;
   if (language === 'fr') return `${surah.nameFr} (${surah.nameAr})`;

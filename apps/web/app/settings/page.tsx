@@ -14,7 +14,7 @@ import {
 import { AppShell } from '@/components/milla/AppShell';
 import { MillaPicker } from '@/components/milla/MillaPicker';
 import { cn } from '@/lib/utils';
-import { MILLA_COPY, formatNum, type AppLanguage } from '@/lib/milla-i18n';
+import { MILLA_COPY, formatDigitsInText, formatNum, type AppLanguage } from '@/lib/milla-i18n';
 import { RECITERS, type ReciterId } from '@/lib/quran-data';
 import {
   useMillaStore,
@@ -162,7 +162,7 @@ export default function SettingsPage() {
                       : 'border-border bg-background text-foreground',
                   )}
                 >
-                  {sp}x
+                  {formatDigitsInText(`${sp}×`, store.language)}
                 </button>
               ))}
             </div>
@@ -393,7 +393,9 @@ export default function SettingsPage() {
           <div className="flex items-center justify-between rounded-xl bg-background p-3">
             <div>
               <p className="text-sm font-bold text-foreground">{copy.settingsFajrReminder}</p>
-              <p className="text-xs text-muted-foreground">{store.reminders.fajrTime}</p>
+              <p className="text-xs text-muted-foreground">
+                {formatDigitsInText(store.reminders.fajrTime, store.language)}
+              </p>
             </div>
             <button
               type="button"
