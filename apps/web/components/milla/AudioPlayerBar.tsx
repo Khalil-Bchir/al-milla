@@ -11,6 +11,7 @@ interface AudioPlayerBarProps {
   surahId?: number;
   surahName: string;
   ayahNumber: number;
+  mode?: 'memorize' | 'reference';
   onPrevAyah?: () => void;
   onNextAyah?: () => void;
   onRepeatCycleComplete?: () => void;
@@ -22,6 +23,7 @@ export function AudioPlayerBar({
   surahId = 18,
   surahName,
   ayahNumber,
+  mode = 'memorize',
   onPrevAyah,
   onNextAyah,
   onRepeatCycleComplete,
@@ -32,9 +34,10 @@ export function AudioPlayerBar({
   const setPlaybackSpeed = useMillaStore((s) => s.setPlaybackSpeed);
   const mandatoryRepeats = useMillaStore((s) => s.mandatoryRepeats);
 
+  const isReferenceMode = mode === 'reference';
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [repeatLoopActive, setRepeatLoopActive] = useState(true);
+  const [repeatLoopActive, setRepeatLoopActive] = useState(!isReferenceMode);
   const [currentRepeat, setCurrentRepeat] = useState(1);
   const [progress, setProgress] = useState(0);
   const [useFallbackTimer, setUseFallbackTimer] = useState(false);
@@ -42,9 +45,10 @@ export function AudioPlayerBar({
 
   const audioUrl = getEveryAyahAudioUrl(reciter, surahId, ayahNumber);
 
-  // Reset playback state when surah/ayah/reciter changes
+  // Reset playback state when surah/ayah/reciter/mode changes
   useEffect(() => {
     setIsPlaying(false);
+    setRepeatLoopActive(!isReferenceMode);
     setCurrentRepeat(1);
     setProgress(0);
     setUseFallbackTimer(false);
@@ -57,7 +61,7 @@ export function AudioPlayerBar({
         // Ignore reset errors
       }
     }
-  }, [surahId, ayahNumber, reciter]);
+  }, [surahId, ayahNumber, reciter, isReferenceMode]);
 
   // Sync playbackRate on HTML5 audio element
   useEffect(() => {
@@ -193,22 +197,26 @@ export function AudioPlayerBar({
               {surahName} • الآية {ayahNumber}
             </p>
             <p className="text-sm font-bold text-foreground">
-              التكرار: {currentRepeat} / {mandatoryRepeats} مرات
+              {isReferenceMode
+                ? 'استماع مرجعي للتحقق'
+                : `التكرار: ${currentRepeat} / ${mandatoryRepeats} مرات`}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1" aria-label="مؤشر التكرار">
-          {Array.from({ length: mandatoryRepeats }).map((_, i) => (
-            <span
-              key={i}
-              className={cn(
-                'h-2.5 w-2.5 rounded-full transition-colors',
-                i < currentRepeat ? 'bg-accent' : 'bg-muted',
-              )}
-            />
-          ))}
-        </div>
+        {!isReferenceMode && (
+          <div className="flex items-center gap-1" aria-label="مؤشر التكرار">
+            {Array.from({ length: mandatoryRepeats }).map((_, i) => (
+              <span
+                key={i}
+                className={cn(
+                  'h-2.5 w-2.5 rounded-full transition-colors',
+                  i < currentRepeat ? 'bg-accent' : 'bg-muted',
+                )}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Progress Bar & Reciter Switcher */}

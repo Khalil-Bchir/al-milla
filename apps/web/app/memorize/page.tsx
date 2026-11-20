@@ -64,12 +64,30 @@ export default function MemorizePage() {
     computeRevisionQueues(verseRecords),
   );
 
+  const yesterdayQueue = useMemo(
+    () =>
+      [...initialQueues.yesterdayItems].sort(
+        (a, b) => a.surahId - b.surahId || a.ayahNumber - b.ayahNumber,
+      ),
+    [initialQueues.yesterdayItems],
+  );
+
+  const olderQueue = useMemo(() => {
+    const merged = [...initialQueues.weakItems, ...initialQueues.olderDueItems];
+    const seen = new Set<string>();
+    return merged.filter((item) => {
+      if (seen.has(item.key)) return false;
+      seen.add(item.key);
+      return true;
+    });
+  }, [initialQueues.weakItems, initialQueues.olderDueItems]);
+
   const sessionSteps = useMemo<GuidedStepDef[]>(() => {
     const steps: GuidedStepDef[] = [];
-    if (initialQueues.yesterdayItems.length > 0) {
+    if (yesterdayQueue.length > 0) {
       steps.push({ id: 'yesterdayReview', label: 'مراجعة الأمس' });
     }
-    if (initialQueues.olderDueItems.length > 0 || initialQueues.weakItems.length > 0) {
+    if (olderQueue.length > 0) {
       steps.push({ id: 'olderReview', label: 'المراجعة السابقة' });
     }
     steps.push(
@@ -78,23 +96,24 @@ export default function MemorizePage() {
       { id: 'verseConnection', label: 'ربط الآيات' },
     );
     return steps;
-  }, [initialQueues]);
+  }, [yesterdayQueue.length, olderQueue.length]);
 
   const [stepIndex, setStepIndex] = useState(0);
   const [isSessionDone, setIsSessionDone] = useState(false);
 
-  // Loaded ayahs for yesterday & older review steps (from IndexedDB or API)
-  const yesterdayTarget = initialQueues.yesterdayItems[0];
+  // Per-verse indices inside Yesterday Review & Older Review queues
+  const [yesterdayIdx, setYesterdayIdx] = useState(0);
+  const [olderIdx, setOlderIdx] = useState(0);
+  const [reviewHidden, setReviewHidden] = useState(false);
+
+  const yesterdayTarget = yesterdayQueue[yesterdayIdx];
   const yesterdaySurah = yesterdayTarget ? getSurahById(yesterdayTarget.surahId) : null;
-  const olderTarget = initialQueues.weakItems[0] ?? initialQueues.olderDueItems[0];
+  const olderTarget = olderQueue[olderIdx];
   const olderSurah = olderTarget ? getSurahById(olderTarget.surahId) : null;
 
   const [yesterdayAyahText, setYesterdayAyahText] = useState<string | null>(null);
   const [olderAyahText, setOlderAyahText] = useState<string | null>(null);
   const [loadingReviewText, setLoadingReviewText] = useState(false);
-
-  // Sub-state for Review steps
-  const [reviewHidden, setReviewHidden] = useState(false);
 
   // Sub-state for New Memorization step (within today's dailyTarget range)
   const [memOffset, setMemOffset] = useState(0);
@@ -196,14 +215,37 @@ export default function MemorizePage() {
     if (stepIndex + 1 < sessionSteps.length) {
       setStepIndex((i) => i + 1);
     } else {
-      // Session finished: advance currentSurahId / currentAyah to the NEXT unmemorized verses!
       advanceNextWirdPosition();
       setIsSessionDone(true);
     }
   };
 
+  const handleCompleteYesterdayAyah = () => {
+    if (!yesterdayTarget) return;
+    setVerseStatus(yesterdayTarget.key, 'memorized');
+    setReviewHidden(false);
+    if (yesterdayIdx + 1 < yesterdayQueue.length) {
+      setYesterdayIdx((i) => i + 1);
+    } else {
+      advanceStep('yesterdayReview');
+    }
+  };
+
+  const handleCompleteOlderAyah = () => {
+    if (!olderTarget) return;
+    setVerseStatus(olderTarget.key, 'memorized');
+    setReviewHidden(false);
+    if (olderIdx + 1 < olderQueue.length) {
+      setOlderIdx((i) => i + 1);
+    } else {
+      advanceStep('olderReview');
+    }
+  };
+
   const handleStartNextSession = () => {
     setInitialQueues(computeRevisionQueues(verseRecords));
+    setYesterdayIdx(0);
+    setOlderIdx(0);
     setMemOffset(0);
     setTestOffset(0);
     setReviewHidden(false);
@@ -335,18 +377,24 @@ export default function MemorizePage() {
           </ol>
         </section>
 
-        {/* STEP 1: Yesterday's Review */}
+        {/* STEP 1: Yesterday's Review (Iterates all yesterdayQueue verses) */}
         {currentStep === 'yesterdayReview' && yesterdayTarget && yesterdaySurah && (
           <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
-            <div className="flex items-center justify-between">
-              <h1 className="text-lg font-bold text-foreground">١. مراجعة الأمس</h1>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h1 className="text-lg font-bold text-foreground">مراجعة الأمس</h1>
+                <p className="text-xs text-muted-foreground">
+                  الآية {toArabicDigits(yesterdayIdx + 1)} من{' '}
+                  {toArabicDigits(yesterdayQueue.length)} في مراجعة الأمس
+                </p>
+              </div>
               <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-primary">
                 {yesterdaySurah.nameAr} • الآية {toArabicDigits(yesterdayTarget.ayahNumber)}
               </span>
             </div>
 
             <p className="text-sm text-muted-foreground">
-              راجع محفوظ الأمس قراءةً أو استماعاً قبل البدء بالآيات الجديدة لتثبيت الربط في الذاكرة.
+              راجع محفوظ الأمس قراءةً أو استماعاً مرجعياً قبل البدء بالآيات الجديدة.
             </p>
 
             <div className="rounded-2xl bg-secondary/50 p-4 text-center">
@@ -379,6 +427,7 @@ export default function MemorizePage() {
             </button>
 
             <AudioPlayerBar
+              mode="reference"
               surahId={yesterdayTarget.surahId}
               surahName={yesterdaySurah.nameAr}
               ayahNumber={yesterdayTarget.ayahNumber}
@@ -386,20 +435,30 @@ export default function MemorizePage() {
 
             <button
               type="button"
-              onClick={() => advanceStep('yesterdayReview')}
+              onClick={handleCompleteYesterdayAyah}
               className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-base font-bold text-primary-foreground hover:opacity-95"
             >
-              <span>أتممت مراجعة الأمس • المتابعة</span>
+              <span>
+                {yesterdayIdx + 1 < yesterdayQueue.length
+                  ? 'راجعت هذه الآية • الآية التالية'
+                  : 'أتممت مراجعة الأمس • المتابعة'}
+              </span>
               <ArrowLeft className="h-5 w-5" aria-hidden="true" />
             </button>
           </section>
         )}
 
-        {/* STEP 2: Older / Weak Material Review */}
+        {/* STEP 2: Older / Weak Material Review (Iterates all olderQueue verses) */}
         {currentStep === 'olderReview' && olderTarget && olderSurah && (
           <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
-            <div className="flex items-center justify-between">
-              <h1 className="text-lg font-bold text-foreground">٢. المراجعة السابقة</h1>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h1 className="text-lg font-bold text-foreground">المراجعة السابقة</h1>
+                <p className="text-xs text-muted-foreground">
+                  الآية {toArabicDigits(olderIdx + 1)} من {toArabicDigits(olderQueue.length)}{' '}
+                  المستحقة للمراجعة
+                </p>
+              </div>
               <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-primary">
                 {olderSurah.nameAr} • الآية {toArabicDigits(olderTarget.ayahNumber)}
               </span>
@@ -439,6 +498,7 @@ export default function MemorizePage() {
             </button>
 
             <AudioPlayerBar
+              mode="reference"
               surahId={olderTarget.surahId}
               surahName={olderSurah.nameAr}
               ayahNumber={olderTarget.ayahNumber}
@@ -446,16 +506,20 @@ export default function MemorizePage() {
 
             <button
               type="button"
-              onClick={() => advanceStep('olderReview')}
+              onClick={handleCompleteOlderAyah}
               className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-base font-bold text-primary-foreground hover:opacity-95"
             >
-              <span>أتممت المراجعة السابقة • بدء الحفظ الجديد</span>
+              <span>
+                {olderIdx + 1 < olderQueue.length
+                  ? 'راجعت هذه الآية • الآية التالية'
+                  : 'أتممت المراجعة السابقة • بدء الحفظ الجديد'}
+              </span>
               <ArrowLeft className="h-5 w-5" aria-hidden="true" />
             </button>
           </section>
         )}
 
-        {/* STEP 3: New Memorization */}
+        {/* STEP 3: New Memorization (Uses mode="memorize" 5x repeat player) */}
         {currentStep === 'newMemorization' && (
           <>
             <section className="rounded-2xl border border-border bg-card p-5">
@@ -548,6 +612,7 @@ export default function MemorizePage() {
             </section>
 
             <AudioPlayerBar
+              mode="memorize"
               surahId={surah.id}
               surahName={surah.nameAr}
               ayahNumber={activeMemAyah?.number ?? 1}
@@ -555,7 +620,7 @@ export default function MemorizePage() {
 
             <div className="flex items-start gap-2.5 rounded-2xl border border-border bg-secondary/40 p-3.5 text-sm leading-relaxed text-foreground">
               <Lightbulb className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
-              <p>استمع للآية أو اقرأها بهدوء، وعندما تثبت في ذهنك انتقل للخطوة التالية.</p>
+              <p>استمع للآية وكررها بهدوء، وعندما تثبت في ذهنك انتقل للخطوة التالية.</p>
             </div>
 
             <button
@@ -574,7 +639,7 @@ export default function MemorizePage() {
           </>
         )}
 
-        {/* STEP 4: Guided Blind Self-Test */}
+        {/* STEP 4: Guided Blind Self-Test (Uses mode="reference" single-play audio) */}
         {currentStep === 'selfTest' && activeTestAyah && (
           <section className="space-y-4">
             <div className="rounded-2xl border border-border bg-card p-5 text-center">
@@ -614,6 +679,13 @@ export default function MemorizePage() {
                 <span>{testRevealed ? 'إخفاء النص' : 'كشف النص للتحقق والمطابقة'}</span>
               </button>
             </div>
+
+            <AudioPlayerBar
+              mode="reference"
+              surahId={surah.id}
+              surahName={surah.nameAr}
+              ayahNumber={activeTestAyah.number}
+            />
 
             <div className="flex items-start gap-2.5 rounded-2xl border border-border bg-secondary/40 p-3.5 text-xs leading-relaxed text-foreground">
               <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
