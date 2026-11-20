@@ -5,6 +5,7 @@ import Link from 'next/link';
 import {
   AlertCircle,
   ArrowLeft,
+  ArrowRight,
   BookOpen,
   Brain,
   CalendarDays,
@@ -12,6 +13,7 @@ import {
   Clock,
   Eye,
   EyeOff,
+  HelpCircle,
   Layers,
   PlayCircle,
   RefreshCw,
@@ -45,6 +47,9 @@ type RevisionPlanId =
   | 'interleaved_mix'
   | 'monthly_deep';
 
+type PlanCategory = 'all' | 'scheduled' | 'focused';
+type RecallViewMode = 'full' | 'cue' | 'hidden';
+
 interface RevisionTargetItem {
   key: string;
   surahId: number;
@@ -53,9 +58,11 @@ interface RevisionTargetItem {
 
 interface RevisionPlanMeta {
   id: RevisionPlanId;
+  category: Exclude<PlanCategory, 'all'>;
   title: string;
   badge: string;
   scienceTag: string;
+  shortDesc: string;
   scienceNote: string;
   icon: typeof Brain;
   items: RevisionTargetItem[];
@@ -93,6 +100,12 @@ function deterministicShuffle(
   return arr;
 }
 
+function formatCueText(textAr: string): string {
+  const words = textAr.trim().split(/\s+/);
+  if (words.length <= 2) return textAr;
+  return `${words.slice(0, 2).join(' ')} ...`;
+}
+
 export default function RevisionPage() {
   const verseRecords = useMillaStore((s) => s.verseRecords);
   const activityDates = useMillaStore((s) => s.activityDates);
@@ -101,15 +114,18 @@ export default function RevisionPage() {
   const setDailyStage = useMillaStore((s) => s.setDailyStage);
 
   const queues = useMemo(() => computeRevisionQueues(verseRecords), [verseRecords]);
+  const totalMemorizedCount = Object.keys(verseRecords).length;
 
-  // Surah picker state for "Whole Surah" revision plan
+  // Plan filter & Surah selector
+  const [categoryFilter, setCategoryFilter] = useState<PlanCategory>('all');
   const [selectedSurahId, setSelectedSurahId] = useState<number>(currentSurahId);
   const [shuffleSeed, setShuffleSeed] = useState<number>(1);
 
-  // Active interactive revision session state
+  // Active focused revision session state
   const [activePlanId, setActivePlanId] = useState<RevisionPlanId | null>(null);
   const [activeAudioIdx, setActiveAudioIdx] = useState<number>(0);
-  const [passageHidden, setPassageHidden] = useState<boolean>(false);
+  const [recallMode, setRecallMode] = useState<RecallViewMode>('full');
+  const [showScienceTip, setShowScienceTip] = useState<boolean>(false);
   const [planRating, setPlanRating] = useState<SelfEvalRating>('good');
   const [completedPlanTitle, setCompletedPlanTitle] = useState<string | null>(null);
 
@@ -140,7 +156,7 @@ export default function RevisionPage() {
     const nowMs = Date.now();
     const allRecords = Object.values(verseRecords);
 
-    // 1. Daily SRS (Yesterday + Older Due + Weak, deduplicated)
+    // 1. Daily SRS
     const srsMap = new Map<string, RevisionTargetItem>();
     for (const r of [...queues.weakItems, ...queues.yesterdayItems, ...queues.olderDueItems]) {
       srsMap.set(r.key, { key: r.key, surahId: r.surahId, ayahNumber: r.ayahNumber });
@@ -173,7 +189,7 @@ export default function RevisionPage() {
     // 4. Targeted Weak Spots
     const weakItems = toTargetItems(queues.weakItems);
 
-    // 5. Interleaved Mixed Recall (up to 10 shuffled verses across memorized material)
+    // 5. Interleaved Mixed Recall
     const allTargets = toTargetItems(allRecords);
     const interleavedItems = deterministicShuffle(allTargets, shuffleSeed).slice(0, 10);
 
@@ -189,19 +205,23 @@ export default function RevisionPage() {
     return [
       {
         id: 'daily_srs',
+        category: 'scheduled',
         title: 'خطة التكرار المتباعد اليومية',
         badge: '١ – ٣ – ٧ – ١٤ – ٣٠ يوماً',
         scienceTag: 'منحنى النسيان (Ebbinghaus)',
+        shortDesc: 'مراجعة الآيات المستحقة اليوم قبل تلاشيها من الذاكرة.',
         scienceNote:
-          'تستهدف الآيات المستحقة اليوم قبل تلاشيها من الذاكرة، وهو التوقيت المثالي لرفع قوة الاسترجاع بأقل جهد.',
+          'تستهدف الآيات المستحقة اليوم في اللحظة الحرجة قبل نسيانها، وهو التوقيت المثالي لرفع قوة الاسترجاع بأقل جهد.',
         icon: Clock,
         items: dailySrsItems,
       },
       {
         id: 'weekly_harvest',
+        category: 'scheduled',
         title: 'مراجعة حصاد الأسبوع',
         badge: 'آخر ٧ أيام',
         scienceTag: 'التثبيت التراكمي الأسبوعي',
+        shortDesc: 'جمع ومراجعة كل ما حفظته خلال الأيام السبعة الماضية.',
         scienceNote:
           'دمج ما حُفظ خلال الأسبوع في جلسة متصلة واحدة ينقله من الذاكرة قصيرة المدى إلى التثبيت طويل المدى.',
         icon: CalendarDays,
@@ -209,9 +229,11 @@ export default function RevisionPage() {
       },
       {
         id: 'whole_surah',
-        title: `مراجعة سورة كاملة (${chosenSurah.nameAr})`,
-        badge: `${toArabicDigits(chosenSurah.totalAyahs)} آية`,
+        category: 'focused',
+        title: `مراجعة سورة كاملة`,
+        badge: chosenSurah.nameAr,
         scienceTag: 'التجميع السياقي (Chunking)',
+        shortDesc: 'سرد سورة كاملة متصلة لضبط انتقالات الآيات وبداياتها.',
         scienceNote:
           'سرد السورة كاملةً يبني روابط تسلسلية متينة بين نهايات الآيات وبداياتها ويمنع الانقطاع أثناء التلاوة.',
         icon: Layers,
@@ -219,19 +241,23 @@ export default function RevisionPage() {
       },
       {
         id: 'weak_spots',
+        category: 'focused',
         title: 'استهداف مواضع العناية',
         badge: 'أولوية قصوى',
         scienceTag: 'الصعوبة المرغوبة (Leitner)',
+        shortDesc: 'تركيز المراجعة على الآيات المتعثرة أو التي قُيّمت كصعبة.',
         scienceNote:
-          'تخصيص وقت مركّز للآيات الصعبة أو المتعثرة يعالج نقاط الضعف مباشرة بدل إضاعة الوقت في المتقن.',
+          'تخصيص وقت مركّز للآيات الصعبة يعالج نقاط الضعف مباشرة بدل إضاعة الوقت في الآيات المتقنة.',
         icon: Target,
         items: weakItems,
       },
       {
         id: 'interleaved_mix',
+        category: 'focused',
         title: 'المراجعة المتداخلة العشوائية',
-        badge: 'حتى ١٠ آيات متنوعة',
+        badge: 'حتى ١٠ آيات',
         scienceTag: 'التداخل المعرفي (Interleaving)',
+        shortDesc: 'اختبار الاسترجاع عبر آيات متفرقة من سور مختلفة دون ترتيب.',
         scienceNote:
           'الانتقال غير المتوقع بين سور ومواضع مختلفة يقوّي الاسترجاع المستقل للآية دون الاعتماد على سياق الحفظ.',
         icon: Shuffle,
@@ -239,9 +265,11 @@ export default function RevisionPage() {
       },
       {
         id: 'monthly_deep',
+        category: 'scheduled',
         title: 'خطة التثبيت الشهري',
         badge: 'آخر ٣٠ يوماً',
         scienceTag: 'ترسيخ الذاكرة بعيدة المدى',
+        shortDesc: 'مراجعة شاملة لمحفوظ الشهر الأخير لترسيخ البنية الكاملة.',
         scienceNote:
           'مراجعة شاملة لمحفوظ الشهر تحفظ القاعدة القرآنية راسخة وتكشف الآيات التي بدأت تضعف مع الوقت.',
         icon: Brain,
@@ -250,12 +278,23 @@ export default function RevisionPage() {
     ];
   }, [verseRecords, queues, selectedSurahId, shuffleSeed]);
 
+  const recommendedPlanId: RevisionPlanId =
+    queues.totalDueCount > 0 ? 'daily_srs' : 'whole_surah';
+
+  const visiblePlans = useMemo(
+    () =>
+      categoryFilter === 'all'
+        ? plans
+        : plans.filter((p) => p.category === categoryFilter),
+    [plans, categoryFilter],
+  );
+
   const activePlan = useMemo(
     () => plans.find((p) => p.id === activePlanId) ?? null,
     [plans, activePlanId],
   );
 
-  // Load Arabic texts for the active plan's surahs
+  // Load Arabic texts for active plan
   useEffect(() => {
     if (!activePlan || activePlan.items.length === 0) return;
 
@@ -297,9 +336,13 @@ export default function RevisionPage() {
   const startPlan = (planId: RevisionPlanId) => {
     setActivePlanId(planId);
     setActiveAudioIdx(0);
-    setPassageHidden(false);
+    setRecallMode('full');
+    setShowScienceTip(false);
     setPlanRating('good');
     setCompletedPlanTitle(null);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const handleCompletePlan = () => {
@@ -331,53 +374,284 @@ export default function RevisionPage() {
   const activeTarget = activePlan?.items[activeAudioIdx] ?? activePlan?.items[0] ?? null;
   const activeSurah = activeTarget ? getSurahById(activeTarget.surahId) : null;
 
-  return (
-    <AppShell title="المراجعة العلمية" subtitle="برامج وخطط التثبيت المبنية على الذاكرة المتباعدة">
-      <div className="space-y-6">
-        {/* Intro */}
-        <section>
-          <h1 className="text-2xl font-bold text-foreground">برامج وخطط المراجعة</h1>
-          <p className="mt-1 text-base leading-relaxed text-muted-foreground">
-            اختر برنامج المراجعة المناسب لوقتك وهدفك؛ جميع الخطط مصممة وفق أبحاث الذاكرة والتكرار
-            المتباعد والاسترجاع النشط.
-          </p>
-        </section>
+  // FOCUSED REVISION SESSION VIEW
+  if (activePlan && activeTarget && activeSurah) {
+    return (
+      <AppShell title={activePlan.title} subtitle={activePlan.scienceTag}>
+        <div className="space-y-4">
+          {/* Top Focus Navigation Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => setActivePlanId(null)}
+              className="inline-flex min-h-[42px] items-center gap-1.5 rounded-xl border border-border bg-card px-3.5 text-xs font-bold text-foreground hover:bg-secondary"
+            >
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              <span>العودة إلى خطط المراجعة</span>
+            </button>
 
-        {/* Daily Summary Banner */}
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold text-primary">
+                الآية {toArabicDigits(activeAudioIdx + 1)} من{' '}
+                {toArabicDigits(activePlan.items.length)}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowScienceTip((v) => !v)}
+                aria-expanded={showScienceTip}
+                aria-label="الأساس العلمي للخطة"
+                className={cn(
+                  'inline-flex h-9 w-9 items-center justify-center rounded-xl border transition-colors',
+                  showScienceTip
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-border bg-card text-muted-foreground hover:bg-secondary',
+                )}
+              >
+                <HelpCircle className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+
+          {/* Collapsible Scientific Rationale */}
+          {showScienceTip && (
+            <div className="rounded-2xl border border-primary/20 bg-secondary/50 p-3.5 text-xs leading-relaxed text-foreground">
+              <span className="font-bold text-primary">{activePlan.scienceTag}: </span>
+              {activePlan.scienceNote}
+            </div>
+          )}
+
+          {/* 3-State Active Recall Selector */}
+          <div
+            role="group"
+            aria-label="وضع عرض النص للاسترجاع"
+            className="grid grid-cols-3 gap-1.5 rounded-2xl border border-border bg-card p-1.5"
+          >
+            {(
+              [
+                { id: 'full', label: 'النص الكامل', icon: Eye },
+                { id: 'cue', label: 'كلمات البداية', icon: Sparkles },
+                { id: 'hidden', label: 'إخفاء للتسميع', icon: EyeOff },
+              ] as const
+            ).map((mode) => {
+              const Icon = mode.icon;
+              const selected = recallMode === mode.id;
+              return (
+                <button
+                  key={mode.id}
+                  type="button"
+                  onClick={() => setRecallMode(mode.id)}
+                  aria-pressed={selected}
+                  className={cn(
+                    'flex min-h-[42px] items-center justify-center gap-1.5 rounded-xl px-2 text-xs font-bold transition-colors',
+                    selected
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <span>{mode.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Connected Mushaf Passage Container */}
+          <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+            <div className="mb-3 flex items-center justify-between border-b border-border/70 pb-2.5 text-xs text-muted-foreground">
+              <span className="font-bold text-foreground">
+                {activePlan.id === 'whole_surah'
+                  ? activeSurah.nameAr
+                  : `${activeSurah.nameAr} • الآية ${toArabicDigits(activeTarget.ayahNumber)}`}
+              </span>
+              <span>اضغط على أي آية للاستماع إليها</span>
+            </div>
+
+            <div
+              className="max-h-[380px] overflow-y-auto rounded-xl bg-secondary/40 p-4 text-justify"
+              dir="rtl"
+              lang="ar"
+            >
+              {recallMode === 'hidden' ? (
+                <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
+                  <EyeOff className="h-7 w-7 text-primary/60" aria-hidden="true" />
+                  <p className="text-sm font-semibold text-foreground">
+                    النص مخفي للاستدعاء النشط
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    سمّع الآيات غيباً ثم اختر «كلمات البداية» أو «النص الكامل» للتحقق.
+                  </p>
+                </div>
+              ) : loadingTexts && !ayahTextMap[activeTarget.key] ? (
+                <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+                  <RefreshCw className="h-4 w-4 animate-spin text-primary" aria-hidden="true" />
+                  <span>جاري تحميل نص الآيات...</span>
+                </div>
+              ) : (
+                <p className="quran-text leading-[2.35] text-foreground">
+                  {activePlan.items.map((item, idx) => {
+                    const prev = idx > 0 ? activePlan.items[idx - 1] : null;
+                    const showSurahTag =
+                      idx === 0 || (prev !== null && prev.surahId !== item.surahId);
+                    const itemSurah = showSurahTag ? getSurahById(item.surahId) : null;
+                    const isSelected = idx === activeAudioIdx;
+                    const rawText = ayahTextMap[item.key] ?? '';
+                    const displayedText =
+                      recallMode === 'cue' && rawText ? formatCueText(rawText) : rawText;
+
+                    return (
+                      <span key={`${item.key}-${idx}`}>
+                        {itemSurah && activePlan.id !== 'whole_surah' && (
+                          <span className="mx-1.5 inline-block rounded-md bg-secondary px-2 py-0.5 font-sans text-xs font-semibold text-primary">
+                            {itemSurah.nameAr}
+                          </span>
+                        )}
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setActiveAudioIdx(idx)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              setActiveAudioIdx(idx);
+                            }
+                          }}
+                          className={cn(
+                            'cursor-pointer rounded-lg transition-colors',
+                            isSelected
+                              ? 'bg-primary/15 px-1.5 ring-1 ring-primary/30'
+                              : 'hover:bg-secondary/80',
+                          )}
+                        >
+                          {displayedText || 'تعذّر تحميل نص الآية'}{' '}
+                          <span className="mx-1 font-quran text-primary">
+                            ﴿{toArabicDigits(item.ayahNumber)}﴾
+                          </span>
+                        </span>{' '}
+                      </span>
+                    );
+                  })}
+                </p>
+              )}
+            </div>
+          </section>
+
+          {/* Reference Audio Player */}
+          <AudioPlayerBar
+            mode="reference"
+            surahId={activeTarget.surahId}
+            surahName={activeSurah.nameAr}
+            ayahNumber={activeTarget.ayahNumber}
+            onPrevAyah={
+              activeAudioIdx > 0 ? () => setActiveAudioIdx((i) => i - 1) : undefined
+            }
+            onNextAyah={
+              activeAudioIdx + 1 < activePlan.items.length
+                ? () => setActiveAudioIdx((i) => i + 1)
+                : undefined
+            }
+          />
+
+          {/* Self Evaluation + Complete */}
+          <section className="space-y-3 rounded-2xl border border-border bg-card p-4">
+            <p className="text-xs font-bold text-foreground">
+              قيّم إتقانك لتحديث جدول التكرار المتباعد:
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {evalOptions.map((opt) => {
+                const selected = planRating === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setPlanRating(opt.id)}
+                    aria-pressed={selected}
+                    className={cn(
+                      'flex min-h-[60px] flex-col items-center justify-center rounded-xl border p-2 text-center transition-colors',
+                      selected
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-border bg-background text-foreground hover:bg-secondary',
+                    )}
+                  >
+                    <span className="text-xs font-bold">{opt.label}</span>
+                    <span className="text-[10px] opacity-85">{opt.hint}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              onClick={handleCompletePlan}
+              className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-base font-bold text-primary-foreground hover:opacity-95"
+            >
+              <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+              <span>أتممت المراجعة وتثبيت التقييم</span>
+            </button>
+          </section>
+        </div>
+      </AppShell>
+    );
+  }
+
+  // PLANS DIRECTORY VIEW
+  return (
+    <AppShell title="المراجعة العلمية" subtitle="برامج التثبيت المبنية على الذاكرة المتباعدة">
+      <div className="space-y-6">
+        {/* Hero Summary Banner */}
         <section className="rounded-2xl bg-primary p-5 text-primary-foreground">
-          <div className="mb-4 flex items-center justify-between">
-            <span className="text-xs opacity-90">مؤشر التثبيت اليومي</span>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs opacity-90">لوحة المراجعة والتثبيت</span>
             <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold">
-              ٦ خطط مراجعة علمية
+              ٦ خطط علمية
             </span>
           </div>
-          <p className="text-xl font-bold">
-            {queues.totalDueCount > 0
-              ? `مستحق للمراجعة اليوم: ${toArabicDigits(queues.totalDueCount)} آية`
-              : 'سجّل حفظك أو اختر سورة كاملة للمراجعة'}
-          </p>
+
+          <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-xl font-bold sm:text-2xl">
+                {queues.totalDueCount > 0
+                  ? `مستحق للمراجعة اليوم: ${toArabicDigits(queues.totalDueCount)} آية`
+                  : 'اختر خطة المراجعة المناسبة لك'}
+              </h1>
+              <p className="mt-1 text-xs leading-relaxed opacity-85">
+                {queues.totalDueCount > 0
+                  ? 'ابدأ بالمراجعة المستحقة الآن لحماية محفوظك من النسيان.'
+                  : 'يمكنك مراجعة سورة كاملة أو استعراض خطط الأسبوع والشهر.'}
+              </p>
+            </div>
+
+            {queues.totalDueCount > 0 && (
+              <button
+                type="button"
+                onClick={() => startPlan('daily_srs')}
+                className="inline-flex min-h-[46px] shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-4 text-sm font-bold text-primary shadow-sm hover:opacity-95"
+              >
+                <PlayCircle className="h-4 w-4" aria-hidden="true" />
+                <span>ابدأ مراجعة اليوم</span>
+              </button>
+            )}
+          </div>
+
           <div className="mt-4 grid grid-cols-3 gap-2.5 text-center">
-            <div className="rounded-xl bg-white/10 p-3">
-              <p className="text-xs opacity-80">مراجعة الأمس</p>
-              <p className="mt-1 text-lg font-bold">
+            <div className="rounded-xl bg-white/10 p-2.5">
+              <p className="text-[11px] opacity-80">مراجعة الأمس</p>
+              <p className="mt-0.5 text-lg font-bold">
                 {toArabicDigits(queues.yesterdayItems.length)}
               </p>
             </div>
-            <div className="rounded-xl bg-white/10 p-3">
-              <p className="text-xs opacity-80">المراجعة السابقة</p>
-              <p className="mt-1 text-lg font-bold">
-                {toArabicDigits(queues.olderDueItems.length)}
-              </p>
+            <div className="rounded-xl bg-white/10 p-2.5">
+              <p className="text-[11px] opacity-80">إجمالي المحفوظ</p>
+              <p className="mt-0.5 text-lg font-bold">{toArabicDigits(totalMemorizedCount)}</p>
             </div>
-            <div className="rounded-xl bg-white/10 p-3">
-              <p className="text-xs opacity-80">أيام التعهّد</p>
-              <p className="mt-1 text-lg font-bold">{toArabicDigits(activityDates.length)} يوم</p>
+            <div className="rounded-xl bg-white/10 p-2.5">
+              <p className="text-[11px] opacity-80">أيام التعهّد</p>
+              <p className="mt-0.5 text-lg font-bold">{toArabicDigits(activityDates.length)}</p>
             </div>
           </div>
         </section>
 
         {/* Completion Banner */}
-        {completedPlanTitle && !activePlan && (
+        {completedPlanTitle && (
           <section className="flex items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-card p-4">
             <div className="flex items-center gap-3">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary">
@@ -403,178 +677,75 @@ export default function RevisionPage() {
           </section>
         )}
 
-        {/* Active Interactive Revision Session */}
-        {activePlan && activeTarget && activeSurah && (
-          <section
-            aria-label="جلسة المراجعة التفاعلية"
-            className="space-y-4 rounded-2xl border-2 border-primary/40 bg-card p-5"
-          >
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-0.5 text-xs font-semibold text-primary">
-                  <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>{activePlan.scienceTag}</span>
-                </span>
-                <h2 className="mt-1.5 text-lg font-bold text-foreground">{activePlan.title}</h2>
-                <p className="text-xs text-muted-foreground">
-                  {toArabicDigits(activePlan.items.length)}{' '}
-                  {activePlan.items.length === 1 ? 'آية' : 'آيات'} في هذه الخطة • اضغط على أي آية
-                  للاستماع إليها
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setActivePlanId(null)}
-                className="inline-flex min-h-[40px] items-center gap-1 rounded-xl border border-border bg-background px-3 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
-              >
-                <X className="h-4 w-4" aria-hidden="true" />
-                <span>إنهاء العرض</span>
-              </button>
-            </div>
-
-            <p className="rounded-xl bg-secondary/40 p-3 text-xs leading-relaxed text-muted-foreground">
-              {activePlan.scienceNote}
-            </p>
-
-            {/* Connected Passage Card */}
-            <div className="rounded-2xl bg-secondary/50 p-4 text-justify" dir="rtl" lang="ar">
-              {passageHidden ? (
-                <p className="py-6 text-center text-sm font-medium text-muted-foreground">
-                  [ النص مخفي للاستدعاء النشط — سمّع الآيات غيباً ثم أظهرها للتحقق ]
-                </p>
-              ) : loadingTexts && !ayahTextMap[activeTarget.key] ? (
-                <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
-                  <RefreshCw className="h-4 w-4 animate-spin text-primary" aria-hidden="true" />
-                  <span>جاري تحميل نص الآيات...</span>
-                </div>
-              ) : (
-                <p className="quran-text leading-[2.3] text-foreground">
-                  {activePlan.items.map((item, idx) => {
-                    const prev = idx > 0 ? activePlan.items[idx - 1] : null;
-                    const showSurahTag =
-                      idx === 0 || (prev !== null && prev.surahId !== item.surahId);
-                    const itemSurah = showSurahTag ? getSurahById(item.surahId) : null;
-                    const isSelected = idx === activeAudioIdx;
-
-                    return (
-                      <span key={`${item.key}-${idx}`}>
-                        {itemSurah && activePlan.id !== 'whole_surah' && (
-                          <span className="mx-1.5 inline-block rounded-md bg-secondary px-2 py-0.5 font-sans text-xs font-semibold text-primary">
-                            {itemSurah.nameAr}
-                          </span>
-                        )}
-                        <span
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => setActiveAudioIdx(idx)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              setActiveAudioIdx(idx);
-                            }
-                          }}
-                          className={cn(
-                            'cursor-pointer rounded-lg transition-colors',
-                            isSelected ? 'bg-primary/10 px-1' : 'hover:bg-secondary/80',
-                          )}
-                        >
-                          {ayahTextMap[item.key] ?? 'تعذّر تحميل نص الآية'}{' '}
-                          <span className="mx-1 font-quran text-primary">
-                            ﴿{toArabicDigits(item.ayahNumber)}﴾
-                          </span>
-                        </span>{' '}
-                      </span>
-                    );
-                  })}
-                </p>
-              )}
-            </div>
-
-            {/* Active Recall Toggle */}
-            <button
-              type="button"
-              onClick={() => setPassageHidden((v) => !v)}
-              className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-border bg-background text-sm font-semibold text-foreground hover:bg-secondary"
-            >
-              {passageHidden ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-              <span>{passageHidden ? 'إظهار النص للتحقق' : 'إخفاء النص للتسميع غيباً'}</span>
-            </button>
-
-            {/* Reference Audio Player */}
-            <AudioPlayerBar
-              mode="reference"
-              surahId={activeTarget.surahId}
-              surahName={activeSurah.nameAr}
-              ayahNumber={activeTarget.ayahNumber}
-              onPrevAyah={
-                activeAudioIdx > 0 ? () => setActiveAudioIdx((i) => i - 1) : undefined
-              }
-              onNextAyah={
-                activeAudioIdx + 1 < activePlan.items.length
-                  ? () => setActiveAudioIdx((i) => i + 1)
-                  : undefined
-              }
-            />
-
-            {/* Self Evaluation for Plan */}
-            <div className="space-y-2 rounded-xl border border-border bg-background p-3.5">
-              <p className="text-xs font-bold text-foreground">
-                كيف كان أداؤك في هذه الخطة؟ (يحدّث جدول التكرار المتباعد)
+        {/* Weak Verses Alert Bar */}
+        {queues.weakItems.length > 0 && (
+          <section className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card p-3.5">
+            <div className="flex items-center gap-2.5">
+              <AlertCircle className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+              <p className="text-xs font-medium text-foreground">
+                لديك{' '}
+                <span className="font-bold">{toArabicDigits(queues.weakItems.length)}</span>{' '}
+                {queues.weakItems.length === 1 ? 'آية تحتاج' : 'آيات تحتاج'} لعناية إضافية.
               </p>
-              <div className="grid grid-cols-3 gap-2">
-                {evalOptions.map((opt) => {
-                  const selected = planRating === opt.id;
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => setPlanRating(opt.id)}
-                      aria-pressed={selected}
-                      className={cn(
-                        'flex min-h-[56px] flex-col items-center justify-center rounded-xl border p-2 text-center transition-colors',
-                        selected
-                          ? 'border-primary bg-primary text-primary-foreground'
-                          : 'border-border bg-card text-foreground hover:bg-secondary',
-                      )}
-                    >
-                      <span className="text-xs font-bold">{opt.label}</span>
-                      <span className="text-[10px] opacity-85">{opt.hint}</span>
-                    </button>
-                  );
-                })}
-              </div>
             </div>
-
             <button
               type="button"
-              onClick={handleCompletePlan}
-              className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-base font-bold text-primary-foreground hover:opacity-95"
+              onClick={() => startPlan('weak_spots')}
+              className="shrink-0 rounded-xl bg-secondary px-3 py-2 text-xs font-bold text-primary hover:opacity-90"
             >
-              <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
-              <span>أتممت المراجعة وتثبيت التقييم</span>
+              مراجعتها الآن
             </button>
           </section>
         )}
 
-        {/* Scientific Revision Plans Grid */}
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-foreground">اختر برنامج المراجعة</h2>
-            <span className="text-xs text-muted-foreground">مبني على أبحاث الذاكرة</span>
+        {/* Filter Pills + Section Header */}
+        <section className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-bold text-foreground">برامج المراجعة المتاحة</h2>
+            <div
+              role="group"
+              aria-label="تصنيف خطط المراجعة"
+              className="flex items-center gap-1.5 rounded-xl border border-border bg-card p-1"
+            >
+              {(
+                [
+                  { id: 'all', label: 'الكل' },
+                  { id: 'scheduled', label: 'خطط زمنية' },
+                  { id: 'focused', label: 'سورة وتركيز' },
+                ] as const
+              ).map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setCategoryFilter(tab.id)}
+                  aria-pressed={categoryFilter === tab.id}
+                  className={cn(
+                    'rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors',
+                    categoryFilter === tab.id
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {plans.map((plan) => {
+            {visiblePlans.map((plan) => {
               const Icon = plan.icon;
               const isAvailable = plan.items.length > 0;
-              const isActive = activePlanId === plan.id;
+              const isRecommended = plan.id === recommendedPlanId;
 
               return (
                 <article
                   key={plan.id}
                   className={cn(
-                    'flex flex-col justify-between gap-3 rounded-2xl border bg-card p-4 transition-colors',
-                    isActive ? 'border-primary ring-1 ring-primary/30' : 'border-border',
+                    'flex flex-col justify-between gap-3.5 rounded-2xl border bg-card p-4 transition-colors',
+                    isRecommended
+                      ? 'border-primary/45 ring-1 ring-primary/15'
+                      : 'border-border',
                   )}
                 >
                   <div className="space-y-2.5">
@@ -584,24 +755,31 @@ export default function RevisionPage() {
                           <Icon className="h-5 w-5" aria-hidden="true" />
                         </span>
                         <div>
-                          <h3 className="text-base font-bold text-foreground">{plan.title}</h3>
-                          <span className="text-xs font-semibold text-primary">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <h3 className="text-base font-bold text-foreground">{plan.title}</h3>
+                            {isRecommended && (
+                              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
+                                مقترح الآن
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[11px] font-semibold text-primary">
                             {plan.scienceTag}
                           </span>
                         </div>
                       </div>
+
                       <span className="shrink-0 rounded-full bg-secondary px-2.5 py-1 text-[11px] font-semibold text-secondary-foreground">
                         {plan.badge}
                       </span>
                     </div>
 
                     <p className="text-xs leading-relaxed text-muted-foreground">
-                      {plan.scienceNote}
+                      {plan.shortDesc}
                     </p>
 
-                    {/* Surah Selector for Whole Surah plan */}
                     {plan.id === 'whole_surah' && (
-                      <div className="pt-1">
+                      <div className="pt-0.5">
                         <MillaPicker
                           value={String(selectedSurahId)}
                           options={surahOptions}
@@ -609,9 +787,6 @@ export default function RevisionPage() {
                             const nextId = Number(val);
                             if (Number.isFinite(nextId)) {
                               setSelectedSurahId(nextId);
-                              if (activePlanId === 'whole_surah') {
-                                setActiveAudioIdx(0);
-                              }
                             }
                           }}
                           title="اختر السورة للمراجعة الكاملة"
@@ -650,8 +825,8 @@ export default function RevisionPage() {
                       <PlayCircle className="h-4 w-4" aria-hidden="true" />
                       <span>
                         {isAvailable
-                          ? `بدء الخطة (${toArabicDigits(plan.items.length)} ${plan.items.length === 1 ? 'آية' : 'آيات'})`
-                          : 'لا توجد آيات محفوظة في هذا النطاق بعد'}
+                          ? `بدء المراجعة (${toArabicDigits(plan.items.length)} ${plan.items.length === 1 ? 'آية' : 'آيات'})`
+                          : 'لا توجد آيات محفوظة بعد'}
                       </span>
                     </button>
                   </div>
@@ -662,7 +837,7 @@ export default function RevisionPage() {
         </section>
 
         {/* Empty state CTA to Memorize */}
-        {Object.keys(verseRecords).length === 0 && (
+        {totalMemorizedCount === 0 && (
           <section className="rounded-2xl border border-border bg-card p-5 text-center">
             <BookOpen className="mx-auto h-7 w-7 text-primary" aria-hidden="true" />
             <h2 className="mt-2 text-base font-bold text-foreground">
@@ -679,27 +854,6 @@ export default function RevisionPage() {
               <span>الانتقال إلى الحفظ الجديد</span>
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             </Link>
-          </section>
-        )}
-
-        {/* Quick Reference to Weak Verses count if any */}
-        {queues.weakItems.length > 0 && !activePlan && (
-          <section className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4">
-            <div className="flex items-center gap-2.5">
-              <AlertCircle className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
-              <p className="text-xs font-medium text-foreground">
-                لديك{' '}
-                <span className="font-bold">{toArabicDigits(queues.weakItems.length)}</span>{' '}
-                {queues.weakItems.length === 1 ? 'آية تحتاج' : 'آيات تحتاج'} لعناية إضافية.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => startPlan('weak_spots')}
-              className="shrink-0 rounded-xl bg-secondary px-3 py-2 text-xs font-bold text-primary hover:opacity-90"
-            >
-              مراجعتها الآن
-            </button>
           </section>
         )}
       </div>
