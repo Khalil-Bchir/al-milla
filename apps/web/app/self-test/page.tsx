@@ -1,61 +1,123 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, CheckCircle2, Eye, EyeOff, Info, RotateCcw, Volume2 } from 'lucide-react';
 import { AppShell } from '@/components/milla/AppShell';
 import { cn } from '@/lib/utils';
 import { MILLA_COPY } from '@/lib/milla-i18n';
-import { getSurahById } from '@/lib/quran-data';
+import {
+  getEveryAyahAudioUrl,
+  getSurahById,
+  loadVerifiedSurahAyahs,
+  type AyahEntry,
+} from '@/lib/quran-data';
 import { useMillaStore, type SelfEvalRating } from '@/store/milla-store';
 
 export default function SelfTestPage() {
   const language = useMillaStore((s) => s.language);
   const currentSurahId = useMillaStore((s) => s.currentSurahId);
+  const currentAyah = useMillaStore((s) => s.currentAyah);
+  const setCurrentPosition = useMillaStore((s) => s.setCurrentPosition);
+  const reciter = useMillaStore((s) => s.reciter);
   const recordEvaluation = useMillaStore((s) => s.recordEvaluation);
 
   const surah = getSurahById(currentSurahId);
-  const [ayahIdx, setAyahIdx] = useState(0);
+  const [ayahs, setAyahs] = useState<AyahEntry[]>(surah.ayahs);
   const [revealed, setRevealed] = useState(false);
   const [rating, setRating] = useState<SelfEvalRating | null>(null);
   const [audioHintPlaying, setAudioHintPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  useEffect(() => {
+    let cancelled = false;
+    void loadVerifiedSurahAyahs(currentSurahId).then((res) => {
+      if (!cancelled && res.ayahs.length > 0) {
+        setAyahs(res.ayahs);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentSurahId]);
+
+  const ayahIdx = Math.max(
+    0,
+    ayahs.findIndex((a) => a.number === currentAyah),
+  );
+  const ayah = ayahs[ayahIdx] ?? ayahs[0];
   const copy = MILLA_COPY[language];
-  const ayah = surah.ayahs[ayahIdx] ?? surah.ayahs[0];
+
+  const handleToggleAudioReference = async () => {
+    if (!audioRef.current) return;
+    if (audioHintPlaying) {
+      try {
+        audioRef.current.pause();
+      } catch {
+        // Ignore pause error
+      }
+      setAudioHintPlaying(false);
+      return;
+    }
+    try {
+      await audioRef.current.play();
+      setAudioHintPlaying(true);
+    } catch {
+      setAudioHintPlaying(false);
+    }
+  };
 
   const handleSubmitAndNext = () => {
-    if (rating) {
+    if (rating && ayah) {
       recordEvaluation(`${surah.id}:${ayah.number}`, rating);
     }
     setRevealed(false);
     setRating(null);
-    setAyahIdx((prev) => (prev + 1) % surah.ayahs.length);
+    setAudioHintPlaying(false);
+    const nextIdx = (ayahIdx + 1) % Math.max(1, ayahs.length);
+    const nextAyahObj = ayahs[nextIdx];
+    if (nextAyahObj) {
+      setCurrentPosition(surah.id, nextAyahObj.number);
+    }
   };
 
   const ratings: { id: SelfEvalRating; title: string; subtitle: string }[] = [
-    { id: 'difficult', title: 'صعبة', subtitle: 'تعثّرت / نسيت' },
+    { id: 'difficult', title: 'صعبة', subtitle: 'تعثّرت / مراجعة غداً' },
     { id: 'good', title: 'جيدة', subtitle: 'بتردّد يسير' },
     { id: 'easy', title: 'متقنة', subtitle: 'رسوخ كالماء' },
   ];
 
   return (
-    <AppShell title="التسميع الذاتي" subtitle={`${surah.nameAr} • الآية ${ayah.number} من ${surah.ayahs.length}`}>
+    <AppShell
+      title="التسميع الذاتي"
+      subtitle={`${surah.nameAr} • الآية ${ayah?.number ?? 1} من ${surah.totalAyahs}`}
+    >
       <div className="space-y-5">
+        {ayah && (
+          <audio
+            ref={audioRef}
+            src={getEveryAyahAudioUrl(reciter, surah.id, ayah.number)}
+            preload="none"
+            onEnded={() => setAudioHintPlaying(false)}
+            onError={() => setAudioHintPlaying(false)}
+          />
+        )}
+
         {/* Progress Header */}
         <section className="rounded-2xl border border-border bg-card p-4">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-xs font-bold text-primary">التسميع الغيبي الذاتي</span>
             <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-semibold text-secondary-foreground">
-              الآية {ayahIdx + 1} من {surah.ayahs.length}
+              الآية {ayah?.number ?? 1} من {surah.totalAyahs}
             </span>
           </div>
           <h1 className="text-lg font-bold text-foreground">{surah.nameAr}</h1>
           <div className="mt-3 grid grid-cols-5 gap-1.5">
-            {surah.ayahs.map((item, idx) => (
+            {ayahs.slice(0, 5).map((item, idx) => (
               <span
                 key={item.number}
                 className={cn(
                   'h-2 rounded-full transition-colors',
-                  idx <= ayahIdx ? 'bg-primary' : 'bg-muted',
+                  idx <= ayahIdx % 5 ? 'bg-primary' : 'bg-muted',
                 )}
               />
             ))}
@@ -64,12 +126,12 @@ export default function SelfTestPage() {
 
         {/* Hidden / Revealed Verse Card */}
         <section className="rounded-2xl border border-border bg-card p-5 text-center">
-          <p className="mb-4 text-xs font-medium text-muted-foreground">
+          <p className="mb-4 text-sm font-medium text-muted-foreground">
             اقرأ بصوتك غيباً بتؤدة ورتّل، ثم اكشف النص للمطابقة...
           </p>
 
-          <div className="min-h-[140px] rounded-2xl border border-dashed border-border bg-secondary/40 p-5 flex flex-col items-center justify-center">
-            {revealed ? (
+          <div className="flex min-h-[140px] flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-secondary/40 p-5">
+            {revealed && ayah ? (
               <p className="quran-text text-foreground" dir="rtl" lang="ar">
                 {ayah.textAr} ({ayah.number})
               </p>
@@ -108,13 +170,13 @@ export default function SelfTestPage() {
             <div>
               <h2 className="text-sm font-bold text-foreground">التدقيق الصوتي المرجعي</h2>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                {ayah.qalunNote ?? 'استمع للتحقق من مخارج الحروف والضبط'}
+                {ayah?.qalunNote ?? 'استمع للتحقق من مخارج الحروف والضبط'}
               </p>
             </div>
             <button
               type="button"
-              onClick={() => setAudioHintPlaying((v) => !v)}
-              className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-primary px-4 text-xs font-bold text-primary-foreground"
+              onClick={() => void handleToggleAudioReference()}
+              className="inline-flex min-h-[48px] items-center gap-2 rounded-xl bg-primary px-4 text-xs font-bold text-primary-foreground"
             >
               <Volume2 className="h-4 w-4" aria-hidden="true" />
               <span>{audioHintPlaying ? 'إيقاف' : 'استماع'}</span>
@@ -132,7 +194,7 @@ export default function SelfTestPage() {
         <section className="rounded-2xl border border-border bg-card p-4">
           <h2 className="mb-1 text-base font-bold text-foreground">كيف وجدت استحضارك لهذه الآية؟</h2>
           <p className="mb-3 text-xs text-muted-foreground">
-            صدق التقييم يصنع متانة الحفظ ورسوخه في الصدر
+            صدق التقييم يحدّث موعد المراجعة القادمة تلقائياً في محفظتك
           </p>
 
           <div className="grid grid-cols-3 gap-2.5">
@@ -188,7 +250,7 @@ export default function SelfTestPage() {
               setRevealed(false);
               setRating(null);
             }}
-            className="flex min-h-[44px] w-full items-center justify-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
+            className="flex min-h-[48px] w-full items-center justify-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
           >
             <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
             <span>إعادة التسميع لهذه الآية مرة أخرى</span>

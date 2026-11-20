@@ -15,6 +15,13 @@ export interface MillaCopy {
   freeIndividualNote: string;
   noAccountNote: string;
   selfEvalDisclaimer: string;
+  homeGreeting: string;
+  homeSubgreeting: string;
+  homeTodayWird: string;
+  homeContinueCta: string;
+  homeRevisionTitle: string;
+  homeNewMemTitle: string;
+  homeOpenMushaf: string;
 }
 
 export const MILLA_COPY: Record<AppLanguage, MillaCopy> = {
@@ -32,7 +39,15 @@ export const MILLA_COPY: Record<AppLanguage, MillaCopy> = {
     onlineLabel: 'متصل • حفظ محلي',
     freeIndividualNote: 'تطبيق مجاني فردي بالكامل بدون اشتراكات أو إعلانات.',
     noAccountNote: 'يُحفظ تقدّمك محلياً على جهازك دون الحاجة لتسجيل حساب.',
-    selfEvalDisclaimer: 'التقييم الذاتي معين على التثبيت ولا يغني عن التلقّي والمشافهة لدى معلم مجاز في التجويد.',
+    selfEvalDisclaimer:
+      'التقييم الذاتي معين على التثبيت ولا يغني عن التلقّي والمشافهة لدى معلم مجاز في التجويد.',
+    homeGreeting: 'السلام عليكم ورحمة الله',
+    homeSubgreeting: 'خطوة هادئة كل يوم تثبّت حفظك دون عجلة.',
+    homeTodayWird: 'ورد اليوم',
+    homeContinueCta: 'متابعة التعلّم الآن',
+    homeRevisionTitle: 'مراجعة اليوم',
+    homeNewMemTitle: 'الحفظ الجديد',
+    homeOpenMushaf: 'فتح المصحف الشريف',
   },
   en: {
     brandName: 'Al-Millah',
@@ -48,7 +63,15 @@ export const MILLA_COPY: Record<AppLanguage, MillaCopy> = {
     onlineLabel: 'Local-first storage',
     freeIndividualNote: 'Completely free, individual-only companion with no ads or subscriptions.',
     noAccountNote: 'Your progress is saved locally on your device with no account required.',
-    selfEvalDisclaimer: 'Self-evaluation supports retention and does not replace qualified Tajweed teacher feedback.',
+    selfEvalDisclaimer:
+      'Self-evaluation supports retention and does not replace qualified Tajweed teacher feedback.',
+    homeGreeting: 'Peace and blessings be upon you',
+    homeSubgreeting: 'A calm daily step strengthens your memorization without rush.',
+    homeTodayWird: "Today's Portion",
+    homeContinueCta: 'Continue Learning Now',
+    homeRevisionTitle: "Today's Revision",
+    homeNewMemTitle: 'New Memorization',
+    homeOpenMushaf: 'Open Noble Mushaf',
   },
   fr: {
     brandName: 'Al-Millah',
@@ -64,6 +87,14 @@ export const MILLA_COPY: Record<AppLanguage, MillaCopy> = {
     onlineLabel: 'Stockage local',
     freeIndividualNote: 'Compagnon gratuit et individuel, sans publicités ni abonnements.',
     noAccountNote: 'Votre progression est enregistrée localement sur votre appareil sans compte requis.',
-    selfEvalDisclaimer: 'L’auto-évaluation aide à la révision et ne remplace pas un enseignant qualifié de Tajwid.',
+    selfEvalDisclaimer:
+      'L’auto-évaluation aide à la révision et ne remplace pas un enseignant qualifié de Tajwid.',
+    homeGreeting: 'Que la paix et la bénédiction soient sur vous',
+    homeSubgreeting: 'Un pas serein chaque jour consolide votre mémorisation sans hâte.',
+    homeTodayWird: 'Portion du jour',
+    homeContinueCta: 'Continuer la séance',
+    homeRevisionTitle: 'Révision du jour',
+    homeNewMemTitle: 'Nouvelle mémorisation',
+    homeOpenMushaf: 'Ouvrir le Noble Mushaf',
   },
 };

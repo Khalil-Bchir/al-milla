@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Pause, Play, Repeat, RotateCcw, SkipBack, SkipForward } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Pause, Play, Repeat, RotateCcw, SkipBack, SkipForward, Volume2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getEveryAyahAudioUrl } from '@/lib/quran-data';
 import { useMillaStore, type PlaybackSpeed } from '@/store/milla-store';
 
 interface AudioPlayerBarProps {
+  surahId?: number;
   surahName: string;
   ayahNumber: number;
   onPrevAyah?: () => void;
@@ -16,6 +18,7 @@ interface AudioPlayerBarProps {
 const SPEED_OPTIONS: PlaybackSpeed[] = [0.75, 1.0, 1.25];
 
 export function AudioPlayerBar({
+  surahId = 18,
   surahName,
   ayahNumber,
   onPrevAyah,
@@ -27,20 +30,54 @@ export function AudioPlayerBar({
   const setPlaybackSpeed = useMillaStore((s) => s.setPlaybackSpeed);
   const mandatoryRepeats = useMillaStore((s) => s.mandatoryRepeats);
 
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [repeatLoopActive, setRepeatLoopActive] = useState(true);
   const [currentRepeat, setCurrentRepeat] = useState(1);
   const [progress, setProgress] = useState(0);
+  const [useFallbackTimer, setUseFallbackTimer] = useState(false);
+  const [audioStatusNote, setAudioStatusNote] = useState<string>('تلاوة صوتية مباشرة');
+
+  const audioUrl = getEveryAyahAudioUrl(reciter, surahId, ayahNumber);
 
   const reciterLabel =
     reciter === 'hudhaify'
-      ? 'الشيخ علي الحذيفي (معاينة محلية)'
+      ? 'الشيخ علي الحذيفي'
       : reciter === 'husary'
-        ? 'الشيخ محمود خليل الحصري (معاينة محلية)'
-        : 'الشيخ محمد صديق المنشاوي (معاينة محلية)';
+        ? 'الشيخ محمود خليل الحصري'
+        : 'الشيخ محمد صديق المنشاوي';
 
+  // Reset playback state when surah/ayah/reciter changes
   useEffect(() => {
-    if (!isPlaying) return;
+    setIsPlaying(false);
+    setCurrentRepeat(1);
+    setProgress(0);
+    setUseFallbackTimer(false);
+    setAudioStatusNote('تلاوة صوتية مباشرة');
+    if (audioRef.current) {
+      try {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      } catch {
+        // Ignore reset errors
+      }
+    }
+  }, [surahId, ayahNumber, reciter]);
+
+  // Sync playbackRate on HTML5 audio element
+  useEffect(() => {
+    if (audioRef.current) {
+      try {
+        audioRef.current.playbackRate = playbackSpeed;
+      } catch {
+        // Ignore unsupported playbackRate errors
+      }
+    }
+  }, [playbackSpeed]);
+
+  // Fallback cadence timer when offline or external MP3 fails to load
+  useEffect(() => {
+    if (!isPlaying || !useFallbackTimer) return;
     const intervalMs = Math.round(120 / playbackSpeed);
     const timer = window.setInterval(() => {
       setProgress((prev) => {
@@ -58,7 +95,71 @@ export function AudioPlayerBar({
     }, intervalMs);
 
     return () => window.clearInterval(timer);
-  }, [isPlaying, playbackSpeed, repeatLoopActive, currentRepeat, mandatoryRepeats, onRepeatCycleComplete]);
+  }, [
+    isPlaying,
+    useFallbackTimer,
+    playbackSpeed,
+    repeatLoopActive,
+    currentRepeat,
+    mandatoryRepeats,
+    onRepeatCycleComplete,
+  ]);
+
+  const togglePlayPause = async () => {
+    if (isPlaying) {
+      setIsPlaying(false);
+      if (audioRef.current) {
+        try {
+          audioRef.current.pause();
+        } catch {
+          // Ignore pause error
+        }
+      }
+      return;
+    }
+
+    if (progress >= 100) {
+      setProgress(0);
+      setCurrentRepeat(1);
+    }
+
+    if (useFallbackTimer || !audioRef.current) {
+      setIsPlaying(true);
+      return;
+    }
+
+    try {
+      audioRef.current.playbackRate = playbackSpeed;
+      await audioRef.current.play();
+      setIsPlaying(true);
+      setAudioStatusNote('تلاوة صوتية مباشرة');
+    } catch {
+      // Fallback gracefully when offline or stream blocked
+      setUseFallbackTimer(true);
+      setAudioStatusNote('وضع المؤقّت المحلي (دون اتصال)');
+      setIsPlaying(true);
+    }
+  };
+
+  const handleAudioEnded = () => {
+    if (repeatLoopActive && currentRepeat < mandatoryRepeats) {
+      const nextCount = currentRepeat + 1;
+      setCurrentRepeat(nextCount);
+      setProgress(0);
+      if (audioRef.current) {
+        try {
+          audioRef.current.currentTime = 0;
+          void audioRef.current.play();
+          return;
+        } catch {
+          // Fall through to stop
+        }
+      }
+    }
+    setProgress(100);
+    setIsPlaying(false);
+    if (onRepeatCycleComplete) onRepeatCycleComplete();
+  };
 
   const cycleSpeed = () => {
     const idx = SPEED_OPTIONS.indexOf(playbackSpeed);
@@ -71,10 +172,26 @@ export function AudioPlayerBar({
       aria-label="مشغل التلاوة والتكرار"
       className="rounded-2xl border border-border bg-card p-4"
     >
+      <audio
+        ref={audioRef}
+        src={audioUrl}
+        preload="none"
+        onTimeUpdate={() => {
+          const el = audioRef.current;
+          if (!el || !el.duration || Number.isNaN(el.duration)) return;
+          setProgress(Math.min(100, Math.round((el.currentTime / el.duration) * 100)));
+        }}
+        onEnded={handleAudioEnded}
+        onError={() => {
+          setUseFallbackTimer(true);
+          setAudioStatusNote('وضع المؤقّت المحلي (دون اتصال)');
+        }}
+      />
+
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2.5">
-          <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-accent/25 text-foreground">
-            <RotateCcw className="h-4 w-4 text-primary" aria-hidden="true" />
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-accent/25 text-foreground">
+            <RotateCcw className="h-5 w-5 text-primary" aria-hidden="true" />
           </span>
           <div>
             <p className="text-xs text-muted-foreground">
@@ -102,8 +219,11 @@ export function AudioPlayerBar({
       {/* Progress Bar */}
       <div className="mb-3">
         <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-          <span>{reciterLabel}</span>
-          <span>وضع المعاينة المحلي (أوفلاين)</span>
+          <span className="inline-flex items-center gap-1 font-medium text-foreground">
+            <Volume2 className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+            <span>{reciterLabel}</span>
+          </span>
+          <span>{audioStatusNote}</span>
         </div>
         <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
           <div
@@ -119,7 +239,7 @@ export function AudioPlayerBar({
           type="button"
           onClick={() => setRepeatLoopActive((v) => !v)}
           className={cn(
-            'inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-colors',
+            'inline-flex min-h-[48px] items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-colors',
             repeatLoopActive
               ? 'border-accent bg-accent/20 text-foreground'
               : 'border-border bg-background text-muted-foreground',
@@ -135,7 +255,7 @@ export function AudioPlayerBar({
             type="button"
             onClick={onPrevAyah}
             disabled={!onPrevAyah}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-background text-foreground transition-colors hover:bg-secondary disabled:opacity-40"
+            className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-foreground transition-colors hover:bg-secondary disabled:opacity-40"
             aria-label="الآية السابقة"
           >
             <SkipForward className="h-5 w-5" aria-hidden="true" />
@@ -143,10 +263,7 @@ export function AudioPlayerBar({
 
           <button
             type="button"
-            onClick={() => {
-              if (progress >= 100) setProgress(0);
-              setIsPlaying((p) => !p);
-            }}
+            onClick={() => void togglePlayPause()}
             className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-transform active:scale-95"
             aria-label={isPlaying ? 'إيقاف التلاوة مؤقتاً' : 'تشغيل التلاوة'}
           >
@@ -161,7 +278,7 @@ export function AudioPlayerBar({
             type="button"
             onClick={onNextAyah}
             disabled={!onNextAyah}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-background text-foreground transition-colors hover:bg-secondary disabled:opacity-40"
+            className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-foreground transition-colors hover:bg-secondary disabled:opacity-40"
             aria-label="الآية التالية"
           >
             <SkipBack className="h-5 w-5" aria-hidden="true" />
@@ -171,7 +288,7 @@ export function AudioPlayerBar({
         <button
           type="button"
           onClick={cycleSpeed}
-          className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-border bg-background px-3 text-xs font-bold text-foreground transition-colors hover:bg-secondary"
+          className="inline-flex min-h-[48px] items-center justify-center rounded-xl border border-border bg-background px-3.5 text-xs font-bold text-foreground transition-colors hover:bg-secondary"
           aria-label="تغيير سرعة التلاوة"
         >
           {playbackSpeed}x

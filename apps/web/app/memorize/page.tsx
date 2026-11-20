@@ -1,12 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { BookOpen, CheckCircle2, ChevronDown, Eye, EyeOff, Lightbulb } from 'lucide-react';
+import { BookOpen, CheckCircle2, ChevronDown, Eye, EyeOff, Lightbulb, RefreshCw } from 'lucide-react';
 import { AppShell } from '@/components/milla/AppShell';
 import { AudioPlayerBar } from '@/components/milla/AudioPlayerBar';
 import { cn } from '@/lib/utils';
-import { getSurahById } from '@/lib/quran-data';
+import {
+  SURAHS,
+  getSurahById,
+  loadVerifiedSurahAyahs,
+  type AyahEntry,
+} from '@/lib/quran-data';
 import { useMillaStore } from '@/store/milla-store';
 
 const STANDARD_FIVE_STAGES = [
@@ -23,24 +28,47 @@ export default function MemorizePage() {
   const setCurrentPosition = useMillaStore((s) => s.setCurrentPosition);
   const setVerseStatus = useMillaStore((s) => s.setVerseStatus);
   const narration = useMillaStore((s) => s.narration);
+  const language = useMillaStore((s) => s.language);
   const showTranslation = useMillaStore((s) => s.showTranslation);
   const showTransliteration = useMillaStore((s) => s.showTransliteration);
 
+  const surah = getSurahById(currentSurahId);
+  const [ayahs, setAyahs] = useState<AyahEntry[]>(surah.ayahs);
+  const [loadingAyahs, setLoadingAyahs] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeStage, setActiveStage] = useState<number>(2);
   const [hideWordsMode, setHideWordsMode] = useState(false);
   const [showTafsirBox, setShowTafsirBox] = useState(false);
 
-  const surah = getSurahById(currentSurahId);
+  useEffect(() => {
+    let cancelled = false;
+    const fetchSurah = async () => {
+      setLoadingAyahs(true);
+      setLoadError(null);
+      const res = await loadVerifiedSurahAyahs(currentSurahId);
+      if (cancelled) return;
+      if (res.ayahs.length > 0) {
+        setAyahs(res.ayahs);
+      }
+      setLoadError(res.error);
+      setLoadingAyahs(false);
+    };
+    void fetchSurah();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentSurahId]);
+
   const ayahIndex = Math.max(
     0,
-    surah.ayahs.findIndex((a) => a.number === currentAyah),
+    ayahs.findIndex((a) => a.number === currentAyah),
   );
-  const activeAyah = surah.ayahs[ayahIndex] ?? surah.ayahs[0];
-  const nextAyah = surah.ayahs[ayahIndex + 1];
+  const activeAyah = ayahs[ayahIndex] ?? ayahs[0];
+  const nextAyah = ayahs[ayahIndex + 1];
 
   const handlePrev = () => {
     if (ayahIndex > 0) {
-      setCurrentPosition(surah.id, surah.ayahs[ayahIndex - 1].number);
+      setCurrentPosition(surah.id, ayahs[ayahIndex - 1].number);
     }
   };
 
@@ -51,6 +79,7 @@ export default function MemorizePage() {
   };
 
   const handleMarkMastered = () => {
+    if (!activeAyah) return;
     setVerseStatus(`${surah.id}:${activeAyah.number}`, 'memorized');
     if (nextAyah) {
       setCurrentPosition(surah.id, nextAyah.number);
@@ -66,13 +95,25 @@ export default function MemorizePage() {
   return (
     <AppShell title="الحفظ الموجه" subtitle={`${surah.nameAr} • الحزب ${surah.hizb}`}>
       <div className="space-y-4">
-        {/* Top Surah & Narration Header */}
-        <div className="flex items-center justify-between rounded-2xl border border-border bg-card px-4 py-3">
+        {/* Top Surah Selector & Narration Header */}
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border bg-card px-4 py-3">
           <div className="flex items-center gap-2">
             <BookOpen className="h-5 w-5 text-primary" aria-hidden="true" />
-            <span className="text-base font-bold text-foreground">
-              {surah.nameAr} • الآية {activeAyah.number}
-            </span>
+            <label htmlFor="memorize-surah-select" className="sr-only">
+              اختر السورة
+            </label>
+            <select
+              id="memorize-surah-select"
+              value={surah.id}
+              onChange={(e) => setCurrentPosition(Number(e.target.value), 1)}
+              className="min-h-[44px] rounded-xl border border-border bg-background px-3 text-sm font-bold text-foreground"
+            >
+              {SURAHS.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.id}. {s.nameAr}
+                </option>
+              ))}
+            </select>
           </div>
           <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">
             {narration === 'qalun' ? 'رواية قالون' : narration === 'warsh' ? 'رواية ورش' : 'رواية حفص'}
@@ -120,7 +161,7 @@ export default function MemorizePage() {
         <section className="rounded-2xl border border-border bg-card p-5">
           <div className="mb-3 flex items-center justify-between gap-2">
             <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">
-              {surah.nameAr} • {surah.revelationTypeAr}
+              {surah.nameAr} • الآية {activeAyah?.number ?? 1} من {surah.totalAyahs}
             </span>
             <button
               type="button"
@@ -142,67 +183,85 @@ export default function MemorizePage() {
             </button>
           </div>
 
-          <p className="mb-4 text-center font-quran text-xl text-muted-foreground">
-            بِسْمِ اللَّهِ الرَّحْمَـٰنِ الرَّحِيمِ
-          </p>
-
-          <div className="rounded-2xl bg-secondary/50 p-4 text-center">
-            <p className="quran-text text-foreground" dir="rtl" lang="ar">
-              {renderMaskedText(activeAyah.textAr)}{' '}
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card font-sans text-xs font-bold text-primary">
-                {activeAyah.number}
-              </span>
-            </p>
-          </div>
-
-          {showTranslation && (
-            <p className="mt-3 text-base leading-relaxed text-muted-foreground" dir="ltr">
-              {activeAyah.translationEn}
-            </p>
-          )}
-          {showTransliteration && (
-            <p className="mt-2 font-latin text-sm italic text-muted-foreground" dir="ltr">
-              {activeAyah.transliteration}
+          {surah.id !== 1 && surah.id !== 9 && (
+            <p className="mb-4 text-center font-quran text-xl text-muted-foreground">
+              بِسْمِ اللَّهِ الرَّحْمَـٰنِ الرَّحِيمِ
             </p>
           )}
 
-          {nextAyah && (
-            <div className="mt-4 rounded-xl border border-dashed border-border p-3 text-center opacity-80">
-              <p className="mb-1 text-xs font-medium text-muted-foreground">الآية التالية للربط</p>
-              <p className="font-quran text-lg text-foreground" dir="rtl" lang="ar">
-                {nextAyah.textAr} ({nextAyah.number})
-              </p>
+          {loadingAyahs && !activeAyah ? (
+            <div className="flex min-h-[120px] flex-col items-center justify-center gap-2 rounded-2xl bg-secondary/40 p-6 text-sm text-muted-foreground">
+              <RefreshCw className="h-5 w-5 animate-spin text-primary" aria-hidden="true" />
+              <span>جاري تحميل آيات {surah.nameAr} وحفظها محلياً...</span>
             </div>
-          )}
+          ) : activeAyah ? (
+            <>
+              <div className="rounded-2xl bg-secondary/50 p-4 text-center">
+                <p className="quran-text text-foreground" dir="rtl" lang="ar">
+                  {renderMaskedText(activeAyah.textAr)}{' '}
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card font-sans text-xs font-bold text-primary">
+                    {activeAyah.number}
+                  </span>
+                </p>
+              </div>
 
-          <div className="mt-4">
-            <button
-              type="button"
-              onClick={() => setShowTafsirBox((v) => !v)}
-              className="flex min-h-[48px] w-full items-center justify-between rounded-xl border border-border bg-background px-3.5 text-sm font-semibold text-foreground hover:bg-secondary"
-              aria-expanded={showTafsirBox}
-            >
-              <span>المعنى والتفسير الميسر</span>
-              <ChevronDown
-                className={cn('h-4 w-4 transition-transform', showTafsirBox && 'rotate-180')}
-                aria-hidden="true"
-              />
-            </button>
-            {showTafsirBox && (
-              <div className="mt-2 space-y-2 rounded-xl bg-muted/60 p-3.5 text-sm leading-relaxed text-foreground">
-                <p>{activeAyah.translationEn}</p>
-                {activeAyah.qalunNote && (
-                  <p className="font-semibold text-primary">ملاحظة أولية: {activeAyah.qalunNote}</p>
+              {showTranslation && (
+                <p className="mt-3 text-base leading-relaxed text-muted-foreground" dir="ltr">
+                  {language === 'fr' ? activeAyah.translationFr : activeAyah.translationEn}
+                </p>
+              )}
+              {showTransliteration && activeAyah.transliteration && (
+                <p className="mt-2 font-latin text-sm italic text-muted-foreground" dir="ltr">
+                  {activeAyah.transliteration}
+                </p>
+              )}
+
+              {nextAyah && (
+                <div className="mt-4 rounded-xl border border-dashed border-border p-3 text-center opacity-80">
+                  <p className="mb-1 text-xs font-medium text-muted-foreground">الآية التالية للربط</p>
+                  <p className="font-quran text-lg text-foreground" dir="rtl" lang="ar">
+                    {nextAyah.textAr} ({nextAyah.number})
+                  </p>
+                </div>
+              )}
+
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowTafsirBox((v) => !v)}
+                  className="flex min-h-[48px] w-full items-center justify-between rounded-xl border border-border bg-background px-3.5 text-sm font-semibold text-foreground hover:bg-secondary"
+                  aria-expanded={showTafsirBox}
+                >
+                  <span>المعنى والترجمة الميسرة</span>
+                  <ChevronDown
+                    className={cn('h-4 w-4 transition-transform', showTafsirBox && 'rotate-180')}
+                    aria-hidden="true"
+                  />
+                </button>
+                {showTafsirBox && (
+                  <div className="mt-2 space-y-2 rounded-xl bg-muted/60 p-3.5 text-sm leading-relaxed text-foreground">
+                    <p dir="ltr">
+                      {language === 'fr' ? activeAyah.translationFr : activeAyah.translationEn}
+                    </p>
+                    {activeAyah.qalunNote && (
+                      <p className="font-semibold text-primary">ملاحظة: {activeAyah.qalunNote}</p>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
+            </>
+          ) : (
+            <div className="rounded-2xl border border-border bg-muted/40 p-5 text-center text-sm text-muted-foreground">
+              {loadError ?? 'اتصل بالإنترنت لمرة واحدة لتحميل هذه السورة وحفظها في ذاكرة الجهاز.'}
+            </div>
+          )}
         </section>
 
         {/* Audio & Repeat Control */}
         <AudioPlayerBar
+          surahId={surah.id}
           surahName={surah.nameAr}
-          ayahNumber={activeAyah.number}
+          ayahNumber={activeAyah?.number ?? 1}
           onPrevAyah={ayahIndex > 0 ? handlePrev : undefined}
           onNextAyah={nextAyah ? handleNext : undefined}
         />
@@ -210,7 +269,7 @@ export default function MemorizePage() {
         {/* Calm Tip */}
         <div className="flex items-start gap-2.5 rounded-2xl border border-border bg-secondary/40 p-3.5 text-sm leading-relaxed text-foreground">
           <Lightbulb className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
-          <p>ثبّت موضع الوقف في الآية الأولى قبل الانتقال لربطها بالآية التالية.</p>
+          <p>ثبّت موضع الوقف في الآية الحالية قبل الانتقال لربطها بالآية التالية.</p>
         </div>
 
         {/* Actions */}

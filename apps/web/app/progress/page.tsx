@@ -1,28 +1,21 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { BookOpen, CheckCircle2, Settings } from 'lucide-react';
 import { AppShell } from '@/components/milla/AppShell';
 import { cn } from '@/lib/utils';
-import { INITIAL_SURAH_MASTERY } from '@/lib/quran-data';
-import { useMillaStore } from '@/store/milla-store';
+import { computeProgressMetrics, useMillaStore } from '@/store/milla-store';
 
 export default function ProgressPage() {
-  const memorizedAyahs = useMillaStore((s) => s.memorizedAyahs);
+  const router = useRouter();
+  const verseRecords = useMillaStore((s) => s.verseRecords);
+  const activityDates = useMillaStore((s) => s.activityDates);
+  const currentSurahId = useMillaStore((s) => s.currentSurahId);
   const narration = useMillaStore((s) => s.narration);
+  const setCurrentPosition = useMillaStore((s) => s.setCurrentPosition);
 
-  const localCompleted = Object.values(memorizedAyahs).filter((v) => v === 'memorized').length;
-  const totalVerses = 139 + localCompleted;
-
-  const weekDays = [
-    { label: 'أحد', note: 'مراجعة' },
-    { label: 'إثن', note: 'مراجعة' },
-    { label: 'ثلا', note: 'متشابهات' },
-    { label: 'أرب', note: 'مراجعة' },
-    { label: 'خمي', note: 'مراجعة' },
-    { label: 'جمع', note: 'مراجعة' },
-    { label: 'سبت', note: 'تلاوة' },
-  ];
+  const metrics = computeProgressMetrics(verseRecords, activityDates, currentSurahId);
 
   return (
     <AppShell title="محفظة الحافظ" subtitle="ثمرة التعهّد والرسوخ اليومي • بيانات محلية خاصة بك">
@@ -38,27 +31,27 @@ export default function ProgressPage() {
 
           <div className="flex items-end justify-between">
             <div>
-              <p className="text-3xl font-bold">{totalVerses} آية</p>
-              <p className="mt-1 text-xs opacity-85">من إجمالي الحزبين الأخيرين والمفصّل</p>
+              <p className="text-3xl font-bold">{metrics.totalMemorizedVerses} آية</p>
+              <p className="mt-1 text-xs opacity-85">إجمالي الآيات المسجلة في محفظتك المحلية</p>
             </div>
             <div className="text-end">
-              <p className="text-2xl font-bold text-accent">٩٤٪</p>
+              <p className="text-2xl font-bold text-accent">{metrics.retentionPercent}٪</p>
               <p className="text-xs opacity-85">نسبة الضبط</p>
             </div>
           </div>
 
           <div className="mt-4 grid grid-cols-3 gap-2 text-center">
             <div className="rounded-xl bg-white/10 p-2.5">
-              <p className="text-[11px] opacity-80">السور التامة</p>
-              <p className="mt-0.5 text-sm font-bold">٤ سُوَر</p>
+              <p className="text-[11px] opacity-80">السور المكتملة</p>
+              <p className="mt-0.5 text-sm font-bold">{metrics.completedSurahsCount} سُوَر</p>
             </div>
             <div className="rounded-xl bg-white/10 p-2.5">
               <p className="text-[11px] opacity-80">أيام التعهّد</p>
-              <p className="mt-0.5 text-sm font-bold">١٨ يوماً</p>
+              <p className="mt-0.5 text-sm font-bold">{metrics.practicedDaysCount} يوم</p>
             </div>
             <div className="rounded-xl bg-white/10 p-2.5">
-              <p className="text-[11px] opacity-80">المتوسط اليومي</p>
-              <p className="mt-0.5 text-sm font-bold">١٥ دقيقة</p>
+              <p className="text-[11px] opacity-80">السور الجارية</p>
+              <p className="mt-0.5 text-sm font-bold">{metrics.surahMasteryList.length}</p>
             </div>
           </div>
         </section>
@@ -67,27 +60,29 @@ export default function ProgressPage() {
         <section className="rounded-2xl border border-border bg-card p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-base font-bold text-foreground">سجل التعهّد والأثر</h2>
-            <span className="text-xs text-muted-foreground">الأسبوع الحالي</span>
+            <span className="text-xs text-muted-foreground">آخر ٧ أيام</span>
           </div>
 
           <div className="grid grid-cols-7 gap-1.5 text-center">
-            {weekDays.map((day, i) => (
+            {metrics.last7Days.map((day) => (
               <div
-                key={day.label}
+                key={day.date}
                 className="flex flex-col items-center gap-1.5 rounded-xl bg-secondary/45 py-2.5"
               >
-                <span className="text-[11px] text-muted-foreground">{day.label}</span>
+                <span className="text-[11px] text-muted-foreground">{day.dayLabelAr}</span>
                 <span
                   className={cn(
                     'flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold',
-                    i === 6
-                      ? 'bg-muted text-muted-foreground'
-                      : 'bg-primary text-primary-foreground',
+                    day.active
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground',
                   )}
                 >
-                  {i + 1}
+                  {day.date.slice(8, 10)}
                 </span>
-                <span className="text-[10px] text-muted-foreground">{day.note}</span>
+                <span className="text-[10px] text-muted-foreground">
+                  {day.active ? 'تعهّد' : 'راحة'}
+                </span>
               </div>
             ))}
           </div>
@@ -97,11 +92,22 @@ export default function ProgressPage() {
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold text-foreground">خريطة السور والتمكين</h2>
-            <span className="text-xs text-muted-foreground">٤ مكتملة • ١ جارية</span>
+            <span className="text-xs text-muted-foreground">
+              {metrics.completedSurahsCount} مكتملة •{' '}
+              {Math.max(0, metrics.surahMasteryList.length - metrics.completedSurahsCount)} جارية
+            </span>
           </div>
 
-          {INITIAL_SURAH_MASTERY.map((item) => (
-            <div key={item.surahId} className="rounded-2xl border border-border bg-card p-4">
+          {metrics.surahMasteryList.map((item) => (
+            <button
+              key={item.surahId}
+              type="button"
+              onClick={() => {
+                setCurrentPosition(item.surahId, 1);
+                router.push('/mushaf');
+              }}
+              className="w-full rounded-2xl border border-border bg-card p-4 text-start transition-colors hover:bg-secondary/40"
+            >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2.5">
                   <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-xs font-bold text-primary">
@@ -110,7 +116,7 @@ export default function ProgressPage() {
                   <div>
                     <h3 className="text-sm font-bold text-foreground">{item.nameAr}</h3>
                     <p className="text-xs text-muted-foreground">
-                      {item.totalAyahs} آية • الحزب {item.hizb}
+                      {item.memorizedCount} / {item.totalAyahs} آية • الحزب {item.hizb}
                     </p>
                   </div>
                 </div>
@@ -122,7 +128,9 @@ export default function ProgressPage() {
                       : 'bg-secondary text-secondary-foreground',
                   )}
                 >
-                  {!item.needsCare && <CheckCircle2 className="h-3.5 w-3.5 text-primary" aria-hidden="true" />}
+                  {!item.needsCare && (
+                    <CheckCircle2 className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                  )}
                   <span>{item.statusLabelAr}</span>
                 </span>
               </div>
@@ -135,7 +143,7 @@ export default function ProgressPage() {
               </div>
 
               <p className="mt-2 text-xs text-muted-foreground">{item.lastActivityAr}</p>
-            </div>
+            </button>
           ))}
         </section>
 

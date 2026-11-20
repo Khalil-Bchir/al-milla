@@ -1,12 +1,28 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { AppLanguage } from '@/lib/milla-i18n';
-import type { NarrationId } from '@/lib/quran-data';
+import { SURAHS, type NarrationId } from '@/lib/quran-data';
 
 export type VerseStatus = 'memorized' | 'in_progress' | 'weak';
 export type SelfEvalRating = 'difficult' | 'good' | 'easy';
 export type ReciterId = 'hudhaify' | 'husary' | 'minshawi';
 export type PlaybackSpeed = 0.75 | 1.0 | 1.25;
+export type RevisionIntervalDays = 1 | 3 | 7 | 14 | 30;
+
+const INTERVAL_LADDER: RevisionIntervalDays[] = [1, 3, 7, 14, 30];
+
+export interface MemorizedVerseRecord {
+  key: string;
+  surahId: number;
+  ayahNumber: number;
+  status: VerseStatus;
+  firstMemorizedAt: string;
+  lastReviewedAt: string;
+  nextReviewAt: string;
+  intervalDays: RevisionIntervalDays;
+  lastEvaluation?: SelfEvalRating;
+  reviewCount: number;
+}
 
 export interface DailyStagesState {
   yesterdayReview: boolean;
@@ -43,6 +59,8 @@ export interface MillaPersistedState {
   currentAyah: number;
   memorizedAyahs: Record<string, VerseStatus>;
   evaluations: Record<string, SelfEvalRating>;
+  verseRecords: Record<string, MemorizedVerseRecord>;
+  activityDates: string[];
   bookmarks: string[];
   dailyStages: DailyStagesState;
   mutashabihatMastered: Record<string, boolean>;
@@ -75,6 +93,69 @@ export interface MillaStoreActions {
 
 export type MillaStore = MillaPersistedState & MillaStoreActions;
 
+function todayDateString(offsetDays = 0): string {
+  const d = new Date(Date.now() + offsetDays * 86_400_000);
+  return d.toISOString().slice(0, 10);
+}
+
+function isoWithOffsetDays(offsetDays: number): string {
+  return new Date(Date.now() + offsetDays * 86_400_000).toISOString();
+}
+
+function nextInterval(current: RevisionIntervalDays, rating: SelfEvalRating): RevisionIntervalDays {
+  if (rating === 'difficult') return 1;
+  const idx = INTERVAL_LADDER.indexOf(current);
+  const step = rating === 'easy' ? 2 : 1;
+  const nextIdx = Math.min(INTERVAL_LADDER.length - 1, Math.max(0, idx) + step);
+  return INTERVAL_LADDER[nextIdx];
+}
+
+function buildInitialVerseRecords(): Record<string, MemorizedVerseRecord> {
+  const records: Record<string, MemorizedVerseRecord> = {};
+  const addRange = (
+    surahId: number,
+    fromAyah: number,
+    toAyah: number,
+    daysAgoMemorized: number,
+    dueOffsetDays: number,
+    intervalDays: RevisionIntervalDays,
+    status: VerseStatus,
+    lastEvaluation: SelfEvalRating,
+  ) => {
+    for (let ayah = fromAyah; ayah <= toAyah; ayah += 1) {
+      const key = `${surahId}:${ayah}`;
+      records[key] = {
+        key,
+        surahId,
+        ayahNumber: ayah,
+        status,
+        firstMemorizedAt: isoWithOffsetDays(-daysAgoMemorized),
+        lastReviewedAt: isoWithOffsetDays(-Math.max(1, daysAgoMemorized - 1)),
+        nextReviewAt: isoWithOffsetDays(dueOffsetDays),
+        intervalDays,
+        lastEvaluation,
+        reviewCount: Math.max(1, daysAgoMemorized),
+      };
+    }
+  };
+
+  // Completed short Surahs (Al-Fatihah, Al-Ikhlas, Al-Falaq, An-Nas)
+  addRange(1, 1, 7, 14, 0, 14, 'memorized', 'easy');
+  addRange(112, 1, 4, 10, 1, 7, 'memorized', 'easy');
+  addRange(113, 1, 5, 7, 0, 7, 'memorized', 'good');
+  addRange(114, 1, 6, 5, -1, 3, 'memorized', 'good');
+
+  // Yesterday's lesson in Surah Al-Kahf (18:1..3)
+  addRange(18, 1, 3, 1, 0, 1, 'memorized', 'good');
+
+  // Weak verse in Surah Al-Waqi'ah (56:75)
+  addRange(56, 75, 75, 4, -1, 1, 'weak', 'difficult');
+
+  return records;
+}
+
+const INITIAL_VERSE_RECORDS = buildInitialVerseRecords();
+
 const INITIAL_STATE: MillaPersistedState = {
   language: 'ar',
   narration: 'qalun',
@@ -98,21 +179,29 @@ const INITIAL_STATE: MillaPersistedState = {
   onboardingCompleted: true,
   currentSurahId: 18,
   currentAyah: 1,
-  memorizedAyahs: {
-    '18:1': 'memorized',
-    '18:2': 'memorized',
-    '18:3': 'memorized',
-    '18:4': 'in_progress',
-  },
-  evaluations: {
-    '18:1': 'easy',
-    '18:2': 'good',
-    '56:75': 'difficult',
-  },
+  memorizedAyahs: Object.fromEntries(
+    Object.values(INITIAL_VERSE_RECORDS).map((r) => [r.key, r.status]),
+  ),
+  evaluations: Object.fromEntries(
+    Object.values(INITIAL_VERSE_RECORDS)
+      .filter((r): r is MemorizedVerseRecord & { lastEvaluation: SelfEvalRating } =>
+        Boolean(r.lastEvaluation),
+      )
+      .map((r) => [r.key, r.lastEvaluation]),
+  ),
+  verseRecords: INITIAL_VERSE_RECORDS,
+  activityDates: [
+    todayDateString(-5),
+    todayDateString(-4),
+    todayDateString(-3),
+    todayDateString(-2),
+    todayDateString(-1),
+    todayDateString(0),
+  ],
   bookmarks: ['18:1'],
   dailyStages: {
     yesterdayReview: true,
-    olderReview: true,
+    olderReview: false,
     newMemorization: false,
     selfTest: false,
     verseConnection: false,
@@ -120,12 +209,25 @@ const INITIAL_STATE: MillaPersistedState = {
   mutashabihatMastered: {},
 };
 
-const STORAGE_KEY = 'almilla.local.v1';
+const STORAGE_KEY = 'almilla.local.v2';
 
 const safeStorage =
   typeof window !== 'undefined'
     ? createJSONStorage<MillaPersistedState>(() => localStorage)
     : undefined;
+
+function parseVerseKey(key: string): { surahId: number; ayahNumber: number } {
+  const [s, a] = key.split(':').map(Number);
+  return {
+    surahId: Number.isFinite(s) && s > 0 ? s : 18,
+    ayahNumber: Number.isFinite(a) && a > 0 ? a : 1,
+  };
+}
+
+function appendTodayActivity(dates: string[]): string[] {
+  const today = todayDateString(0);
+  return dates.includes(today) ? dates : [...dates, today];
+}
 
 export const useMillaStore = create<MillaStore>()(
   persist(
@@ -152,17 +254,54 @@ export const useMillaStore = create<MillaStore>()(
       completeOnboarding: () => set({ onboardingCompleted: true }),
       setCurrentPosition: (currentSurahId, currentAyah) => set({ currentSurahId, currentAyah }),
       setVerseStatus: (key, status) =>
-        set((state) => ({
-          memorizedAyahs: { ...state.memorizedAyahs, [key]: status },
-        })),
+        set((state) => {
+          const { surahId, ayahNumber } = parseVerseKey(key);
+          const nowIso = new Date().toISOString();
+          const prev = state.verseRecords[key];
+          const updatedRecord: MemorizedVerseRecord = {
+            key,
+            surahId,
+            ayahNumber,
+            status,
+            firstMemorizedAt: prev?.firstMemorizedAt ?? nowIso,
+            lastReviewedAt: nowIso,
+            nextReviewAt: prev?.nextReviewAt ?? isoWithOffsetDays(1),
+            intervalDays: prev?.intervalDays ?? 1,
+            lastEvaluation: prev?.lastEvaluation,
+            reviewCount: (prev?.reviewCount ?? 0) + 1,
+          };
+          return {
+            memorizedAyahs: { ...state.memorizedAyahs, [key]: status },
+            verseRecords: { ...state.verseRecords, [key]: updatedRecord },
+            activityDates: appendTodayActivity(state.activityDates),
+          };
+        }),
       recordEvaluation: (key, rating) =>
-        set((state) => ({
-          evaluations: { ...state.evaluations, [key]: rating },
-          memorizedAyahs: {
-            ...state.memorizedAyahs,
-            [key]: rating === 'difficult' ? 'weak' : 'memorized',
-          },
-        })),
+        set((state) => {
+          const { surahId, ayahNumber } = parseVerseKey(key);
+          const nowIso = new Date().toISOString();
+          const prev = state.verseRecords[key];
+          const intervalDays = nextInterval(prev?.intervalDays ?? 1, rating);
+          const status: VerseStatus = rating === 'difficult' ? 'weak' : 'memorized';
+          const updatedRecord: MemorizedVerseRecord = {
+            key,
+            surahId,
+            ayahNumber,
+            status,
+            firstMemorizedAt: prev?.firstMemorizedAt ?? nowIso,
+            lastReviewedAt: nowIso,
+            nextReviewAt: isoWithOffsetDays(intervalDays),
+            intervalDays,
+            lastEvaluation: rating,
+            reviewCount: (prev?.reviewCount ?? 0) + 1,
+          };
+          return {
+            evaluations: { ...state.evaluations, [key]: rating },
+            memorizedAyahs: { ...state.memorizedAyahs, [key]: status },
+            verseRecords: { ...state.verseRecords, [key]: updatedRecord },
+            activityDates: appendTodayActivity(state.activityDates),
+          };
+        }),
       toggleBookmark: (key) =>
         set((state) => {
           const exists = state.bookmarks.includes(key);
@@ -178,10 +317,12 @@ export const useMillaStore = create<MillaStore>()(
             ...state.dailyStages,
             [stage]: !state.dailyStages[stage],
           },
+          activityDates: appendTodayActivity(state.activityDates),
         })),
       setMutashabihatMastered: (id, mastered) =>
         set((state) => ({
           mutashabihatMastered: { ...state.mutashabihatMastered, [id]: mastered },
+          activityDates: appendTodayActivity(state.activityDates),
         })),
       resetLocalProgress: () => set({ ...INITIAL_STATE }),
     }),
@@ -208,6 +349,8 @@ export const useMillaStore = create<MillaStore>()(
         currentAyah: state.currentAyah,
         memorizedAyahs: state.memorizedAyahs,
         evaluations: state.evaluations,
+        verseRecords: state.verseRecords,
+        activityDates: state.activityDates,
         bookmarks: state.bookmarks,
         dailyStages: state.dailyStages,
         mutashabihatMastered: state.mutashabihatMastered,
@@ -215,3 +358,147 @@ export const useMillaStore = create<MillaStore>()(
     },
   ),
 );
+
+export interface RevisionQueuesSummary {
+  yesterdayItems: MemorizedVerseRecord[];
+  olderDueItems: MemorizedVerseRecord[];
+  weakItems: MemorizedVerseRecord[];
+  totalDueCount: number;
+}
+
+export function computeRevisionQueues(
+  verseRecords: Record<string, MemorizedVerseRecord>,
+): RevisionQueuesSummary {
+  const nowMs = Date.now();
+  const twoDaysAgoMs = nowMs - 2 * 86_400_000;
+  const all = Object.values(verseRecords);
+
+  const yesterdayItems = all.filter((r) => {
+    const firstMs = Date.parse(r.firstMemorizedAt);
+    return Number.isFinite(firstMs) && firstMs >= twoDaysAgoMs && r.status !== 'weak';
+  });
+
+  const olderDueItems = all.filter((r) => {
+    const firstMs = Date.parse(r.firstMemorizedAt);
+    const nextMs = Date.parse(r.nextReviewAt);
+    return (
+      r.status === 'memorized' &&
+      (!Number.isFinite(firstMs) || firstMs < twoDaysAgoMs) &&
+      (!Number.isFinite(nextMs) || nextMs <= nowMs + 86_400_000)
+    );
+  });
+
+  const weakItems = all.filter((r) => r.status === 'weak' || r.lastEvaluation === 'difficult');
+
+  return {
+    yesterdayItems,
+    olderDueItems,
+    weakItems,
+    totalDueCount: yesterdayItems.length + olderDueItems.length + weakItems.length,
+  };
+}
+
+export interface SurahMasteryDynamicItem {
+  surahId: number;
+  nameAr: string;
+  totalAyahs: number;
+  memorizedCount: number;
+  hizb: number;
+  percent: number;
+  statusLabelAr: string;
+  lastActivityAr: string;
+  needsCare: boolean;
+}
+
+export interface ProgressMetricsSummary {
+  totalMemorizedVerses: number;
+  completedSurahsCount: number;
+  practicedDaysCount: number;
+  retentionPercent: number;
+  surahMasteryList: SurahMasteryDynamicItem[];
+  last7Days: { date: string; dayLabelAr: string; active: boolean }[];
+}
+
+const ARABIC_WEEKDAYS = ['أحد', 'إثن', 'ثلا', 'أرب', 'خمي', 'جمع', 'سبت'] as const;
+
+export function computeProgressMetrics(
+  verseRecords: Record<string, MemorizedVerseRecord>,
+  activityDates: string[],
+  currentSurahId: number,
+): ProgressMetricsSummary {
+  const all = Object.values(verseRecords);
+  const memorizedOrWeak = all.filter((r) => r.status === 'memorized' || r.status === 'weak');
+  const totalMemorizedVerses = memorizedOrWeak.length;
+  const weakCount = all.filter((r) => r.status === 'weak').length;
+  const retentionPercent =
+    totalMemorizedVerses > 0
+      ? Math.max(70, Math.round(((totalMemorizedVerses - weakCount) / totalMemorizedVerses) * 100))
+      : 100;
+
+  // Group by surahId
+  const bySurah = new Map<number, MemorizedVerseRecord[]>();
+  for (const rec of memorizedOrWeak) {
+    const list = bySurah.get(rec.surahId) ?? [];
+    list.push(rec);
+    bySurah.set(rec.surahId, list);
+  }
+  if (!bySurah.has(currentSurahId)) {
+    bySurah.set(currentSurahId, []);
+  }
+
+  const surahMasteryList: SurahMasteryDynamicItem[] = [];
+  let completedSurahsCount = 0;
+
+  for (const [surahId, recs] of bySurah.entries()) {
+    const surah = SURAHS.find((s) => s.id === surahId);
+    if (!surah) continue;
+    const memorizedCount = recs.length;
+    const percent = Math.min(100, Math.round((memorizedCount / surah.totalAyahs) * 100));
+    const isComplete = memorizedCount >= surah.totalAyahs;
+    if (isComplete) completedSurahsCount += 1;
+    const hasWeak = recs.some((r) => r.status === 'weak');
+
+    surahMasteryList.push({
+      surahId,
+      nameAr: surah.nameAr,
+      totalAyahs: surah.totalAyahs,
+      memorizedCount,
+      hizb: surah.hizb,
+      percent,
+      statusLabelAr: isComplete
+        ? '١٠٠٪ متقنة'
+        : hasWeak
+          ? `${percent}٪ يحتاج عناية`
+          : `${percent}٪ الحفظ الجاري`,
+      lastActivityAr: isComplete
+        ? 'سورة مكتملة في محفظتك المحلية'
+        : hasWeak
+          ? 'يوجد موضع يحتاج لتكرار في المراجعة'
+          : `تم حفظ ${memorizedCount} من ${surah.totalAyahs} آية`,
+      needsCare: hasWeak,
+    });
+  }
+
+  surahMasteryList.sort((a, b) => b.percent - a.percent);
+
+  const last7Days: { date: string; dayLabelAr: string; active: boolean }[] = [];
+  for (let i = 6; i >= 0; i -= 1) {
+    const d = new Date(Date.now() - i * 86_400_000);
+    const isoDate = d.toISOString().slice(0, 10);
+    const dayLabelAr = ARABIC_WEEKDAYS[d.getDay()];
+    last7Days.push({
+      date: isoDate,
+      dayLabelAr,
+      active: activityDates.includes(isoDate),
+    });
+  }
+
+  return {
+    totalMemorizedVerses,
+    completedSurahsCount,
+    practicedDaysCount: activityDates.length,
+    retentionPercent,
+    surahMasteryList,
+    last7Days,
+  };
+}

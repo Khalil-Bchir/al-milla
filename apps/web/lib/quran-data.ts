@@ -1,3 +1,5 @@
+import { getCachedSurah, saveCachedSurah } from '@/lib/milla-db';
+
 export type NarrationId = 'qalun' | 'warsh' | 'hafs';
 
 export interface AyahEntry {
@@ -57,240 +59,463 @@ export interface MutashabihatDrill {
   quizExplanation: string;
 }
 
-export interface SurahMasterySummary {
-  surahId: number;
-  nameAr: string;
-  totalAyahs: number;
-  memorizedCount: number;
-  hizb: number;
-  percent: number;
-  statusLabelAr: string;
-  lastActivityAr: string;
-  needsCare?: boolean;
-  careNoteAr?: string;
-}
+// Compact catalog tuple: [id, nameAr, nameEn, nameFr, isMeccan (1|0), totalAyahs, juz, hizb, pageStart]
+type SurahMetaTuple = [number, string, string, string, 1 | 0, number, number, number, number];
 
-export const SURAHS: SurahEntry[] = [
-  {
-    id: 1,
-    nameAr: 'سورة الفاتحة',
-    nameEn: 'Al-Fatihah',
-    nameFr: 'Al-Fatihah',
-    revelationTypeAr: 'مكية',
-    totalAyahs: 7,
-    juz: 1,
-    hizb: 1,
-    pageStart: 1,
-    ayahs: [
-      {
-        number: 1,
-        textAr: 'بِسْمِ اللَّهِ الرَّحْمَـٰنِ الرَّحِيمِ',
-        translationEn: 'In the name of Allah, the Entirely Merciful, the Especially Merciful.',
-        translationFr: 'Au nom d’Allah, le Tout Miséricordieux, le Très Miséricordieux.',
-        transliteration: 'Bismi Allāhi ar-Raḥmāni ar-Raḥīm',
-      },
-      {
-        number: 2,
-        textAr: 'الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ',
-        translationEn: '[All] praise is [due] to Allah, Lord of the worlds -',
-        translationFr: 'Louange à Allah, Seigneur de l’univers.',
-        transliteration: 'Al-ḥamdu lillāhi rabbi al-ʿālamīn',
-      },
-      {
-        number: 3,
-        textAr: 'الرَّحْمَـٰنِ الرَّحِيمِ',
-        translationEn: 'The Entirely Merciful, the Especially Merciful,',
-        translationFr: 'Le Tout Miséricordieux, le Très Miséricordieux,',
-        transliteration: 'Ar-Raḥmāni ar-Raḥīm',
-      },
-      {
-        number: 4,
-        textAr: 'مَالِكِ يَوْمِ الدِّينِ',
-        translationEn: 'Sovereign of the Day of Recompense.',
-        translationFr: 'Maître du Jour de la rétribution.',
-        transliteration: 'Māliki yawmi ad-dīn',
-        qalunNote: 'يقرأ قالون «مَلِكِ يَوْمِ الدِّينِ» بغير ألف، ويقرأ حفص «مَالِكِ» بالألف.',
-      },
-      {
-        number: 5,
-        textAr: 'إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ',
-        translationEn: 'It is You we worship and You we ask for help.',
-        translationFr: 'C’est Toi [Seul] que nous adorons, et c’est Toi [Seul] dont nous implorons secours.',
-        transliteration: 'Iyyāka naʿbudu wa-iyyāka nastaʿīn',
-      },
-      {
-        number: 6,
-        textAr: 'اهْدِنَا الصِّرَاطَ الْمُسْتَقِيمَ',
-        translationEn: 'Guide us to the straight path -',
-        translationFr: 'Guide-nous dans le droit chemin,',
-        transliteration: 'Ihdinā aṣ-ṣirāṭa al-mustaqīm',
-      },
-      {
-        number: 7,
-        textAr: 'صِرَاطَ الَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ الْمَغْضُوبِ عَلَيْهِمْ وَلَا الضَّالِّينَ',
-        translationEn:
-          'The path of those upon whom You have bestowed favor, not of those who have evoked [Your] anger or of those who are astray.',
-        translationFr:
-          'le chemin de ceux que Tu as comblés de faveurs, non pas de ceux qui ont encouru Ta colère, ni des égarés.',
-        transliteration: 'Ṣirāṭa allaḏīna anʿamta ʿalayhim ġayri al-maġḍūbi ʿalayhim wa-lā aḍ-ḍāllīn',
-      },
-    ],
-  },
-  {
-    id: 18,
-    nameAr: 'سورة الكهف',
-    nameEn: 'Al-Kahf',
-    nameFr: 'Al-Kahf (La Caverne)',
-    revelationTypeAr: 'مكية',
-    totalAyahs: 110,
-    juz: 15,
-    hizb: 29,
-    pageStart: 293,
-    ayahs: [
-      {
-        number: 1,
-        textAr: 'الْحَمْدُ لِلَّهِ الَّذِي أَنزَلَ عَلَىٰ عَبْدِهِ الْكِتَابَ وَلَمْ يَجْعَل لَّهُ عِوَجًا',
-        translationEn:
-          '[All] praise is [due] to Allah, who has sent down upon His Servant the Book and has not made therein any deviance.',
-        translationFr:
-          'Louange à Allah qui a fait descendre sur Son serviteur le Livre, et n’y a point introduit de tortuosité [ambiguïté].',
-        transliteration:
-          'Al-ḥamdu lillāhi allaḏī anzala ʿalā ʿabdihi al-kitāba wa-lam yajʿal lahu ʿiwajā',
-        qalunNote:
-          'عند قالون عن نافع: لا سكت عند الوصل على «عِوَجًا» بل يُدرجها مع إخفاء التنوين عند القاف في «قَيِّمًا».',
-      },
-      {
-        number: 2,
-        textAr:
-          'قَيِّمًا لِّيُنذِرَ بَأْسًا شَدِيدًا مِّن لَّدُنْهُ وَيُبَشِّرَ الْمُؤْمِنِينَ الَّذِينَ يَعْمَلُونَ الصَّالِحَاتِ أَنَّ لَهُمْ أَجْرًا حَسَنًا',
-        translationEn:
-          '[He has made it] straight, to warn of severe punishment from Him and to give good tidings to the believers who do righteous deeds that they will have a good reward',
-        translationFr:
-          '[Un Livre] d’une parfaite droiture pour avertir d’une sévère punition venant de Sa part et pour annoncer aux croyants qui font de bonnes œuvres qu’il y aura pour eux une belle récompense.',
-        transliteration:
-          'Qayyiman li-yunḏira baʾsan šadīdan min ladunhu wa-yubaššira al-muʾminīna allaḏīna yaʿmalūna aṣ-ṣāliḥāti anna lahum ajran ḥasanā',
-      },
-      {
-        number: 3,
-        textAr: 'مَّاكِثِينَ فِيهِ أَبَدًا',
-        translationEn: 'In which they will remain forever',
-        translationFr: 'Où ils demeureront éternellement,',
-        transliteration: 'Mākiṯīna fīhi abadā',
-      },
-      {
-        number: 4,
-        textAr: 'وَيُنذِرَ الَّذِينَ قَالُوا اتَّخَذَ اللَّهُ وَلَدًا',
-        translationEn: 'And to warn those who say, "Allah has taken a son."',
-        translationFr: 'Et pour avertir ceux qui disent : « Allah S’est attribué un enfant. »',
-        transliteration: 'Wa-yunḏira allaḏīna qālū ittaḫaḏa Allāhu waladā',
-      },
-      {
-        number: 5,
-        textAr:
-          'مَّا لَهُم بِهِ مِنْ عِلْمٍ وَلَا لِآبَائِهِمْ ۚ كَبُرَتْ كَلِمَةً تَخْرُجُ مِنْ أَفْوَاهِهِمْ ۚ إِن يَقُولُونَ إِلَّا كَذِبًا',
-        translationEn:
-          'They have no knowledge of it, nor had their fathers. Grave is the word that comes out of their mouths; they speak not except a lie.',
-        translationFr:
-          'Ils n’en ont aucune science, ni leurs ancêtres. Quelle monstrueuse parole que celle qui sort de leurs bouches ! Ce qu’ils disent n’est que mensonge.',
-        transliteration:
-          'Mā lahum bihi min ʿilmin wa-lā li-ābāʾihim kaburat kalimatan taḫruju min afwāhihim in yaqūlūna illā kaḏibā',
-      },
-    ],
-  },
-  {
-    id: 56,
-    nameAr: 'سورة الواقعة',
-    nameEn: "Al-Waqi'ah",
-    nameFr: "Al-Waqi'ah (L'Événement)",
-    revelationTypeAr: 'مكية',
-    totalAyahs: 96,
-    juz: 27,
-    hizb: 54,
-    pageStart: 534,
-    ayahs: [
-      {
-        number: 75,
-        textAr: 'فَلَا أُقْسِمُ بِمَوَاقِعِ النُّجُومِ',
-        translationEn: 'Then I swear by the setting of the stars,',
-        translationFr: 'Non ! Je jure par les positions des étoiles (dans le firmament).',
-        transliteration: 'Fa-lā uqsimu bi-mawāqiʿi an-nujūm',
-        qalunNote: 'يقرأ قالون بالجمع «بِمَوَاقِعِ» (وقراءة حمزة والكسائي وخلف بالإفراد «بِمَوْقِعِ»).',
-      },
-      {
-        number: 76,
-        textAr: 'وَإِنَّهُ لَقَسَمٌ لَّوْ تَعْلَمُونَ عَظِيمٌ',
-        translationEn: 'And indeed, it is an oath - if you could know - [most] great.',
-        translationFr: 'Et c’est vraiment un serment solennel, si vous saviez.',
-        transliteration: 'Wa-innahu la-qasamun law taʿlamūna ʿaẓīm',
-      },
-    ],
-  },
-  {
-    id: 69,
-    nameAr: 'سورة الحاقة',
-    nameEn: 'Al-Haqqah',
-    nameFr: 'Al-Haqqah (Celle qui montre la vérité)',
-    revelationTypeAr: 'مكية',
-    totalAyahs: 52,
-    juz: 29,
-    hizb: 57,
-    pageStart: 566,
-    ayahs: [
-      {
-        number: 38,
-        textAr: 'فَلَا أُقْسِمُ بِمَا تُبْصِرُونَ',
-        translationEn: 'So I swear by what you see',
-        translationFr: 'Mais non ! Je jure par ce que vous voyez,',
-        transliteration: 'Fa-lā uqsimu bimā tubṣirūn',
-      },
-      {
-        number: 39,
-        textAr: 'وَمَا لَا تُبْصِرُونَ',
-        translationEn: 'And what you do not see',
-        translationFr: 'ainsi que par ce que vous ne voyez pas,',
-        transliteration: 'Wa-mā lā tubṣirūn',
-      },
-      {
-        number: 40,
-        textAr: 'إِنَّهُ لَقَوْلُ رَسُولٍ كَرِيمٍ',
-        translationEn: '[That] indeed, the Qur’an is the word of a noble Messenger.',
-        translationFr: 'que ceci [le Coran] est la parole d’un noble Messager,',
-        transliteration: 'Innahu la-qawlu rasūlin karīm',
-      },
-    ],
-  },
-  {
-    id: 67,
-    nameAr: 'سورة الملك',
-    nameEn: 'Al-Mulk',
-    nameFr: 'Al-Mulk (La Royauté)',
-    revelationTypeAr: 'مكية',
-    totalAyahs: 30,
-    juz: 29,
-    hizb: 57,
-    pageStart: 562,
-    ayahs: [
-      {
-        number: 1,
-        textAr: 'تَبَارَكَ الَّذِي بِيَدِهِ الْمُلْكُ وَهُوَ عَلَىٰ كُلِّ شَيْءٍ قَدِيرٌ',
-        translationEn: 'Blessed is He in whose hand is dominion, and He is over all things competent -',
-        translationFr: 'Béni soit Celui dans la main de qui est la royauté, et Il est Omnipotent.',
-        transliteration: 'Tabāraka allaḏī bi-yadihi al-mulku wa-huwa ʿalā kulli šayʾin qadīr',
-      },
-      {
-        number: 2,
-        textAr:
-          'الَّذِي خَلَقَ الْمَوْتَ وَالْحَيَاةَ لِيَبْلُوَكُمْ أَيُّكُمْ أَحْسَنُ عَمَلًا ۚ وَهُوَ الْعَزِيزُ الْغَفُورُ',
-        translationEn:
-          '[He] who created death and life to test you [as to] which of you is best in deed - and He is the Exalted in Might, the Forgiving -',
-        translationFr:
-          'Celui qui a créé la mort et la vie afin de vous éprouver (et de savoir) qui de vous est le meilleur en œuvre, et c’est Lui le Puissant, le Pardonneur.',
-        transliteration:
-          'Allaḏī ḫalaqa al-mawta wa-al-ḥayāta li-yabluwakum ayyukum aḥsanu ʿamalan wa-huwa al-ʿazīzu al-ġafūr',
-      },
-    ],
-  },
+const SURAH_CATALOG_TUPLES: SurahMetaTuple[] = [
+  [1, 'سورة الفاتحة', 'Al-Fatihah', 'Al-Fatihah', 1, 7, 1, 1, 1],
+  [2, 'سورة البقرة', 'Al-Baqarah', 'Al-Baqarah', 0, 286, 1, 1, 2],
+  [3, 'سورة آل عمران', 'Ali \'Imran', 'Ali \'Imran', 0, 200, 3, 5, 50],
+  [4, 'سورة النساء', 'An-Nisa', 'An-Nisa', 0, 176, 4, 8, 77],
+  [5, 'سورة المائدة', 'Al-Ma\'idah', 'Al-Ma\'idah', 0, 120, 6, 11, 106],
+  [6, 'سورة الأنعام', 'Al-An\'am', 'Al-An\'am', 1, 165, 7, 13, 128],
+  [7, 'سورة الأعراف', 'Al-A\'raf', 'Al-A\'raf', 1, 206, 8, 16, 151],
+  [8, 'سورة الأنفال', 'Al-Anfal', 'Al-Anfal', 0, 75, 9, 18, 177],
+  [9, 'سورة التوبة', 'At-Tawbah', 'At-Tawbah', 0, 129, 10, 19, 187],
+  [10, 'سورة يونس', 'Yunus', 'Yunus', 1, 109, 11, 21, 208],
+  [11, 'سورة هود', 'Hud', 'Hud', 1, 123, 11, 23, 221],
+  [12, 'سورة يوسف', 'Yusuf', 'Yusuf', 1, 111, 12, 24, 235],
+  [13, 'سورة الرعد', 'Ar-Ra\'d', 'Ar-Ra\'d', 0, 43, 13, 26, 249],
+  [14, 'سورة إبراهيم', 'Ibrahim', 'Ibrahim', 1, 52, 13, 26, 255],
+  [15, 'سورة الحجر', 'Al-Hijr', 'Al-Hijr', 1, 99, 14, 27, 262],
+  [16, 'سورة النحل', 'An-Nahl', 'An-Nahl', 1, 128, 14, 27, 267],
+  [17, 'سورة الإسراء', 'Al-Isra', 'Al-Isra', 1, 111, 15, 29, 282],
+  [18, 'سورة الكهف', 'Al-Kahf', 'Al-Kahf', 1, 110, 15, 29, 293],
+  [19, 'سورة مريم', 'Maryam', 'Maryam', 1, 98, 16, 31, 305],
+  [20, 'سورة طه', 'Ta-Ha', 'Ta-Ha', 1, 135, 16, 32, 312],
+  [21, 'سورة الأنبياء', 'Al-Anbiya', 'Al-Anbiya', 1, 112, 17, 33, 322],
+  [22, 'سورة الحج', 'Al-Hajj', 'Al-Hajj', 0, 78, 17, 34, 332],
+  [23, 'سورة المؤمنون', 'Al-Mu\'minun', 'Al-Mu\'minun', 1, 118, 18, 35, 342],
+  [24, 'سورة النور', 'An-Nur', 'An-Nur', 0, 64, 18, 36, 350],
+  [25, 'سورة الفرقان', 'Al-Furqan', 'Al-Furqan', 1, 77, 18, 37, 359],
+  [26, 'سورة الشعراء', 'Ash-Shu\'ara', 'Ash-Shu\'ara', 1, 227, 19, 38, 367],
+  [27, 'سورة النمل', 'An-Naml', 'An-Naml', 1, 93, 19, 39, 377],
+  [28, 'سورة القصص', 'Al-Qasas', 'Al-Qasas', 1, 88, 20, 40, 385],
+  [29, 'سورة العنكبوت', 'Al-\'Ankabut', 'Al-\'Ankabut', 1, 69, 20, 41, 396],
+  [30, 'سورة الروم', 'Ar-Rum', 'Ar-Rum', 1, 60, 21, 41, 404],
+  [31, 'سورة لقمان', 'Luqman', 'Luqman', 1, 34, 21, 42, 411],
+  [32, 'سورة السجدة', 'As-Sajdah', 'As-Sajdah', 1, 30, 21, 42, 415],
+  [33, 'سورة الأحزاب', 'Al-Ahzab', 'Al-Ahzab', 0, 73, 21, 43, 418],
+  [34, 'سورة سبأ', 'Saba', 'Saba', 1, 54, 22, 44, 428],
+  [35, 'سورة فاطر', 'Fatir', 'Fatir', 1, 45, 22, 45, 434],
+  [36, 'سورة يس', 'Ya-Sin', 'Ya-Sin', 1, 83, 22, 45, 440],
+  [37, 'سورة الصافات', 'As-Saffat', 'As-Saffat', 1, 182, 23, 46, 446],
+  [38, 'سورة ص', 'Sad', 'Sad', 1, 88, 23, 47, 453],
+  [39, 'سورة الزمر', 'Az-Zumar', 'Az-Zumar', 1, 75, 23, 47, 458],
+  [40, 'سورة غافر', 'Ghafir', 'Ghafir', 1, 85, 24, 49, 467],
+  [41, 'سورة فصلت', 'Fussilat', 'Fussilat', 1, 54, 24, 50, 477],
+  [42, 'سورة الشورى', 'Ash-Shuraa', 'Ash-Shuraa', 1, 53, 25, 50, 483],
+  [43, 'سورة الزخرف', 'Az-Zukhruf', 'Az-Zukhruf', 1, 89, 25, 51, 489],
+  [44, 'سورة الدخان', 'Ad-Dukhan', 'Ad-Dukhan', 1, 59, 25, 52, 496],
+  [45, 'سورة الجاثية', 'Al-Jathiyah', 'Al-Jathiyah', 1, 37, 25, 52, 499],
+  [46, 'سورة الأحقاف', 'Al-Ahqaf', 'Al-Ahqaf', 1, 35, 26, 53, 502],
+  [47, 'سورة محمد', 'Muhammad', 'Muhammad', 0, 38, 26, 53, 507],
+  [48, 'سورة الفتح', 'Al-Fath', 'Al-Fath', 0, 29, 26, 54, 511],
+  [49, 'سورة الحجرات', 'Al-Hujurat', 'Al-Hujurat', 0, 18, 26, 54, 515],
+  [50, 'سورة ق', 'Qaf', 'Qaf', 1, 45, 26, 55, 518],
+  [51, 'سورة الذاريات', 'Adh-Dhariyat', 'Adh-Dhariyat', 1, 60, 26, 55, 520],
+  [52, 'سورة الطور', 'At-Tur', 'At-Tur', 1, 49, 27, 55, 523],
+  [53, 'سورة النجم', 'An-Najm', 'An-Najm', 1, 62, 27, 56, 526],
+  [54, 'سورة القمر', 'Al-Qamar', 'Al-Qamar', 1, 55, 27, 56, 528],
+  [55, 'سورة الرحمن', 'Ar-Rahman', 'Ar-Rahman', 0, 78, 27, 56, 531],
+  [56, 'سورة الواقعة', 'Al-Waqi\'ah', 'Al-Waqi\'ah', 1, 96, 27, 54, 534],
+  [57, 'سورة الحديد', 'Al-Hadid', 'Al-Hadid', 0, 29, 27, 57, 537],
+  [58, 'سورة المجادلة', 'Al-Mujadila', 'Al-Mujadila', 0, 22, 28, 55, 542],
+  [59, 'سورة الحشر', 'Al-Hashr', 'Al-Hashr', 0, 24, 28, 55, 545],
+  [60, 'سورة الممتحنة', 'Al-Mumtahanah', 'Al-Mumtahanah', 0, 13, 28, 56, 549],
+  [61, 'سورة الصف', 'As-Saff', 'As-Saff', 0, 14, 28, 56, 551],
+  [62, 'سورة الجمعة', 'Al-Jumu\'ah', 'Al-Jumu\'ah', 0, 11, 28, 56, 553],
+  [63, 'سورة المنافقون', 'Al-Munafiqun', 'Al-Munafiqun', 0, 11, 28, 56, 554],
+  [64, 'سورة التغابن', 'At-Taghabun', 'At-Taghabun', 0, 18, 28, 56, 556],
+  [65, 'سورة الطلاق', 'At-Talaq', 'At-Talaq', 0, 12, 28, 56, 558],
+  [66, 'سورة التحريم', 'At-Tahrim', 'At-Tahrim', 0, 12, 28, 56, 560],
+  [67, 'سورة الملك', 'Al-Mulk', 'Al-Mulk', 1, 30, 29, 57, 562],
+  [68, 'سورة القلم', 'Al-Qalam', 'Al-Qalam', 1, 52, 29, 57, 564],
+  [69, 'سورة الحاقة', 'Al-Haqqah', 'Al-Haqqah', 1, 52, 29, 57, 566],
+  [70, 'سورة المعارج', 'Al-Ma\'arij', 'Al-Ma\'arij', 1, 44, 29, 58, 568],
+  [71, 'سورة نوح', 'Nuh', 'Nuh', 1, 28, 29, 58, 570],
+  [72, 'سورة الجن', 'Al-Jinn', 'Al-Jinn', 1, 28, 29, 58, 572],
+  [73, 'سورة المزمل', 'Al-Muzzammil', 'Al-Muzzammil', 1, 20, 29, 58, 574],
+  [74, 'سورة المدثر', 'Al-Muddaththir', 'Al-Muddaththir', 1, 56, 29, 58, 575],
+  [75, 'سورة القيامة', 'Al-Qiyamah', 'Al-Qiyamah', 1, 40, 29, 58, 577],
+  [76, 'سورة الإنسان', 'Al-Insan', 'Al-Insan', 0, 31, 29, 58, 578],
+  [77, 'سورة المرسلات', 'Al-Mursalat', 'Al-Mursalat', 1, 50, 29, 58, 580],
+  [78, 'سورة النبأ', 'An-Naba', 'An-Naba', 1, 40, 30, 59, 582],
+  [79, 'سورة النازعات', 'An-Nazi\'at', 'An-Nazi\'at', 1, 46, 30, 59, 583],
+  [80, 'سورة عبس', '\'Abasa', '\'Abasa', 1, 42, 30, 59, 585],
+  [81, 'سورة التكوير', 'At-Takwir', 'At-Takwir', 1, 29, 30, 59, 586],
+  [82, 'سورة الانفطار', 'Al-Infitar', 'Al-Infitar', 1, 19, 30, 59, 587],
+  [83, 'سورة المطففين', 'Al-Mutaffifin', 'Al-Mutaffifin', 1, 36, 30, 59, 587],
+  [84, 'سورة الانشقاق', 'Al-Inshiqaq', 'Al-Inshiqaq', 1, 25, 30, 59, 589],
+  [85, 'سورة البروج', 'Al-Buruj', 'Al-Buruj', 1, 22, 30, 59, 590],
+  [86, 'سورة الطارق', 'At-Tariq', 'At-Tariq', 1, 17, 30, 59, 591],
+  [87, 'سورة الأعلى', 'Al-A\'la', 'Al-A\'la', 1, 19, 30, 60, 591],
+  [88, 'سورة الغاشية', 'Al-Ghashiyah', 'Al-Ghashiyah', 1, 26, 30, 60, 592],
+  [89, 'سورة الفجر', 'Al-Fajr', 'Al-Fajr', 1, 30, 30, 60, 593],
+  [90, 'سورة البلد', 'Al-Balad', 'Al-Balad', 1, 20, 30, 60, 594],
+  [91, 'سورة الشمس', 'Ash-Shams', 'Ash-Shams', 1, 15, 30, 60, 595],
+  [92, 'سورة الليل', 'Al-Layl', 'Al-Layl', 1, 21, 30, 60, 595],
+  [93, 'سورة الضحى', 'Ad-Duhaa', 'Ad-Duhaa', 1, 11, 30, 60, 596],
+  [94, 'سورة الشرح', 'Ash-Sharh', 'Ash-Sharh', 1, 8, 30, 60, 596],
+  [95, 'سورة التين', 'At-Tin', 'At-Tin', 1, 8, 30, 60, 597],
+  [96, 'سورة العلق', 'Al-\'Alaq', 'Al-\'Alaq', 1, 19, 30, 60, 597],
+  [97, 'سورة القدر', 'Al-Qadr', 'Al-Qadr', 1, 5, 30, 60, 598],
+  [98, 'سورة البينة', 'Al-Bayyinah', 'Al-Bayyinah', 0, 8, 30, 60, 598],
+  [99, 'سورة الزلزلة', 'Az-Zalzalah', 'Az-Zalzalah', 0, 8, 30, 60, 599],
+  [100, 'سورة العاديات', 'Al-\'Adiyat', 'Al-\'Adiyat', 1, 11, 30, 60, 599],
+  [101, 'سورة القارعة', 'Al-Qari\'ah', 'Al-Qari\'ah', 1, 11, 30, 60, 600],
+  [102, 'سورة التكاثر', 'At-Takathur', 'At-Takathur', 1, 8, 30, 60, 600],
+  [103, 'سورة العصر', 'Al-\'Asr', 'Al-\'Asr', 1, 3, 30, 60, 601],
+  [104, 'سورة الهمزة', 'Al-Humazah', 'Al-Humazah', 1, 9, 30, 60, 601],
+  [105, 'سورة الفيل', 'Al-Fil', 'Al-Fil', 1, 5, 30, 60, 601],
+  [106, 'سورة قريش', 'Quraysh', 'Quraysh', 1, 4, 30, 60, 602],
+  [107, 'سورة الماعون', 'Al-Ma\'un', 'Al-Ma\'un', 1, 7, 30, 60, 602],
+  [108, 'سورة الكوثر', 'Al-Kawthar', 'Al-Kawthar', 1, 3, 30, 60, 602],
+  [109, 'سورة الكافرون', 'Al-Kafirun', 'Al-Kafirun', 1, 6, 30, 60, 603],
+  [110, 'سورة النصر', 'An-Nasr', 'An-Nasr', 0, 3, 30, 60, 603],
+  [111, 'سورة المسد', 'Al-Masad', 'Al-Masad', 1, 5, 30, 60, 603],
+  [112, 'سورة الإخلاص', 'Al-Ikhlas', 'Al-Ikhlas', 1, 4, 30, 60, 604],
+  [113, 'سورة الفلق', 'Al-Falaq', 'Al-Falaq', 1, 5, 30, 60, 604],
+  [114, 'سورة الناس', 'An-Nas', 'An-Nas', 1, 6, 30, 60, 604],
 ];
+
+const BUNDLED_VERIFIED_AYAHS: Record<number, AyahEntry[]> = {
+  1: [
+    {
+      number: 1,
+      textAr: 'بِسْمِ اللَّهِ الرَّحْمَـٰنِ الرَّحِيمِ',
+      translationEn: 'In the name of Allah, the Entirely Merciful, the Especially Merciful.',
+      translationFr: 'Au nom d’Allah, le Tout Miséricordieux, le Très Miséricordieux.',
+      transliteration: 'Bismi Allāhi ar-Raḥmāni ar-Raḥīm',
+    },
+    {
+      number: 2,
+      textAr: 'الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ',
+      translationEn: '[All] praise is [due] to Allah, Lord of the worlds -',
+      translationFr: 'Louange à Allah, Seigneur de l’univers.',
+      transliteration: 'Al-ḥamdu lillāhi rabbi al-ʿālamīn',
+    },
+    {
+      number: 3,
+      textAr: 'الرَّحْمَـٰنِ الرَّحِيمِ',
+      translationEn: 'The Entirely Merciful, the Especially Merciful,',
+      translationFr: 'Le Tout Miséricordieux, le Très Miséricordieux,',
+      transliteration: 'Ar-Raḥmāni ar-Raḥīm',
+    },
+    {
+      number: 4,
+      textAr: 'مَالِكِ يَوْمِ الدِّينِ',
+      translationEn: 'Sovereign of the Day of Recompense.',
+      translationFr: 'Maître du Jour de la rétribution.',
+      transliteration: 'Māliki yawmi ad-dīn',
+      qalunNote: 'يقرأ قالون «مَلِكِ يَوْمِ الدِّينِ» بغير ألف، ويقرأ حفص «مَالِكِ» بالألف.',
+    },
+    {
+      number: 5,
+      textAr: 'إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ',
+      translationEn: 'It is You we worship and You we ask for help.',
+      translationFr: 'C’est Toi [Seul] que nous adorons, et c’est Toi [Seul] dont nous implorons secours.',
+      transliteration: 'Iyyāka naʿbudu wa-iyyāka nastaʿīn',
+    },
+    {
+      number: 6,
+      textAr: 'اهْدِنَا الصِّرَاطَ الْمُسْتَقِيمَ',
+      translationEn: 'Guide us to the straight path -',
+      translationFr: 'Guide-nous dans le droit chemin,',
+      transliteration: 'Ihdinā aṣ-ṣirāṭa al-mustaqīm',
+    },
+    {
+      number: 7,
+      textAr: 'صِرَاطَ الَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ الْمَغْضُوبِ عَلَيْهِمْ وَلَا الضَّالِّينَ',
+      translationEn:
+        'The path of those upon whom You have bestowed favor, not of those who have evoked [Your] anger or of those who are astray.',
+      translationFr:
+        'le chemin de ceux que Tu as comblés de faveurs, non pas de ceux qui ont encouru Ta colère, ni des égarés.',
+      transliteration: 'Ṣirāṭa allaḏīna anʿamta ʿalayhim ġayri al-maġḍūbi ʿalayhim wa-lā aḍ-ḍāllīn',
+    },
+  ],
+  18: [
+    {
+      number: 1,
+      textAr: 'الْحَمْدُ لِلَّهِ الَّذِي أَنزَلَ عَلَىٰ عَبْدِهِ الْكِتَابَ وَلَمْ يَجْعَل لَّهُ عِوَجًا',
+      translationEn:
+        '[All] praise is [due] to Allah, who has sent down upon His Servant the Book and has not made therein any deviance.',
+      translationFr:
+        'Louange à Allah qui a fait descendre sur Son serviteur le Livre, et n’y a point introduit de tortuosité [ambiguïté].',
+      transliteration:
+        'Al-ḥamdu lillāhi allaḏī anzala ʿalā ʿabdihi al-kitāba wa-lam yajʿal lahu ʿiwajā',
+      qalunNote:
+        'عند قالون عن نافع: لا سكت عند الوصل على «عِوَجًا» بل يُدرجها مع إخفاء التنوين عند القاف في «قَيِّمًا».',
+    },
+    {
+      number: 2,
+      textAr:
+        'قَيِّمًا لِّيُنذِرَ بَأْسًا شَدِيدًا مِّن لَّدُنْهُ وَيُبَشِّرَ الْمُؤْمِنِينَ الَّذِينَ يَعْمَلُونَ الصَّالِحَاتِ أَنَّ لَهُمْ أَجْرًا حَسَنًا',
+      translationEn:
+        '[He has made it] straight, to warn of severe punishment from Him and to give good tidings to the believers who do righteous deeds that they will have a good reward',
+      translationFr:
+        '[Un Livre] d’une parfaite droiture pour avertir d’une sévère punition venant de Sa part et pour annoncer aux croyants qui font de bonnes œuvres qu’il y aura pour eux une belle récompense.',
+      transliteration:
+        'Qayyiman li-yunḏira baʾsan šadīdan min ladunhu wa-yubaššira al-muʾminīna allaḏīna yaʿmalūna aṣ-ṣāliḥāti anna lahum ajran ḥasanā',
+    },
+    {
+      number: 3,
+      textAr: 'مَّاكِثِينَ فِيهِ أَبَدًا',
+      translationEn: 'In which they will remain forever',
+      translationFr: 'Où ils demeureront éternellement,',
+      transliteration: 'Mākiṯīna fīhi abadā',
+    },
+    {
+      number: 4,
+      textAr: 'وَيُنذِرَ الَّذِينَ قَالُوا اتَّخَذَ اللَّهُ وَلَدًا',
+      translationEn: 'And to warn those who say, "Allah has taken a son."',
+      translationFr: 'Et pour avertir ceux qui disent : « Allah S’est attribué un enfant. »',
+      transliteration: 'Wa-yunḏira allaḏīna qālū ittaḫaḏa Allāhu waladā',
+    },
+    {
+      number: 5,
+      textAr:
+        'مَّا لَهُم بِهِ مِنْ عِلْمٍ وَلَا لِآبَائِهِمْ ۚ كَبُرَتْ كَلِمَةً تَخْرُجُ مِنْ أَفْوَاهِهِمْ ۚ إِن يَقُولُونَ إِلَّا كَذِبًا',
+      translationEn:
+        'They have no knowledge of it, nor had their fathers. Grave is the word that comes out of their mouths; they speak not except a lie.',
+      translationFr:
+        'Ils n’en ont aucune science, ni leurs ancêtres. Quelle monstrueuse parole que celle qui sort de leurs bouches ! Ce qu’ils disent n’est que mensonge.',
+      transliteration:
+        'Mā lahum bihi min ʿilmin wa-lā li-ābāʾihim kaburat kalimatan taḫruju min afwāhihim in yaqūlūna illā kaḏibā',
+    },
+    {
+      number: 6,
+      textAr: 'فَلَعَلَّكَ بَاخِعٌ نَّفْسَكَ عَلَىٰ آثَارِهِمْ إِن لَّمْ يُؤْمِنُوا بِهَـٰذَا الْحَدِيثِ أَسَفًا',
+      translationEn:
+        'Then perhaps you would kill yourself through grief over their footsteps, [O Muhammad], if they do not believe in this message, [and] out of sorrow.',
+      translationFr:
+        'Tu vas peut-être te consumer de chagrin parce qu’ils se détournent de toi et ne croient pas en ce discours !',
+      transliteration: 'Fa-laʿallaka bāḫiʿun nafsaka ʿalā āṯārihim in lam yuʾminū bi-hāḏā al-ḥadīṯi asafā',
+    },
+    {
+      number: 7,
+      textAr: 'إِنَّا جَعَلْنَا مَا عَلَى الْأَرْضِ زِينَةً لَّهَا لِنَبْلُوَهُمْ أَيُّهُمْ أَحْسَنُ عَمَلًا',
+      translationEn:
+        'Indeed, We have made that which is on the earth adornment for it that We may test them [as to] which of them is best in deed.',
+      translationFr:
+        'Nous avons placé ce qu’il y a sur la terre comme parure pour elle, afin d’éprouver (les hommes et afin de savoir) qui d’entre eux sont les meilleurs dans leurs actions.',
+      transliteration: 'Innā jaʿalnā mā ʿalā al-arḍi zīnatan lahā li-nabluwahum ayyuhum aḥsanu ʿamalā',
+    },
+    {
+      number: 8,
+      textAr: 'وَإِنَّا لَجَاعِلُونَ مَا عَلَيْهَا صَعِيدًا جُرُزًا',
+      translationEn: 'And indeed, We will make that which is upon it [into] a barren ground.',
+      translationFr: 'Puis Nous allons sûrement réduire tout ce qui s’y trouve à un sol aride.',
+      transliteration: 'Wa-innā la-jāʿilūna mā ʿalayhā ṣaʿīdan juruzā',
+    },
+    {
+      number: 9,
+      textAr: 'أَمْ حَسِبْتَ أَنَّ أَصْحَابَ الْكَهْفِ وَالرَّقِيمِ كَانُوا مِنْ آيَاتِنَا عَجَبًا',
+      translationEn:
+        'Or have you thought that the companions of the cave and the inscription were, among Our signs, a wonder?',
+      translationFr:
+        'Penses-tu que les gens de la Caverne et d’ar-Raqîm ont constitué une chose extraordinaire d’entre Nos prodiges ?',
+      transliteration: 'Am ḥasibta anna aṣḥāba al-kahfi wa-ar-raqīmi kānū min āyātinā ʿajabā',
+    },
+    {
+      number: 10,
+      textAr:
+        'إِذْ أَوَى الْفِتْيَةُ إِلَى الْكَهْفِ فَقَالُوا رَبَّنَا آتِنَا مِن لَّدُنكَ رَحْمَةً وَهَيِّئْ لَنَا مِنْ أَمْرِنَا رَشَدًا',
+      translationEn:
+        '[Mention] when the youths retreated to the cave and said, "Our Lord, grant us from Yourself mercy and prepare for us from our affair right guidance."',
+      translationFr:
+        'Quand les jeunes gens se furent réfugiés dans la caverne, ils dirent : « Ô notre Seigneur, donne-nous de Ta part une miséricorde ; et assure-nous la droiture dans tout ce qui nous concerne. »',
+      transliteration:
+        'Iḏ awā al-fityatu ilā al-kahfi fa-qālū rabbanā ātinā min ladunka raḥmatan wa-hayyiʾ lanā min amrinā rašadā',
+    },
+  ],
+  56: [
+    {
+      number: 75,
+      textAr: 'فَلَا أُقْسِمُ بِمَوَاقِعِ النُّجُومِ',
+      translationEn: 'Then I swear by the setting of the stars,',
+      translationFr: 'Non ! Je jure par les positions des étoiles (dans le firmament).',
+      transliteration: 'Fa-lā uqsimu bi-mawāqiʿi an-nujūm',
+      qalunNote: 'يقرأ قالون بالجمع «بِمَوَاقِعِ» (وقراءة حمزة والكسائي وخلف بالإفراد «بِمَوْقِعِ»).',
+    },
+    {
+      number: 76,
+      textAr: 'وَإِنَّهُ لَقَسَمٌ لَّوْ تَعْلَمُونَ عَظِيمٌ',
+      translationEn: 'And indeed, it is an oath - if you could know - [most] great.',
+      translationFr: 'Et c’est vraiment un serment solennel, si vous saviez.',
+      transliteration: 'Wa-innahu la-qasamun law taʿlamūna ʿaẓīm',
+    },
+  ],
+  67: [
+    {
+      number: 1,
+      textAr: 'تَبَارَكَ الَّذِي بِيَدِهِ الْمُلْكُ وَهُوَ عَلَىٰ كُلِّ شَيْءٍ قَدِيرٌ',
+      translationEn: 'Blessed is He in whose hand is dominion, and He is over all things competent -',
+      translationFr: 'Béni soit Celui dans la main de qui est la royauté, et Il est Omnipotent.',
+      transliteration: 'Tabāraka allaḏī bi-yadihi al-mulku wa-huwa ʿalā kulli šayʾin qadīr',
+    },
+    {
+      number: 2,
+      textAr:
+        'الَّذِي خَلَقَ الْمَوْتَ وَالْحَيَاةَ لِيَبْلُوَكُمْ أَيُّكُمْ أَحْسَنُ عَمَلًا ۚ وَهُوَ الْعَزِيزُ الْغَفُورُ',
+      translationEn:
+        '[He] who created death and life to test you [as to] which of you is best in deed - and He is the Exalted in Might, the Forgiving -',
+      translationFr:
+        'Celui qui a créé la mort et la vie afin de vous éprouver (et de savoir) qui de vous est le meilleur en œuvre, et c’est Lui le Puissant, le Pardonneur.',
+      transliteration:
+        'Allaḏī ḫalaqa al-mawta wa-al-ḥayāta li-yabluwakum ayyukum aḥsanu ʿamalan wa-huwa al-ʿazīzu al-ġafūr',
+    },
+  ],
+  69: [
+    {
+      number: 38,
+      textAr: 'فَلَا أُقْسِمُ بِمَا تُبْصِرُونَ',
+      translationEn: 'So I swear by what you see',
+      translationFr: 'Mais non ! Je jure par ce que vous voyez,',
+      transliteration: 'Fa-lā uqsimu bimā tubṣirūn',
+    },
+    {
+      number: 39,
+      textAr: 'وَمَا لَا تُبْصِرُونَ',
+      translationEn: 'And what you do not see',
+      translationFr: 'ainsi que par ce que vous ne voyez pas,',
+      transliteration: 'Wa-mā lā tubṣirūn',
+    },
+    {
+      number: 40,
+      textAr: 'إِنَّهُ لَقَوْلُ رَسُولٍ كَرِيمٍ',
+      translationEn: '[That] indeed, the Qur’an is the word of a noble Messenger.',
+      translationFr: 'que ceci [le Coran] est la parole d’un noble Messager,',
+      transliteration: 'Innahu la-qawlu rasūlin karīm',
+    },
+  ],
+  112: [
+    {
+      number: 1,
+      textAr: 'قُلْ هُوَ اللَّهُ أَحَدٌ',
+      translationEn: 'Say, "He is Allah, [who is] One,',
+      translationFr: 'Dis : « Il est Allah, Unique.',
+      transliteration: 'Qul huwa Allāhu aḥad',
+    },
+    {
+      number: 2,
+      textAr: 'اللَّهُ الصَّمَدُ',
+      translationEn: 'Allah, the Eternal Refuge.',
+      translationFr: 'Allah, Le Seul à être imploré pour ce que nous désirons.',
+      transliteration: 'Allāhu aṣ-ṣamad',
+    },
+    {
+      number: 3,
+      textAr: 'لَمْ يَلِدْ وَلَمْ يُولَدْ',
+      translationEn: 'He neither begets nor is born,',
+      translationFr: 'Il n’a jamais engendré, n’a pas été engendré non plus.',
+      transliteration: 'Lam yalid wa-lam yūlad',
+    },
+    {
+      number: 4,
+      textAr: 'وَلَمْ يَكُن لَّهُ كُفُوًا أَحَدٌ',
+      translationEn: 'Nor is there to Him any equivalent."',
+      translationFr: 'Et nul n’est égal à Lui. »',
+      transliteration: 'Wa-lam yakun lahu kufuwan aḥad',
+    },
+  ],
+  113: [
+    {
+      number: 1,
+      textAr: 'قُلْ أَعُوذُ بِرَبِّ الْفَلَقِ',
+      translationEn: 'Say, "I seek refuge in the Lord of daybreak',
+      translationFr: 'Dis : « Je cherche protection auprès du Seigneur de l’aube naissante,',
+      transliteration: 'Qul aʿūḏu bi-rabbi al-falaq',
+    },
+    {
+      number: 2,
+      textAr: 'مِن شَرِّ مَا خَلَقَ',
+      translationEn: 'From the evil of that which He created',
+      translationFr: 'contre le mal des êtres qu’Il a créés,',
+      transliteration: 'Min šarri mā ḫalaq',
+    },
+    {
+      number: 3,
+      textAr: 'وَمِن شَرِّ غَاسِقٍ إِذَا وَقَبَ',
+      translationEn: 'And from the evil of darkness when it settles',
+      translationFr: 'contre le mal de l’obscurité quand elle s’approfondit,',
+      transliteration: 'Wa-min šarri ġāsiqin iḏā waqab',
+    },
+    {
+      number: 4,
+      textAr: 'وَمِن شَرِّ النَّفَّاثَاتِ فِي الْعُقَدِ',
+      translationEn: 'And from the evil of the blowers in knots',
+      translationFr: 'contre le mal de celles qui soufflent sur les nœuds,',
+      transliteration: 'Wa-min šarri an-naffāṯāti fī al-ʿuqad',
+    },
+    {
+      number: 5,
+      textAr: 'وَمِن شَرِّ حَاسِدٍ إِذَا حَسَدَ',
+      translationEn: 'And from the evil of an envier when he envies."',
+      translationFr: 'et contre le mal de l’envieux quand il envie. »',
+      transliteration: 'Wa-min šarri ḥāsidin iḏā ḥasad',
+    },
+  ],
+  114: [
+    {
+      number: 1,
+      textAr: 'قُلْ أَعُوذُ بِرَبِّ النَّاسِ',
+      translationEn: 'Say, "I seek refuge in the Lord of mankind,',
+      translationFr: 'Dis : « Je cherche protection auprès du Seigneur des hommes.',
+      transliteration: 'Qul aʿūḏu bi-rabbi an-nās',
+    },
+    {
+      number: 2,
+      textAr: 'مَلِكِ النَّاسِ',
+      translationEn: 'The Sovereign of mankind,',
+      translationFr: 'Le Souverain des hommes,',
+      transliteration: 'Maliki an-nās',
+    },
+    {
+      number: 3,
+      textAr: 'إِلَـٰهِ النَّاسِ',
+      translationEn: 'The God of mankind,',
+      translationFr: 'Dieu des hommes,',
+      transliteration: 'Ilāhi an-nās',
+    },
+    {
+      number: 4,
+      textAr: 'مِن شَرِّ الْوَسْوَاسِ الْخَنَّاسِ',
+      translationEn: 'From the evil of the retreating whisperer -',
+      translationFr: 'contre le mal du mauvais conseiller, furtif,',
+      transliteration: 'Min šarri al-waswāsi al-ḫannās',
+    },
+    {
+      number: 5,
+      textAr: 'الَّذِي يُوَسْوِسُ فِي صُدُورِ النَّاسِ',
+      translationEn: 'Who whispers [evil] into the breasts of mankind -',
+      translationFr: 'qui souffle le mal dans les poitrines des hommes,',
+      transliteration: 'Allaḏī yuwaswisu fī ṣudūri an-nās',
+    },
+    {
+      number: 6,
+      textAr: 'مِنَ الْجِنَّةِ وَالنَّاسِ',
+      translationEn: 'From among the jinn and mankind."',
+      translationFr: 'qu’il (le conseiller) soit un djinn, ou un être humain. »',
+      transliteration: 'Mina al-jinnati wa-an-nās',
+    },
+  ],
+};
+
+export const SURAHS: SurahEntry[] = SURAH_CATALOG_TUPLES.map(
+  ([id, nameAr, nameEn, nameFr, isMeccan, totalAyahs, juz, hizb, pageStart]) => ({
+    id,
+    nameAr,
+    nameEn,
+    nameFr,
+    revelationTypeAr: isMeccan === 1 ? 'مكية' : 'مدنية',
+    totalAyahs,
+    juz,
+    hizb,
+    pageStart,
+    ayahs: BUNDLED_VERIFIED_AYAHS[id] ?? [],
+  }),
+);
 
 export const KAHF_TAFSIR_WORDS: TafsirWordNote[] = [
   {
@@ -316,7 +541,8 @@ export const MUTASHABIHAT_DRILLS: MutashabihatDrill[] = [
     primaryHizb: 54,
     primaryText: 'فَلَا أُقْسِمُ بِمَوَاقِعِ النُّجُومِ ۞ وَإِنَّهُ لَقَسَمٌ لَّوْ تَعْلَمُونَ عَظِيمٌ',
     primaryHighlight: 'بِمَوَاقِعِ',
-    primaryNoteQalun: 'رواية قالون عن نافع: بالجمع «بِمَوَاقِعِ» (وقراءة حمزة والكسائي وخلف العاشر بالإفراد «بِمَوْقِعِ»).',
+    primaryNoteQalun:
+      'رواية قالون عن نافع: بالجمع «بِمَوَاقِعِ» (وقراءة حمزة والكسائي وخلف العاشر بالإفراد «بِمَوْقِعِ»).',
     secondarySurahId: 69,
     secondarySurahName: 'سورة الحاقة',
     secondaryAyahRange: 'الآية ٣٨ - ٤٠',
@@ -337,51 +563,102 @@ export const MUTASHABIHAT_DRILLS: MutashabihatDrill[] = [
   },
 ];
 
-export const INITIAL_SURAH_MASTERY: SurahMasterySummary[] = [
-  {
-    surahId: 67,
-    nameAr: 'سورة الملك',
-    totalAyahs: 30,
-    memorizedCount: 30,
-    hizb: 57,
-    percent: 100,
-    statusLabelAr: '١٠٠٪ متقنة',
-    lastActivityAr: 'آخر مراجعة: اليوم بعد الفجر',
-  },
-  {
-    surahId: 32,
-    nameAr: 'سورة السجدة',
-    totalAyahs: 30,
-    memorizedCount: 30,
-    hizb: 42,
-    percent: 100,
-    statusLabelAr: '١٠٠٪ متقنة',
-    lastActivityAr: 'آخر تسميع: منذ يومين',
-  },
-  {
-    surahId: 56,
-    nameAr: 'سورة الواقعة',
-    totalAyahs: 96,
-    memorizedCount: 91,
-    hizb: 54,
-    percent: 95,
-    statusLabelAr: '٩٥٪ ضبط متشابه',
-    lastActivityAr: 'تنبيه: مراجعة الآية ٧٥ مع خاتمة الحاقة',
-    needsCare: true,
-    careNoteAr: 'موضع عناية',
-  },
-  {
-    surahId: 18,
-    nameAr: 'سورة الكهف',
-    totalAyahs: 110,
-    memorizedCount: 4,
-    hizb: 29,
-    percent: 4,
-    statusLabelAr: 'الحفظ الجاري',
-    lastActivityAr: 'ورد اليوم: الآيات (١ - ٤) برواية قالون',
-  },
-];
-
 export function getSurahById(id: number): SurahEntry {
-  return SURAHS.find((s) => s.id === id) ?? SURAHS[1];
+  return SURAHS.find((s) => s.id === id) ?? SURAHS[17];
+}
+
+interface AlQuranCloudEditionAyah {
+  numberInSurah: number;
+  text: string;
+}
+
+interface AlQuranCloudEdition {
+  ayahs: AlQuranCloudEditionAyah[];
+}
+
+interface AlQuranCloudResponse {
+  code: number;
+  data?: AlQuranCloudEdition[];
+}
+
+export async function loadVerifiedSurahAyahs(surahId: number): Promise<{
+  ayahs: AyahEntry[];
+  fromCache: boolean;
+  error: string | null;
+}> {
+  const surah = getSurahById(surahId);
+
+  // 1. Check IndexedDB cache first
+  const cached = await getCachedSurah(surahId);
+  if (cached && cached.ayahs.length > 0) {
+    return { ayahs: cached.ayahs, fromCache: true, error: null };
+  }
+
+  // 2. If bundled offline ayahs match full surah length, return immediately
+  if (surah.ayahs.length === surah.totalAyahs && surah.ayahs.length > 0) {
+    return { ayahs: surah.ayahs, fromCache: true, error: null };
+  }
+
+  // 3. Fetch verified Uthmani Arabic, English, and French editions from AlQuran Cloud API
+  try {
+    const response = await fetch(
+      `https://api.alquran.cloud/v1/surah/${surahId}/editions/quran-uthmani,en.sahih,fr.hamidullah`,
+    );
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const json = (await response.json()) as AlQuranCloudResponse;
+    if (json.code !== 200 || !Array.isArray(json.data) || json.data.length < 3) {
+      throw new Error('استجابة غير مكتملة من مصدر المصحف');
+    }
+
+    const [arEd, enEd, frEd] = json.data;
+    const bundledByNumber = new Map<number, AyahEntry>(
+      surah.ayahs.map((a) => [a.number, a]),
+    );
+
+    const ayahs: AyahEntry[] = arEd.ayahs.map((arAyah, idx) => {
+      const existing = bundledByNumber.get(arAyah.numberInSurah);
+      return {
+        number: arAyah.numberInSurah,
+        textAr: arAyah.text,
+        translationEn: enEd.ayahs[idx]?.text ?? existing?.translationEn ?? '',
+        translationFr: frEd.ayahs[idx]?.text ?? existing?.translationFr ?? '',
+        transliteration: existing?.transliteration ?? '',
+        qalunNote: existing?.qalunNote,
+      };
+    });
+
+    await saveCachedSurah({
+      surahId,
+      ayahs,
+      cachedAt: new Date().toISOString(),
+      source: 'api.alquran.cloud (Tanzil Uthmani verified dataset)',
+    });
+
+    return { ayahs, fromCache: false, error: null };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'تعذّر تحميل آيات السورة';
+    return {
+      ayahs: surah.ayahs,
+      fromCache: surah.ayahs.length > 0,
+      error: msg,
+    };
+  }
+}
+
+export function getEveryAyahAudioUrl(
+  reciter: 'hudhaify' | 'husary' | 'minshawi',
+  surahId: number,
+  ayahNumber: number,
+): string {
+  const folder =
+    reciter === 'hudhaify'
+      ? 'Hudhaify_128kbps'
+      : reciter === 'husary'
+        ? 'Husary_128kbps'
+        : 'Minshawy_Murattal_128kbps';
+  const s = String(surahId).padStart(3, '0');
+  const a = String(ayahNumber).padStart(3, '0');
+  return `https://everyayah.com/data/${folder}/${s}${a}.mp3`;
 }
