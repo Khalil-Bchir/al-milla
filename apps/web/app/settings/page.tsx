@@ -466,91 +466,102 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* Local-First Privacy, JSON Backup & Optional Cloud Sync */}
+        {/* Simple Device Backup & Optional Transfer */}
         <section className="space-y-3.5 rounded-2xl border border-border bg-card p-4">
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-5 w-5 text-primary" aria-hidden="true" />
-            <h2 className="text-base font-bold text-foreground">البيانات والنسخ الاحتياطي</h2>
+            <h2 className="text-base font-bold text-foreground">حفظ تقدّمك واستعادته</h2>
           </div>
           <p className="text-xs leading-relaxed text-muted-foreground">
-            يُحفظ تقدّمك افتراضياً في هذا المتصفح دون حساب. يمكنك تصدير ملف نسخة احتياطية أو
-            استيراده محلياً، أو استخدام مفتاح استعادة خاص للمزامنة الاختيارية بين أجهزتك.
+            تُحفظ آياتك وتقدّمك على هذا المتصفح فقط. حتى لا يضيع حفظك عند تغيير الجهاز أو مسح
+            بيانات المتصفح، يمكنك حفظ نسخة على جهازك.
           </p>
 
-          {/* Optional Cloud Sync Key */}
-          <div className="rounded-xl border border-border bg-background p-3">
-            <label htmlFor="sync-key-input" className="block text-xs font-bold text-foreground">
-              مفتاح الاستعادة السحابي الاختياري
-            </label>
-            <input
-              id="sync-key-input"
-              type="text"
-              value={store.syncKey}
-              onChange={(e) => store.setSyncKey(e.target.value)}
-              className="mt-1.5 min-h-[44px] w-full rounded-lg border border-border bg-card px-3 font-latin text-xs text-foreground"
-              dir="ltr"
-            />
-            {store.lastSyncedAt && (
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                آخر مزامنة: {new Date(store.lastSyncedAt).toLocaleString('ar-TN')}
-              </p>
-            )}
-            <div className="mt-2.5 grid grid-cols-2 gap-2">
+          {/* Primary: Simple File Backup on Device */}
+          <div className="space-y-2 rounded-xl border border-border bg-background p-3.5">
+            <p className="text-xs font-bold text-foreground">نسخة احتياطية على جهازك</p>
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              احفظ ملفاً صغيراً في هاتفك أو حاسوبك، وأعد تحميله لاحقاً لاسترجاع حفظك بضغطة واحدة.
+            </p>
+            <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
               <button
                 type="button"
-                disabled={syncing}
-                onClick={() => void handleCloudPush()}
-                className="flex min-h-[48px] items-center justify-center gap-1.5 rounded-xl bg-primary px-3 text-xs font-bold text-primary-foreground disabled:opacity-50"
+                onClick={handleExportLocalBackup}
+                className="flex min-h-[48px] items-center justify-center gap-1.5 rounded-xl bg-primary px-3 text-xs font-bold text-primary-foreground hover:opacity-95"
               >
-                <CloudUpload className="h-4 w-4" aria-hidden="true" />
-                <span>حفظ سحابي</span>
+                <Download className="h-4 w-4" aria-hidden="true" />
+                <span>حفظ نسخة على جهازي</span>
               </button>
-              <button
-                type="button"
-                disabled={syncing}
-                onClick={() => void handleCloudRestore()}
-                className="flex min-h-[48px] items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-3 text-xs font-bold text-foreground hover:bg-secondary disabled:opacity-50"
-              >
-                <CloudDownload className="h-4 w-4 text-primary" aria-hidden="true" />
-                <span>استعادة سحابية</span>
-              </button>
+
+              <label className="flex min-h-[48px] cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-3 text-xs font-bold text-foreground hover:bg-secondary">
+                <Upload className="h-4 w-4 text-primary" aria-hidden="true" />
+                <span>استرجاع نسخة من جهازي</span>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="application/json"
+                  onChange={(e) => void handleImportLocalFile(e)}
+                  className="sr-only"
+                />
+              </label>
             </div>
           </div>
 
-          {/* Local JSON Export & Import */}
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={handleExportLocalBackup}
-              className="flex min-h-[48px] items-center justify-center gap-1.5 rounded-xl border border-border bg-background px-3 text-xs font-bold text-foreground hover:bg-secondary"
-            >
-              <Download className="h-4 w-4 text-primary" aria-hidden="true" />
-              <span>تصدير JSON محلي</span>
-            </button>
-
-            <label className="flex min-h-[48px] cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-border bg-background px-3 text-xs font-bold text-foreground hover:bg-secondary">
-              <Upload className="h-4 w-4 text-primary" aria-hidden="true" />
-              <span>استيراد JSON محلي</span>
+          {/* Optional: Transfer Between Devices */}
+          <details className="rounded-xl border border-border bg-background p-3.5">
+            <summary className="cursor-pointer text-xs font-bold text-foreground">
+              نقل الحفظ إلى جهاز آخر بكلمة سر (اختياري)
+            </summary>
+            <div className="mt-3 space-y-2.5">
+              <label htmlFor="sync-key-input" className="block text-[11px] text-muted-foreground">
+                اكتب كلمة سر خاصة بك لحفظ تقدمك أو استرجاعه على هاتف آخر:
+              </label>
               <input
-                ref={fileInputRef}
-                type="file"
-                accept="application/json"
-                onChange={(e) => void handleImportLocalFile(e)}
-                className="sr-only"
+                id="sync-key-input"
+                type="text"
+                placeholder="مثال: حفظ-أحمد-٢٠٢٦"
+                value={store.syncKey === 'milla-local-portfolio-v1' ? '' : store.syncKey}
+                onChange={(e) => store.setSyncKey(e.target.value)}
+                className="min-h-[44px] w-full rounded-lg border border-border bg-card px-3 text-xs text-foreground"
               />
-            </label>
-          </div>
+              {store.lastSyncedAt && (
+                <p className="text-[11px] text-muted-foreground">
+                  آخر نقل: {new Date(store.lastSyncedAt).toLocaleString('ar-TN')}
+                </p>
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  disabled={syncing}
+                  onClick={() => void handleCloudPush()}
+                  className="flex min-h-[46px] items-center justify-center gap-1.5 rounded-xl bg-primary px-3 text-xs font-bold text-primary-foreground disabled:opacity-50"
+                >
+                  <CloudUpload className="h-4 w-4" aria-hidden="true" />
+                  <span>رفع الحفظ</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={syncing}
+                  onClick={() => void handleCloudRestore()}
+                  className="flex min-h-[46px] items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-3 text-xs font-bold text-foreground hover:bg-secondary disabled:opacity-50"
+                >
+                  <CloudDownload className="h-4 w-4 text-primary" aria-hidden="true" />
+                  <span>استرجاع الحفظ</span>
+                </button>
+              </div>
+            </div>
+          </details>
 
           <button
             type="button"
             onClick={() => {
               store.resetLocalProgress();
-              setStatusMessage('تمت إعادة ضبط التقدّم المحلي.');
+              setStatusMessage('تم مسح التقدّم والبدء من جديد.');
             }}
-            className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-destructive/40 bg-background px-4 text-xs font-bold text-destructive"
+            className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-destructive/40 bg-background px-4 text-xs font-bold text-destructive hover:bg-destructive/5"
           >
             <RotateCcw className="h-4 w-4" aria-hidden="true" />
-            <span>إعادة ضبط البيانات المحلية</span>
+            <span>مسح الحفظ والبدء من جديد</span>
           </button>
         </section>
       </div>
