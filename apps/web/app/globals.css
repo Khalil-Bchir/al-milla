@@ -79,6 +79,11 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html[lang="en"] body,
+  html[lang="fr"] body {
+    font-family: var(--font-inter), var(--font-ibm-arabic), ui-sans-serif, system-ui, sans-serif;
+  }
+  }
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "kern" 1;
