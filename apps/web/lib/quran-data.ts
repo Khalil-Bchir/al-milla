@@ -663,6 +663,21 @@ interface AlQuranCloudResponse {
   data?: AlQuranCloudEdition[];
 }
 
+function stripLeadingBasmalah(surahId: number, ayahNumber: number, text: string): string {
+  if (surahId === 1 || surahId === 9 || ayahNumber !== 1) return text;
+  const prefixes = [
+    'بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ ',
+    'بِسْمِ اللَّهِ الرَّحْمَـٰنِ الرَّحِيمِ ',
+    'بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ ',
+  ];
+  for (const prefix of prefixes) {
+    if (text.startsWith(prefix)) {
+      return text.slice(prefix.length).trimStart();
+    }
+  }
+  return text;
+}
+
 export async function loadVerifiedSurahAyahs(surahId: number): Promise<{
   ayahs: AyahEntry[];
   fromCache: boolean;
@@ -673,7 +688,14 @@ export async function loadVerifiedSurahAyahs(surahId: number): Promise<{
   // 1. Check IndexedDB cache first
   const cached = await getCachedSurah(surahId);
   if (cached && cached.ayahs.length > 0) {
-    return { ayahs: cached.ayahs, fromCache: true, error: null };
+    return {
+      ayahs: cached.ayahs.map((a) => ({
+        ...a,
+        textAr: stripLeadingBasmalah(surahId, a.number, a.textAr),
+      })),
+      fromCache: true,
+      error: null,
+    };
   }
 
   // 2. If bundled offline ayahs match full surah length, return immediately
@@ -703,7 +725,7 @@ export async function loadVerifiedSurahAyahs(surahId: number): Promise<{
       const existing = bundledByNumber.get(arAyah.numberInSurah);
       return {
         number: arAyah.numberInSurah,
-        textAr: arAyah.text,
+        textAr: stripLeadingBasmalah(surahId, arAyah.numberInSurah, arAyah.text),
         translationEn: enEd.ayahs[idx]?.text ?? existing?.translationEn ?? '',
         translationFr: frEd.ayahs[idx]?.text ?? existing?.translationFr ?? '',
         transliteration: existing?.transliteration ?? '',
@@ -783,7 +805,14 @@ export async function loadMushafPage(pageNumber: number): Promise<{
 
   const cached = await getCachedMushafPage(clampedPage);
   if (cached && cached.ayahs.length > 0) {
-    return { ayahs: cached.ayahs, fromCache: true, error: null };
+    return {
+      ayahs: cached.ayahs.map((a) => ({
+        ...a,
+        textAr: stripLeadingBasmalah(a.surahId, a.ayahNumber, a.textAr),
+      })),
+      fromCache: true,
+      error: null,
+    };
   }
 
   try {
@@ -802,7 +831,7 @@ export async function loadMushafPage(pageNumber: number): Promise<{
       surahId: a.surah.number,
       surahNameAr: a.surah.name,
       ayahNumber: a.numberInSurah,
-      textAr: a.text,
+      textAr: stripLeadingBasmalah(a.surah.number, a.numberInSurah, a.text),
       juz: a.juz,
       page: a.page,
     }));
