@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BookOpen, Home, RotateCcw, Settings, User, WifiOff, BookMarked, Type } from 'lucide-react';
+import { BookOpen, Home, RotateCcw, Settings, User, WifiOff, BookMarked } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MILLA_COPY } from '@/lib/milla-i18n';
 import { useMillaStore } from '@/store/milla-store';
@@ -25,8 +25,6 @@ export function AppShell({
 }: AppShellProps) {
   const pathname = usePathname();
   const language = useMillaStore((s) => s.language);
-  const quranFontSize = useMillaStore((s) => s.quranFontSize);
-  const setQuranFontSize = useMillaStore((s) => s.setQuranFontSize);
   const [isOffline, setIsOffline] = useState(false);
 
   const copy = MILLA_COPY[language];
@@ -99,21 +97,11 @@ export function AppShell({
               </span>
             )}
 
-            <button
-              type="button"
-              onClick={() => setQuranFontSize(quranFontSize >= 32 ? 22 : quranFontSize + 2)}
-              className="inline-flex min-h-[48px] items-center gap-1.5 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground transition-colors hover:bg-secondary"
-              aria-label="تعديل حجم الخط القرآني"
-            >
-              <Type className="h-4 w-4 text-primary" aria-hidden="true" />
-              <span>{language === 'ar' ? 'حجم الخط' : language === 'fr' ? 'Taille' : 'Font'}</span>
-            </button>
-
             {!hideTopActions && (
               <Link
                 href="/mushaf"
                 className={cn(
-                  'inline-flex min-h-[48px] items-center gap-1.5 rounded-xl border border-border px-3 text-xs font-semibold transition-colors',
+                  'inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-border px-3 text-xs font-semibold transition-colors',
                   pathname.startsWith('/mushaf')
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-card text-foreground hover:bg-secondary',
@@ -128,16 +116,16 @@ export function AppShell({
             {!hideTopActions && (
               <Link
                 href="/settings"
-              className={cn(
-                'inline-flex min-h-[48px] items-center gap-1.5 rounded-xl border border-border px-3 text-xs font-semibold transition-colors',
-                pathname.startsWith('/settings')
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-card text-foreground hover:bg-secondary',
-              )}
-              aria-label={copy.settingsLink}
-            >
+                className={cn(
+                  'inline-flex h-11 w-11 items-center justify-center rounded-xl border border-border transition-colors',
+                  pathname.startsWith('/settings')
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-card text-foreground hover:bg-secondary',
+                )}
+                aria-label={copy.settingsLink}
+                title={copy.settingsLink}
+              >
                 <Settings className="h-4 w-4" aria-hidden="true" />
-                <span>{copy.settingsLink}</span>
               </Link>
             )}
           </div>
