@@ -111,8 +111,7 @@ export default function MemorizePage() {
   const olderTarget = olderQueue[olderIdx];
   const olderSurah = olderTarget ? getSurahById(olderTarget.surahId) : null;
 
-  const [yesterdayAyahText, setYesterdayAyahText] = useState<string | null>(null);
-  const [olderAyahText, setOlderAyahText] = useState<string | null>(null);
+  const [reviewAyahTexts, setReviewAyahTexts] = useState<Record<string, string>>({});
   const [loadingReviewText, setLoadingReviewText] = useState(false);
 
   // Sub-state for New Memorization step (within today's dailyTarget range)
@@ -145,37 +144,40 @@ export default function MemorizePage() {
     };
   }, [currentSurahId]);
 
-  // Load yesterday review verse text from IndexedDB / verified API
+  // Load all yesterday & older review verse texts from IndexedDB / verified API
   useEffect(() => {
-    if (!yesterdayTarget) return;
-    let cancelled = false;
-    setLoadingReviewText(true);
-    void loadVerifiedSurahAyahs(yesterdayTarget.surahId).then((res) => {
-      if (cancelled) return;
-      const found = res.ayahs.find((a) => a.number === yesterdayTarget.ayahNumber);
-      setYesterdayAyahText(found?.textAr ?? null);
-      setLoadingReviewText(false);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [yesterdayTarget]);
+    const uniqueSurahIds = Array.from(
+      new Set([
+        ...yesterdayQueue.map((item) => item.surahId),
+        ...olderQueue.map((item) => item.surahId),
+      ]),
+    );
+    if (uniqueSurahIds.length === 0) return;
 
-  // Load older review verse text from IndexedDB / verified API
-  useEffect(() => {
-    if (!olderTarget) return;
     let cancelled = false;
     setLoadingReviewText(true);
-    void loadVerifiedSurahAyahs(olderTarget.surahId).then((res) => {
+
+    void Promise.all(
+      uniqueSurahIds.map(async (sid) => {
+        const res = await loadVerifiedSurahAyahs(sid);
+        return { sid, ayahs: res.ayahs };
+      }),
+    ).then((results) => {
       if (cancelled) return;
-      const found = res.ayahs.find((a) => a.number === olderTarget.ayahNumber);
-      setOlderAyahText(found?.textAr ?? null);
+      const nextMap: Record<string, string> = {};
+      for (const { sid, ayahs: surahAyahs } of results) {
+        for (const a of surahAyahs) {
+          nextMap[`${sid}:${a.number}`] = a.textAr;
+        }
+      }
+      setReviewAyahTexts(nextMap);
       setLoadingReviewText(false);
     });
+
     return () => {
       cancelled = true;
     };
-  }, [olderTarget]);
+  }, [yesterdayQueue, olderQueue]);
 
   // Compute today's portion slice in the current Surah
   const startIdx = Math.max(
@@ -220,26 +222,18 @@ export default function MemorizePage() {
     }
   };
 
-  const handleCompleteYesterdayAyah = () => {
-    if (!yesterdayTarget) return;
-    setVerseStatus(yesterdayTarget.key, 'memorized');
-    setReviewHidden(false);
-    if (yesterdayIdx + 1 < yesterdayQueue.length) {
-      setYesterdayIdx((i) => i + 1);
-    } else {
-      advanceStep('yesterdayReview');
+  const handleCompleteYesterdayReview = () => {
+    for (const item of yesterdayQueue) {
+      setVerseStatus(item.key, 'memorized');
     }
+    advanceStep('yesterdayReview');
   };
 
-  const handleCompleteOlderAyah = () => {
-    if (!olderTarget) return;
-    setVerseStatus(olderTarget.key, 'memorized');
-    setReviewHidden(false);
-    if (olderIdx + 1 < olderQueue.length) {
-      setOlderIdx((i) => i + 1);
-    } else {
-      advanceStep('olderReview');
+  const handleCompleteOlderReview = () => {
+    for (const item of olderQueue) {
+      setVerseStatus(item.key, 'memorized');
     }
+    advanceStep('olderReview');
   };
 
   const handleStartNextSession = () => {
@@ -377,42 +371,77 @@ export default function MemorizePage() {
           </ol>
         </section>
 
-        {/* STEP 1: Yesterday's Review (Iterates all yesterdayQueue verses) */}
+        {/* STEP 1: Yesterday's Review (Shows all yesterdayQueue verses together) */}
         {currentStep === 'yesterdayReview' && yesterdayTarget && yesterdaySurah && (
           <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h1 className="text-lg font-bold text-foreground">مراجعة الأمس</h1>
                 <p className="text-xs text-muted-foreground">
-                  الآية {toArabicDigits(yesterdayIdx + 1)} من{' '}
-                  {toArabicDigits(yesterdayQueue.length)} في مراجعة الأمس
+                  مراجعة {toArabicDigits(yesterdayQueue.length)}{' '}
+                  {yesterdayQueue.length === 1 ? 'آية' : 'آيات'} من ورد الأمس معاً
                 </p>
               </div>
               <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-primary">
-                {yesterdaySurah.nameAr} • الآية {toArabicDigits(yesterdayTarget.ayahNumber)}
+                {yesterdaySurah.nameAr} •{' '}
+                {yesterdayQueue.length > 1
+                  ? `الآيات ${toArabicDigits(yesterdayQueue[0].ayahNumber)}–${toArabicDigits(yesterdayQueue[yesterdayQueue.length - 1].ayahNumber)}`
+                  : `الآية ${toArabicDigits(yesterdayTarget.ayahNumber)}`}
               </span>
             </div>
 
             <p className="text-sm text-muted-foreground">
-              راجع محفوظ الأمس قراءةً أو استماعاً مرجعياً قبل البدء بالآيات الجديدة.
+              راجع آيات الأمس متصلةً قراءةً أو استماعاً مرجعياً قبل البدء بالآيات الجديدة. اضغط على
+              أي آية للاستماع إليها.
             </p>
 
-            <div className="rounded-2xl bg-secondary/50 p-4 text-center">
+            <div className="rounded-2xl bg-secondary/50 p-4 text-justify" dir="rtl" lang="ar">
               {reviewHidden ? (
-                <p className="py-4 text-sm font-medium text-muted-foreground">
-                  [ النص مخفي — سمّع غيباً ثم أظهره للتحقق ]
+                <p className="py-4 text-center text-sm font-medium text-muted-foreground">
+                  [ النص مخفي — سمّع الآيات غيباً ثم أظهرها للتحقق ]
                 </p>
-              ) : loadingReviewText && !yesterdayAyahText ? (
+              ) : loadingReviewText && !reviewAyahTexts[yesterdayTarget.key] ? (
                 <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
                   <RefreshCw className="h-4 w-4 animate-spin text-primary" aria-hidden="true" />
-                  <span>جاري تحميل نص الآية...</span>
+                  <span>جاري تحميل نص الآيات...</span>
                 </div>
               ) : (
-                <p className="quran-text text-foreground" dir="rtl" lang="ar">
-                  {yesterdayAyahText ?? 'تعذّر تحميل نص الآية دون اتصال'}{' '}
-                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card font-sans text-xs font-bold text-primary">
-                    {toArabicDigits(yesterdayTarget.ayahNumber)}
-                  </span>
+                <p className="quran-text leading-[2.3] text-foreground">
+                  {yesterdayQueue.map((item, idx) => {
+                    const prevItem = idx > 0 ? yesterdayQueue[idx - 1] : null;
+                    const showSurahTag = prevItem && prevItem.surahId !== item.surahId;
+                    const itemSurah = showSurahTag ? getSurahById(item.surahId) : null;
+                    const isSelected = idx === yesterdayIdx;
+                    return (
+                      <span key={item.key}>
+                        {itemSurah && (
+                          <span className="mx-1.5 inline-block rounded-md bg-secondary px-2 py-0.5 font-sans text-xs font-semibold text-primary">
+                            {itemSurah.nameAr}
+                          </span>
+                        )}
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setYesterdayIdx(idx)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              setYesterdayIdx(idx);
+                            }
+                          }}
+                          className={cn(
+                            'cursor-pointer rounded-lg transition-colors',
+                            isSelected ? 'bg-primary/10 px-1' : 'hover:bg-secondary/80',
+                          )}
+                        >
+                          {reviewAyahTexts[item.key] ?? 'تعذّر تحميل نص الآية'}{' '}
+                          <span className="mx-1 font-quran text-primary">
+                            ﴿{toArabicDigits(item.ayahNumber)}﴾
+                          </span>
+                        </span>{' '}
+                      </span>
+                    );
+                  })}
                 </p>
               )}
             </div>
@@ -431,32 +460,36 @@ export default function MemorizePage() {
               surahId={yesterdayTarget.surahId}
               surahName={yesterdaySurah.nameAr}
               ayahNumber={yesterdayTarget.ayahNumber}
+              onPrevAyah={
+                yesterdayIdx > 0 ? () => setYesterdayIdx((i) => i - 1) : undefined
+              }
+              onNextAyah={
+                yesterdayIdx + 1 < yesterdayQueue.length
+                  ? () => setYesterdayIdx((i) => i + 1)
+                  : undefined
+              }
             />
 
             <button
               type="button"
-              onClick={handleCompleteYesterdayAyah}
+              onClick={handleCompleteYesterdayReview}
               className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-base font-bold text-primary-foreground hover:opacity-95"
             >
-              <span>
-                {yesterdayIdx + 1 < yesterdayQueue.length
-                  ? 'راجعت هذه الآية • الآية التالية'
-                  : 'أتممت مراجعة الأمس • المتابعة'}
-              </span>
+              <span>أتممت مراجعة الأمس • المتابعة</span>
               <ArrowLeft className="h-5 w-5" aria-hidden="true" />
             </button>
           </section>
         )}
 
-        {/* STEP 2: Older / Weak Material Review (Iterates all olderQueue verses) */}
+        {/* STEP 2: Older / Weak Material Review (Shows all olderQueue verses together) */}
         {currentStep === 'olderReview' && olderTarget && olderSurah && (
           <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h1 className="text-lg font-bold text-foreground">المراجعة السابقة</h1>
                 <p className="text-xs text-muted-foreground">
-                  الآية {toArabicDigits(olderIdx + 1)} من {toArabicDigits(olderQueue.length)}{' '}
-                  المستحقة للمراجعة
+                  مراجعة {toArabicDigits(olderQueue.length)}{' '}
+                  {olderQueue.length === 1 ? 'آية' : 'آيات'} مستحقة للمراجعة معاً
                 </p>
               </div>
               <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-primary">
@@ -465,25 +498,57 @@ export default function MemorizePage() {
             </div>
 
             <p className="text-sm text-muted-foreground">
-              تدوير المحفوظ القديم ومواضع العناية يحفظ القرآن غضّاً في الصدر.
+              تدوير المحفوظ القديم ومواضع العناية يحفظ القرآن غضّاً في الصدر. اضغط على أي آية
+              للاستماع إليها.
             </p>
 
-            <div className="rounded-2xl bg-secondary/50 p-4 text-center">
+            <div className="rounded-2xl bg-secondary/50 p-4 text-justify" dir="rtl" lang="ar">
               {reviewHidden ? (
-                <p className="py-4 text-sm font-medium text-muted-foreground">
-                  [ النص مخفي — سمّع غيباً ثم أظهره للتحقق ]
+                <p className="py-4 text-center text-sm font-medium text-muted-foreground">
+                  [ النص مخفي — سمّع الآيات غيباً ثم أظهرها للتحقق ]
                 </p>
-              ) : loadingReviewText && !olderAyahText ? (
+              ) : loadingReviewText && !reviewAyahTexts[olderTarget.key] ? (
                 <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
                   <RefreshCw className="h-4 w-4 animate-spin text-primary" aria-hidden="true" />
-                  <span>جاري تحميل نص الآية...</span>
+                  <span>جاري تحميل نص الآيات...</span>
                 </div>
               ) : (
-                <p className="quran-text text-foreground" dir="rtl" lang="ar">
-                  {olderAyahText ?? 'تعذّر تحميل نص الآية دون اتصال'}{' '}
-                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card font-sans text-xs font-bold text-primary">
-                    {toArabicDigits(olderTarget.ayahNumber)}
-                  </span>
+                <p className="quran-text leading-[2.3] text-foreground">
+                  {olderQueue.map((item, idx) => {
+                    const prevItem = idx > 0 ? olderQueue[idx - 1] : null;
+                    const showSurahTag = idx === 0 || (prevItem && prevItem.surahId !== item.surahId);
+                    const itemSurah = showSurahTag ? getSurahById(item.surahId) : null;
+                    const isSelected = idx === olderIdx;
+                    return (
+                      <span key={item.key}>
+                        {itemSurah && idx > 0 && (
+                          <span className="mx-1.5 inline-block rounded-md bg-secondary px-2 py-0.5 font-sans text-xs font-semibold text-primary">
+                            {itemSurah.nameAr}
+                          </span>
+                        )}
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setOlderIdx(idx)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              setOlderIdx(idx);
+                            }
+                          }}
+                          className={cn(
+                            'cursor-pointer rounded-lg transition-colors',
+                            isSelected ? 'bg-primary/10 px-1' : 'hover:bg-secondary/80',
+                          )}
+                        >
+                          {reviewAyahTexts[item.key] ?? 'تعذّر تحميل نص الآية'}{' '}
+                          <span className="mx-1 font-quran text-primary">
+                            ﴿{toArabicDigits(item.ayahNumber)}﴾
+                          </span>
+                        </span>{' '}
+                      </span>
+                    );
+                  })}
                 </p>
               )}
             </div>
@@ -502,18 +567,18 @@ export default function MemorizePage() {
               surahId={olderTarget.surahId}
               surahName={olderSurah.nameAr}
               ayahNumber={olderTarget.ayahNumber}
+              onPrevAyah={olderIdx > 0 ? () => setOlderIdx((i) => i - 1) : undefined}
+              onNextAyah={
+                olderIdx + 1 < olderQueue.length ? () => setOlderIdx((i) => i + 1) : undefined
+              }
             />
 
             <button
               type="button"
-              onClick={handleCompleteOlderAyah}
+              onClick={handleCompleteOlderReview}
               className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-base font-bold text-primary-foreground hover:opacity-95"
             >
-              <span>
-                {olderIdx + 1 < olderQueue.length
-                  ? 'راجعت هذه الآية • الآية التالية'
-                  : 'أتممت المراجعة السابقة • بدء الحفظ الجديد'}
-              </span>
+              <span>أتممت المراجعة السابقة • بدء الحفظ الجديد</span>
               <ArrowLeft className="h-5 w-5" aria-hidden="true" />
             </button>
           </section>
