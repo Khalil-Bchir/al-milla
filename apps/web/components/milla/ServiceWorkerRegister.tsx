@@ -8,8 +8,15 @@ export function ServiceWorkerRegister() {
       return;
     }
     try {
+      if (process.env.NODE_ENV !== 'production') {
+        void navigator.serviceWorker
+          .getRegistrations()
+          .then((regs) => Promise.all(regs.map((r) => r.unregister())))
+          .catch(() => undefined);
+        return;
+      }
       void navigator.serviceWorker.register('/sw.js').catch(() => {
-        // Ignore registration errors in dev/unsupported environments
+        // Ignore registration errors in unsupported environments
       });
     } catch {
       // Ignore unexpected SW errors

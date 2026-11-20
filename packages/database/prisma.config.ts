@@ -36,7 +36,7 @@ const migrationsPath = path.resolve(__dirname, "prisma", "migrations");
 
 export default defineConfig({
   schema: schemaPath,
-  migrations: { path: migrationsPath },
+  migrations: { path: migrationsPath, seed: "tsx src/seed/index.ts" },
   engine: "classic",
   datasource: {
     url: env("DATABASE_URL"),

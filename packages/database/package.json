@@ -49,9 +49,5 @@
     "typescript": "^5.3.3",
     "ethers": "^6.16.0"
   },
-  "devDependencies": {
-  },
-  "prisma": {
-    "seed": "tsx src/seed/index.ts"
-  }
+  "devDependencies": {}
 }

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'almilla-pwa-v1';
+const CACHE_NAME = 'almilla-pwa-v2';
 const CORE_ASSETS = [
   '/',
   '/memorize/',
@@ -37,6 +37,9 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  const url = new URL(event.request.url);
+  if (url.pathname.startsWith('/_next/webpack-hmr')) return;
+
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
@@ -48,7 +51,12 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         })
-        .catch(() => caches.match('/'));
+        .catch(() => {
+          if (event.request.mode === 'navigate') {
+            return caches.match('/');
+          }
+          return Response.error();
+        });
     }),
   );
 });
