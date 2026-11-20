@@ -49,6 +49,14 @@
   --ring: #9fd0c5;
 }
 
+@font-face {
+  font-family: "KFGQPC Nastaleeq";
+  src: url("/fonts/KFGQPCNastaleeq-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -71,7 +79,7 @@
   --color-ring: var(--ring);
 
   --font-sans: var(--font-ibm-arabic), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-quran: var(--font-amiri-quran), var(--font-amiri), var(--font-noto-naskh), serif;
+  --font-quran: "KFGQPC Nastaleeq", var(--font-amiri-quran), var(--font-amiri), var(--font-noto-naskh), serif;
   --font-latin: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -98,9 +106,9 @@
 }
 
 .mushaf-quran-text {
-  font-family: var(--font-amiri-quran), var(--font-amiri), serif;
+  font-family: "KFGQPC Nastaleeq", var(--font-amiri-quran), var(--font-amiri), serif;
   font-size: var(--quran-font-scale);
-  line-height: 2.5;
+  line-height: 2.55;
   letter-spacing: 0;
   word-spacing: 0.06em;
 }
