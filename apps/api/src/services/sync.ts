@@ -1,25 +1,16 @@
+import { z } from "@hono/zod-openapi";
 import type { PrismaClient } from "@al-milla/database";
-import type { PortfolioSyncPayload } from "../schema/v1/sync.schema.js";
+import {
+  syncedVerseSchema,
+  type PortfolioSyncPayload,
+} from "../schema/v1/sync.schema.js";
 import type { AbstractServiceOptions } from "../types/services.js";
 
-function toValidEvaluation(val: string | null): "difficult" | "good" | "easy" | undefined {
-  if (val === "difficult" || val === "good" || val === "easy") {
-    return val;
-  }
-  return undefined;
-}
-
-function toValidStatus(val: string): "memorized" | "in_progress" | "weak" {
-  if (val === "in_progress" || val === "weak") {
-    return val;
-  }
-  return "memorized";
-}
-
-function toValidLanguage(val: string): "ar" | "en" | "fr" {
-  if (val === "en" || val === "fr") return val;
-  return "ar";
-}
+const snapshotJsonSchema = z.object({
+  bookmarks: z.array(z.string()).default([]),
+  activityDates: z.array(z.string()).default([]),
+  verses: z.array(syncedVerseSchema).default([]),
+});
 
 function toValidNarration(val: string): "qalun" | "warsh" | "hafs" {
   if (val === "warsh" || val === "hafs") return val;
@@ -36,105 +27,65 @@ export class MillaSyncService {
   async getPortfolioBySyncKey(syncKey: string) {
     const row = await this.prisma.hafizPortfolio.findUnique({
       where: { syncKey: syncKey.trim() },
-      include: {
-        memorizedVerses: {
-          orderBy: [{ surahId: "asc" }, { ayahNumber: "asc" }],
-        },
-      },
     });
 
     if (!row) return null;
 
+    const parsedSnapshot = snapshotJsonSchema.safeParse(row.snapshot);
+    const snap = parsedSnapshot.success
+      ? parsedSnapshot.data
+      : { bookmarks: [], activityDates: [], verses: [] };
+
     return {
       syncKey: row.syncKey,
-      language: toValidLanguage(row.language),
       narration: toValidNarration(row.narration),
       dailyTarget: row.dailyTarget,
-      quranFontSize: row.quranFontSize,
       currentSurahId: row.currentSurahId,
       currentAyah: row.currentAyah,
-      bookmarks: row.bookmarks,
-      activityDates: row.activityDates,
+      bookmarks: snap.bookmarks,
+      activityDates: snap.activityDates,
+      verses: snap.verses,
       updatedAt: row.updatedAt.toISOString(),
-      verses: row.memorizedVerses.map((v) => ({
-        key: `${v.surahId}:${v.ayahNumber}`,
-        surahId: v.surahId,
-        ayahNumber: v.ayahNumber,
-        status: toValidStatus(v.status),
-        firstMemorizedAt: v.firstMemorizedAt.toISOString(),
-        lastReviewedAt: v.lastReviewedAt.toISOString(),
-        nextReviewAt: v.nextReviewAt.toISOString(),
-        intervalDays: v.intervalDays,
-        lastEvaluation: toValidEvaluation(v.lastEvaluation),
-        reviewCount: v.reviewCount,
-      })),
     };
   }
 
   async upsertPortfolio(input: PortfolioSyncPayload) {
     const cleanKey = input.syncKey.trim();
+    const snapshot = {
+      bookmarks: input.bookmarks,
+      activityDates: input.activityDates.slice(-90),
+      verses: input.verses,
+    };
 
-    const portfolio = await this.prisma.hafizPortfolio.upsert({
+    const row = await this.prisma.hafizPortfolio.upsert({
       where: { syncKey: cleanKey },
       create: {
         syncKey: cleanKey,
-        language: input.language,
         narration: input.narration,
         dailyTarget: input.dailyTarget,
-        quranFontSize: input.quranFontSize,
         currentSurahId: input.currentSurahId,
         currentAyah: input.currentAyah,
-        bookmarks: input.bookmarks,
-        activityDates: input.activityDates,
+        snapshot,
       },
       update: {
-        language: input.language,
         narration: input.narration,
         dailyTarget: input.dailyTarget,
-        quranFontSize: input.quranFontSize,
         currentSurahId: input.currentSurahId,
         currentAyah: input.currentAyah,
-        bookmarks: input.bookmarks,
-        activityDates: input.activityDates,
+        snapshot,
       },
     });
 
-    for (const verse of input.verses) {
-      await this.prisma.memorizedVerse.upsert({
-        where: {
-          portfolioId_surahId_ayahNumber: {
-            portfolioId: portfolio.id,
-            surahId: verse.surahId,
-            ayahNumber: verse.ayahNumber,
-          },
-        },
-        create: {
-          portfolioId: portfolio.id,
-          surahId: verse.surahId,
-          ayahNumber: verse.ayahNumber,
-          status: verse.status,
-          firstMemorizedAt: new Date(verse.firstMemorizedAt),
-          lastReviewedAt: new Date(verse.lastReviewedAt),
-          nextReviewAt: new Date(verse.nextReviewAt),
-          intervalDays: verse.intervalDays,
-          lastEvaluation: verse.lastEvaluation ?? null,
-          reviewCount: verse.reviewCount,
-        },
-        update: {
-          status: verse.status,
-          lastReviewedAt: new Date(verse.lastReviewedAt),
-          nextReviewAt: new Date(verse.nextReviewAt),
-          intervalDays: verse.intervalDays,
-          lastEvaluation: verse.lastEvaluation ?? null,
-          reviewCount: verse.reviewCount,
-        },
-      });
-    }
-
-    const updated = await this.getPortfolioBySyncKey(cleanKey);
-    if (!updated) {
-      throw new Error("Portfolio sync failed after upsert");
-    }
-    return updated;
+    return {
+      syncKey: row.syncKey,
+      narration: toValidNarration(row.narration),
+      dailyTarget: row.dailyTarget,
+      currentSurahId: row.currentSurahId,
+      currentAyah: row.currentAyah,
+      bookmarks: snapshot.bookmarks,
+      activityDates: snapshot.activityDates,
+      verses: snapshot.verses,
+      updatedAt: row.updatedAt.toISOString(),
+    };
   }
 }

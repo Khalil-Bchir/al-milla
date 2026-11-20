@@ -13,17 +13,17 @@ export const syncedVerseSchema = z.object({
   reviewCount: z.number().int().min(0),
 });
 
+export type SyncedVerseItem = z.infer<typeof syncedVerseSchema>;
+
 export const portfolioSyncPayloadSchema = z.object({
   syncKey: z.string().min(8).max(128),
-  language: z.enum(["ar", "en", "fr"]).default("ar"),
   narration: z.enum(["qalun", "warsh", "hafs"]).default("qalun"),
   dailyTarget: z.number().int().min(1).max(20).default(4),
-  quranFontSize: z.number().int().min(18).max(36).default(26),
   currentSurahId: z.number().int().min(1).max(114).default(18),
   currentAyah: z.number().int().min(1).max(286).default(1),
-  bookmarks: z.array(z.string()).default([]),
-  activityDates: z.array(z.string()).default([]),
-  verses: z.array(syncedVerseSchema).default([]),
+  bookmarks: z.array(z.string()).max(200).default([]),
+  activityDates: z.array(z.string()).max(365).default([]),
+  verses: z.array(syncedVerseSchema).max(6236).default([]),
 });
 
 export type PortfolioSyncPayload = z.infer<typeof portfolioSyncPayloadSchema>;
@@ -45,9 +45,9 @@ export const getPortfolioSyncSchema = createRoute({
   method: "get",
   path: "/",
   tags: ["Milla Cloud Sync"],
-  summary: "Restore a learner's Hafiz portfolio by syncKey",
+  summary: "Restore a learner's compact Hafiz portfolio snapshot by syncKey",
   description:
-    "Fetches an optional cloud backup of the learner's memorization progress, spaced-repetition intervals, and preferences without requiring mandatory registration.",
+    "Fetches the single-row cloud snapshot (essential memorization progress and reading position). Device UI preferences and Quran datasets remain local.",
   request: {
     query: z.object({
       syncKey: z.string().min(8).max(128),
@@ -85,9 +85,9 @@ export const upsertPortfolioSyncSchema = createRoute({
   method: "post",
   path: "/",
   tags: ["Milla Cloud Sync"],
-  summary: "Save or update a learner's Hafiz portfolio backup",
+  summary: "Save a compact single-row Hafiz portfolio snapshot",
   description:
-    "Upserts the learner's local-first memorization state, revision schedule, and preferences to PostgreSQL using their private syncKey.",
+    "Stores the learner's essential memorization progress in a single PostgreSQL row (`hafiz_portfolios.snapshot`) to minimize database storage and queries on the free tier.",
   request: {
     body: {
       content: {

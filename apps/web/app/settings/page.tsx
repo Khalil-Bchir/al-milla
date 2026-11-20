@@ -106,14 +106,12 @@ export default function SettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           syncKey: store.syncKey,
-          language: store.language,
           narration: store.narration,
           dailyTarget: store.dailyTarget,
-          quranFontSize: store.quranFontSize,
           currentSurahId: store.currentSurahId,
           currentAyah: store.currentAyah,
           bookmarks: store.bookmarks,
-          activityDates: store.activityDates,
+          activityDates: store.activityDates.slice(-90),
           verses: Object.values(store.verseRecords),
         }),
       });
