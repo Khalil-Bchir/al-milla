@@ -148,9 +148,9 @@ const INITIAL_STATE: MillaPersistedState = {
   reciter: 'hudhaify',
   playbackSpeed: 1.0,
   reminders: {
-    fajrEnabled: true,
+    fajrEnabled: false,
     fajrTime: '05:15',
-    eveningEnabled: true,
+    eveningEnabled: false,
     eveningTime: '21:30',
   },
   onboardingCompleted: false,
@@ -489,7 +489,7 @@ export function computeProgressMetrics(
       hizb: surah.hizb,
       percent,
       statusLabelAr: isComplete
-        ? '١٠٠٪ متقنة'
+        ? 'مكتملة'
         : hasWeak
           ? `${percent}٪ يحتاج عناية`
           : `${percent}٪ الحفظ الجاري`,

@@ -764,7 +764,7 @@ export default function MemorizePage() {
                   [
                     { id: 'difficult', title: 'صعبة', sub: 'إعادة غداً' },
                     { id: 'good', title: 'جيدة', sub: 'بتأنٍّ' },
-                    { id: 'easy', title: 'متقنة', sub: 'راسخة' },
+                    { id: 'easy', title: 'سهلة', sub: 'ثابتة بيسر' },
                   ] as const
                 ).map((item) => (
                   <button

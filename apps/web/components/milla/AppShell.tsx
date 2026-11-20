@@ -12,10 +12,17 @@ interface AppShellProps {
   title: string;
   subtitle?: string;
   hideBottomNav?: boolean;
+  hideTopActions?: boolean;
   children: React.ReactNode;
 }
 
-export function AppShell({ title, subtitle, hideBottomNav = false, children }: AppShellProps) {
+export function AppShell({
+  title,
+  subtitle,
+  hideBottomNav = false,
+  hideTopActions = false,
+  children,
+}: AppShellProps) {
   const pathname = usePathname();
   const language = useMillaStore((s) => s.language);
   const quranFontSize = useMillaStore((s) => s.quranFontSize);
@@ -99,25 +106,28 @@ export function AppShell({ title, subtitle, hideBottomNav = false, children }: A
               aria-label="تعديل حجم الخط القرآني"
             >
               <Type className="h-4 w-4 text-primary" aria-hidden="true" />
-              <span>{quranFontSize}px</span>
+              <span>{language === 'ar' ? 'حجم الخط' : language === 'fr' ? 'Taille' : 'Font'}</span>
             </button>
 
-            <Link
-              href="/mushaf"
-              className={cn(
-                'inline-flex min-h-[48px] items-center gap-1.5 rounded-xl border border-border px-3 text-xs font-semibold transition-colors',
-                pathname.startsWith('/mushaf')
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-card text-foreground hover:bg-secondary',
-              )}
-              aria-label={copy.mushafLink}
-            >
-              <BookMarked className="h-4 w-4" aria-hidden="true" />
-              <span>{copy.mushafLink}</span>
-            </Link>
+            {!hideTopActions && (
+              <Link
+                href="/mushaf"
+                className={cn(
+                  'inline-flex min-h-[48px] items-center gap-1.5 rounded-xl border border-border px-3 text-xs font-semibold transition-colors',
+                  pathname.startsWith('/mushaf')
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-card text-foreground hover:bg-secondary',
+                )}
+                aria-label={copy.mushafLink}
+              >
+                <BookMarked className="h-4 w-4" aria-hidden="true" />
+                <span>{copy.mushafLink}</span>
+              </Link>
+            )}
 
-            <Link
-              href="/settings"
+            {!hideTopActions && (
+              <Link
+                href="/settings"
               className={cn(
                 'inline-flex min-h-[48px] items-center gap-1.5 rounded-xl border border-border px-3 text-xs font-semibold transition-colors',
                 pathname.startsWith('/settings')
@@ -126,9 +136,10 @@ export function AppShell({ title, subtitle, hideBottomNav = false, children }: A
               )}
               aria-label={copy.settingsLink}
             >
-              <Settings className="h-4 w-4" aria-hidden="true" />
-              <span>{copy.settingsLink}</span>
-            </Link>
+                <Settings className="h-4 w-4" aria-hidden="true" />
+                <span>{copy.settingsLink}</span>
+              </Link>
+            )}
           </div>
         </div>
         {subtitle && (

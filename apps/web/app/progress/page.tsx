@@ -6,51 +6,50 @@ import { BookOpen, CheckCircle2, Settings } from 'lucide-react';
 import { AppShell } from '@/components/milla/AppShell';
 import { cn } from '@/lib/utils';
 import { computeProgressMetrics, useMillaStore } from '@/store/milla-store';
+import { getSurahById, toArabicDigits } from '@/lib/quran-data';
 
 export default function ProgressPage() {
   const router = useRouter();
   const verseRecords = useMillaStore((s) => s.verseRecords);
   const activityDates = useMillaStore((s) => s.activityDates);
   const currentSurahId = useMillaStore((s) => s.currentSurahId);
+  const currentAyah = useMillaStore((s) => s.currentAyah);
   const setCurrentPosition = useMillaStore((s) => s.setCurrentPosition);
 
   const metrics = computeProgressMetrics(verseRecords, activityDates, currentSurahId);
+  const currentSurah = getSurahById(currentSurahId);
 
   return (
-    <AppShell title="محفظة الحافظ" subtitle="ثمرة التعهّد والرسوخ اليومي • بيانات محلية خاصة بك">
+    <AppShell title="محفظة الحافظ" subtitle="ثمرة الحفظ الهادئ • بيانات محلية خاصة بك">
       <div className="space-y-5">
         {/* Top Retention Summary Card */}
         <section className="rounded-2xl bg-primary p-5 text-primary-foreground">
           <div className="mb-3 flex items-center justify-between">
-            <span className="text-xs opacity-90">مستوى الرسوخ التراكمي</span>
+            <span className="text-xs opacity-90">سجل الحفظ المحلي</span>
             <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold">
               رواية حفص عن عاصم
             </span>
           </div>
 
-          <div className="flex items-end justify-between">
+          <div className="flex items-end justify-between gap-3">
             <div>
-              <p className="text-3xl font-bold">{metrics.totalMemorizedVerses} آية</p>
+              <p className="text-3xl font-bold">{toArabicDigits(metrics.totalMemorizedVerses)} آية</p>
               <p className="mt-1 text-xs opacity-85">إجمالي الآيات المسجلة في محفظتك المحلية</p>
             </div>
             <div className="text-end">
-              <p className="text-2xl font-bold text-accent">{metrics.retentionPercent}٪</p>
-              <p className="text-xs opacity-85">نسبة الضبط</p>
+              <p className="text-sm font-bold">{currentSurah.nameAr}</p>
+              <p className="text-xs opacity-85">الورد الحالي • الآية {toArabicDigits(currentAyah)}</p>
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+          <div className="mt-4 grid grid-cols-2 gap-2 text-center">
             <div className="rounded-xl bg-white/10 p-2.5">
               <p className="text-[11px] opacity-80">السور المكتملة</p>
-              <p className="mt-0.5 text-sm font-bold">{metrics.completedSurahsCount} سُوَر</p>
-            </div>
-            <div className="rounded-xl bg-white/10 p-2.5">
-              <p className="text-[11px] opacity-80">أيام التعهّد</p>
-              <p className="mt-0.5 text-sm font-bold">{metrics.practicedDaysCount} يوم</p>
+              <p className="mt-0.5 text-sm font-bold">{toArabicDigits(metrics.completedSurahsCount)} سُوَر</p>
             </div>
             <div className="rounded-xl bg-white/10 p-2.5">
               <p className="text-[11px] opacity-80">السور الجارية</p>
-              <p className="mt-0.5 text-sm font-bold">{metrics.surahMasteryList.length}</p>
+              <p className="mt-0.5 text-sm font-bold">{toArabicDigits(metrics.surahMasteryList.length)}</p>
             </div>
           </div>
         </section>

@@ -9,6 +9,7 @@ import {
   getEveryAyahAudioUrl,
   getSurahById,
   loadVerifiedSurahAyahs,
+  toArabicDigits,
   type AyahEntry,
 } from '@/lib/quran-data';
 import { useMillaStore, type SelfEvalRating } from '@/store/milla-store';
@@ -17,6 +18,7 @@ export default function SelfTestPage() {
   const language = useMillaStore((s) => s.language);
   const currentSurahId = useMillaStore((s) => s.currentSurahId);
   const currentAyah = useMillaStore((s) => s.currentAyah);
+  const dailyTarget = useMillaStore((s) => s.dailyTarget);
   const setCurrentPosition = useMillaStore((s) => s.setCurrentPosition);
   const reciter = useMillaStore((s) => s.reciter);
   const recordEvaluation = useMillaStore((s) => s.recordEvaluation);
@@ -44,7 +46,9 @@ export default function SelfTestPage() {
     0,
     ayahs.findIndex((a) => a.number === currentAyah),
   );
-  const ayah = ayahs[ayahIdx] ?? ayahs[0];
+  const portionAyahs = ayahs.slice(ayahIdx, ayahIdx + dailyTarget);
+  const [portionOffset, setPortionOffset] = useState(0);
+  const ayah = portionAyahs[portionOffset] ?? ayahs[ayahIdx] ?? ayahs[0];
   const copy = MILLA_COPY[language];
 
   const handleToggleAudioReference = async () => {
@@ -73,7 +77,12 @@ export default function SelfTestPage() {
     setRevealed(false);
     setRating(null);
     setAudioHintPlaying(false);
-    const nextIdx = (ayahIdx + 1) % Math.max(1, ayahs.length);
+    if (portionOffset + 1 < portionAyahs.length) {
+      setPortionOffset((o) => o + 1);
+      return;
+    }
+    setPortionOffset(0);
+    const nextIdx = (ayahIdx + portionAyahs.length) % Math.max(1, ayahs.length);
     const nextAyahObj = ayahs[nextIdx];
     if (nextAyahObj) {
       setCurrentPosition(surah.id, nextAyahObj.number);
@@ -83,13 +92,13 @@ export default function SelfTestPage() {
   const ratings: { id: SelfEvalRating; title: string; subtitle: string }[] = [
     { id: 'difficult', title: 'صعبة', subtitle: 'تعثّرت / مراجعة غداً' },
     { id: 'good', title: 'جيدة', subtitle: 'بتردّد يسير' },
-    { id: 'easy', title: 'متقنة', subtitle: 'رسوخ كالماء' },
+    { id: 'easy', title: 'سهلة', subtitle: 'ثابتة بيسر' },
   ];
 
   return (
     <AppShell
       title="التسميع الذاتي"
-      subtitle={`${surah.nameAr} • الآية ${ayah?.number ?? 1} من ${surah.totalAyahs}`}
+      subtitle={`${surah.nameAr} • الآية ${toArabicDigits(portionOffset + 1)} من ${toArabicDigits(Math.max(1, portionAyahs.length))}`}
     >
       <div className="space-y-5">
         {ayah && (
@@ -107,17 +116,17 @@ export default function SelfTestPage() {
           <div className="mb-2 flex items-center justify-between">
             <span className="text-xs font-bold text-primary">التسميع الغيبي الذاتي</span>
             <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-semibold text-secondary-foreground">
-              الآية {ayah?.number ?? 1} من {surah.totalAyahs}
+              الآية {toArabicDigits(portionOffset + 1)} من {toArabicDigits(Math.max(1, portionAyahs.length))}
             </span>
           </div>
           <h1 className="text-lg font-bold text-foreground">{surah.nameAr}</h1>
-          <div className="mt-3 grid grid-cols-5 gap-1.5">
-            {ayahs.slice(0, 5).map((item, idx) => (
+          <div className="mt-3 flex gap-1.5">
+            {portionAyahs.map((item, idx) => (
               <span
                 key={item.number}
                 className={cn(
-                  'h-2 rounded-full transition-colors',
-                  idx <= ayahIdx % 5 ? 'bg-primary' : 'bg-muted',
+                  'h-2 flex-1 rounded-full transition-colors',
+                  idx <= portionOffset ? 'bg-primary' : 'bg-muted',
                 )}
               />
             ))}
@@ -170,7 +179,7 @@ export default function SelfTestPage() {
             <div>
               <h2 className="text-sm font-bold text-foreground">التدقيق الصوتي المرجعي</h2>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                {ayah?.qalunNote ?? 'استمع للتحقق من مخارج الحروف والضبط'}
+                استمع للتحقق من مخارج الحروف والضبط
               </p>
             </div>
             <button

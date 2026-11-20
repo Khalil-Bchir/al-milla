@@ -7,7 +7,7 @@ export default function LoadingPage() {
     >
       <div className="h-10 w-10 animate-spin rounded-full border-4 border-secondary border-t-primary" />
       <p className="mt-4 text-base font-medium text-muted-foreground">
-        جاري تحضير الورد القرآني...
+        جاري التحميل...
       </p>
     </div>
   );

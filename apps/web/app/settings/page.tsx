@@ -391,6 +391,51 @@ export default function SettingsPage() {
               {store.largeUiMode ? 'مُفعّل' : 'متوقف'}
             </button>
           </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-bold text-foreground">عرض ترجمة المعاني</p>
+              <p className="text-xs text-muted-foreground">إظهار الترجمة مع الآيات عند الحاجة</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => store.setShowTranslation(!store.showTranslation)}
+              aria-pressed={store.showTranslation}
+              className={cn(
+                'min-h-[48px] rounded-xl border px-4 text-xs font-bold',
+                store.showTranslation
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border bg-background text-foreground',
+              )}
+            >
+              {store.showTranslation ? 'مُفعّل' : 'متوقف'}
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-bold text-foreground">النطق بالحروف اللاتينية</p>
+              <p className="text-xs text-muted-foreground">مفيد لغير الناطقين بالعربية</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => store.setShowTransliteration(!store.showTransliteration)}
+              aria-pressed={store.showTransliteration}
+              className={cn(
+                'min-h-[48px] rounded-xl border px-4 text-xs font-bold',
+                store.showTransliteration
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border bg-background text-foreground',
+              )}
+            >
+              {store.showTransliteration ? 'مُفعّل' : 'متوقف'}
+            </button>
+          </div>
+
+          <p className="rounded-xl bg-secondary/50 p-3 text-xs leading-relaxed text-muted-foreground">
+            تنبيه: يتم حفظ نصوص السور التي تفتحها محلياً للقراءة دون اتصال، بينما تتطلب التلاوة
+            الصوتية اتصالاً بالإنترنت.
+          </p>
         </section>
 
         {/* Reminders */}
@@ -428,14 +473,14 @@ export default function SettingsPage() {
             <h2 className="text-base font-bold text-foreground">البيانات والنسخ الاحتياطي</h2>
           </div>
           <p className="text-xs leading-relaxed text-muted-foreground">
-            الأصل في المِلّة الحفظ المحلي الكامل على جهازك دون حساب. يمكنك تصدير أو استيراد ملف JSON محلي، أو
-            استخدام مفتاح الاستعادة للمزامنة السحابية الاختيارية عبر خادم المِلّة (`/api/v1/sync`).
+            يُحفظ تقدّمك افتراضياً في هذا المتصفح دون حساب. يمكنك تصدير ملف نسخة احتياطية أو
+            استيراده محلياً، أو استخدام مفتاح استعادة خاص للمزامنة الاختيارية بين أجهزتك.
           </p>
 
           {/* Optional Cloud Sync Key */}
           <div className="rounded-xl border border-border bg-background p-3">
             <label htmlFor="sync-key-input" className="block text-xs font-bold text-foreground">
-              مفتاح الاستعادة السحابي الاختياري (Sync Key)
+              مفتاح الاستعادة السحابي الاختياري
             </label>
             <input
               id="sync-key-input"

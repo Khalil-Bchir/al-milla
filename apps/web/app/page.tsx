@@ -71,7 +71,11 @@ export default function HomePage() {
             href="/memorize"
             className="mt-5 flex min-h-[54px] w-full items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-lg font-bold text-[#073D35] transition-colors hover:bg-secondary"
           >
-            <span>{copy.homeContinueCta}</span>
+            <span>
+              {queues.totalDueCount > 0
+                ? 'بدء جلسة اليوم (المراجعة + الحفظ)'
+                : copy.homeContinueCta}
+            </span>
             <ArrowLeft className="h-5 w-5" aria-hidden="true" />
           </Link>
         </section>

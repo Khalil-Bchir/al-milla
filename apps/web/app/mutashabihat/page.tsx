@@ -19,7 +19,7 @@ export default function MutashabihatPage() {
   const isMastered = Boolean(mutashabihatMastered[drill.id]);
 
   return (
-    <AppShell title="ضبط المتشابهات" subtitle="منهج المِلّة لضبط الحفّاظ • رواية قالون عن نافع">
+    <AppShell title="ضبط المتشابهات" subtitle="تمييز المواضع المتشابهة • حفص عن عاصم">
       <div className="space-y-5">
         {/* Comparison Header */}
         <section className="rounded-2xl border border-border bg-card p-4">
@@ -47,7 +47,7 @@ export default function MutashabihatPage() {
             {drill.primaryText}
           </p>
           <p className="rounded-xl bg-secondary/60 p-3 text-xs leading-relaxed text-foreground">
-            {drill.primaryNoteQalun}
+            {drill.primaryNote}
           </p>
         </section>
 
@@ -67,7 +67,7 @@ export default function MutashabihatPage() {
           <p className="text-xs text-muted-foreground">{drill.divergenceNote}</p>
         </section>
 
-        {/* Mnemonic Rule & Poem */}
+        {/* Mnemonic Rule */}
         <section className="rounded-2xl border border-border bg-card p-4">
           <div className="mb-2 flex items-center gap-2">
             <Lightbulb className="h-5 w-5 text-primary" aria-hidden="true" />
@@ -75,11 +75,6 @@ export default function MutashabihatPage() {
           </div>
           <p className="text-sm font-bold text-primary">{drill.mnemonicTitle}</p>
           <p className="mt-1.5 text-xs leading-relaxed text-foreground">{drill.mnemonicBody}</p>
-
-          <div className="mt-3 rounded-xl bg-secondary/50 p-3.5 text-center">
-            <p className="mb-1 text-[11px] text-muted-foreground">من منظومات ضبط متشابه القرآن التونسية والمغاربية</p>
-            <p className="font-quran text-base font-bold text-foreground">{drill.maghrebiPoem}</p>
-          </div>
         </section>
 
         {/* Audio Comparison */}

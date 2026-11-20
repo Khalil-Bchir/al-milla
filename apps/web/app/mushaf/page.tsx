@@ -265,7 +265,7 @@ export default function MushafPage() {
               {cachedOffline && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold text-primary">
                   <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>محفوظة أوفلاين</span>
+                  <span>النص محفوظ محلياً</span>
                 </span>
               )}
               <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">
@@ -298,7 +298,7 @@ export default function MushafPage() {
             </div>
 
             <p className="text-xs text-muted-foreground">
-              اضغط مطولاً أو بزر الفأرة الأيمن على أي آية للتلاوة والترجمة والعلامة
+              اضغط على أي آية لعرض خيارات التلاوة والترجمة والعلامة المرجعية
             </p>
           </div>
         </section>

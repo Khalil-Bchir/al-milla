@@ -90,7 +90,6 @@ export interface AyahEntry {
   translationEn: string;
   translationFr: string;
   transliteration: string;
-  qalunNote?: string;
 }
 
 export interface SurahEntry {
@@ -121,7 +120,7 @@ export interface MutashabihatDrill {
   primaryHizb: number;
   primaryText: string;
   primaryHighlight: string;
-  primaryNoteQalun: string;
+  primaryNote: string;
   secondarySurahId: number;
   secondarySurahName: string;
   secondaryAyahRange: string;
@@ -131,7 +130,6 @@ export interface MutashabihatDrill {
   divergenceNote: string;
   mnemonicTitle: string;
   mnemonicBody: string;
-  maghrebiPoem: string;
   quizPrompt: string;
   quizOptions: {
     id: string;
@@ -290,7 +288,6 @@ const BUNDLED_VERIFIED_AYAHS: Record<number, AyahEntry[]> = {
       translationEn: 'Sovereign of the Day of Recompense.',
       translationFr: 'Maître du Jour de la rétribution.',
       transliteration: 'Māliki yawmi ad-dīn',
-      qalunNote: 'يقرأ قالون «مَلِكِ يَوْمِ الدِّينِ» بغير ألف، ويقرأ حفص «مَالِكِ» بالألف.',
     },
     {
       number: 5,
@@ -326,8 +323,6 @@ const BUNDLED_VERIFIED_AYAHS: Record<number, AyahEntry[]> = {
         'Louange à Allah qui a fait descendre sur Son serviteur le Livre, et n’y a point introduit de tortuosité [ambiguïté].',
       transliteration:
         'Al-ḥamdu lillāhi allaḏī anzala ʿalā ʿabdihi al-kitāba wa-lam yajʿal lahu ʿiwajā',
-      qalunNote:
-        'عند قالون عن نافع: لا سكت عند الوصل على «عِوَجًا» بل يُدرجها مع إخفاء التنوين عند القاف في «قَيِّمًا».',
     },
     {
       number: 2,
@@ -418,7 +413,6 @@ const BUNDLED_VERIFIED_AYAHS: Record<number, AyahEntry[]> = {
       translationEn: 'Then I swear by the setting of the stars,',
       translationFr: 'Non ! Je jure par les positions des étoiles (dans le firmament).',
       transliteration: 'Fa-lā uqsimu bi-mawāqiʿi an-nujūm',
-      qalunNote: 'يقرأ قالون بالجمع «بِمَوَاقِعِ» (وقراءة حمزة والكسائي وخلف بالإفراد «بِمَوْقِعِ»).',
     },
     {
       number: 76,
@@ -621,21 +615,19 @@ export const MUTASHABIHAT_DRILLS: MutashabihatDrill[] = [
     primarySurahName: 'سورة الواقعة',
     primaryAyahRange: 'الآية ٧٥ - ٧٦',
     primaryHizb: 54,
-    primaryText: 'فَلَا أُقْسِمُ بِمَوَاقِعِ النُّجُومِ ۞ وَإِنَّهُ لَقَسَمٌ لَّوْ تَعْلَمُونَ عَظِيمٌ',
+    primaryText: 'فَلَا أُقْسِمُ بِمَوَاقِعِ النُّجُومِ ﴿٧٥﴾ وَإِنَّهُ لَقَسَمٌ لَّوْ تَعْلَمُونَ عَظِيمٌ ﴿٧٦﴾',
     primaryHighlight: 'بِمَوَاقِعِ',
-    primaryNoteQalun:
-      'رواية قالون عن نافع: بالجمع «بِمَوَاقِعِ» (وقراءة حمزة والكسائي وخلف العاشر بالإفراد «بِمَوْقِعِ»).',
+    primaryNote: 'رواية حفص عن عاصم: «بِمَوَاقِعِ النُّجُومِ».',
     secondarySurahId: 69,
     secondarySurahName: 'سورة الحاقة',
     secondaryAyahRange: 'الآية ٣٨ - ٤٠',
     secondaryHizb: 57,
-    secondaryText: 'فَلَا أُقْسِمُ بِمَا تُبْصِرُونَ ۞ وَمَا لَا تُبْصِرُونَ ۞ إِنَّهُ لَقَوْلُ رَسُولٍ كَرِيمٍ',
+    secondaryText: 'فَلَا أُقْسِمُ بِمَا تُبْصِرُونَ ﴿٣٨﴾ وَمَا لَا تُبْصِرُونَ ﴿٣٩﴾ إِنَّهُ لَقَوْلُ رَسُولٍ كَرِيمٍ ﴿٤٠﴾',
     secondaryHighlight: 'بِمَا تُبْصِرُونَ',
-    divergenceNote: 'الافتراق يبدأ بعد: «فَلَا أُقْسِمُ» — الحاقة: الرؤية والإبصار.',
-    mnemonicTitle: 'قاعدة: مُجانسة الواو بالواو',
+    divergenceNote: 'الافتراق يبدأ بعد: «فَلَا أُقْسِمُ» — في الحاقة: «بِمَا تُبْصِرُونَ».',
+    mnemonicTitle: 'ربط لفظي للتمييز',
     mnemonicBody:
-      'سورة «الْوَاقِعَة» تبتدئ بحرف الواو، فاقترن قسمها بلفظ «بِمَوَاقِعِ» المشتمل أيضاً على حرف الواو. بينما في «الْحَاقَّة» التي تُقرّر الحساب والجزاء، جاء القَسَم بما هو مشاهد ومُدْرَك: «بِمَا تُبْصِرُونَ».',
-    maghrebiPoem: '«وَفِي كِتَابِ اللَّهِ لَفْظُ الْمَوْقِعِ ... فِي غَيْرِ وَاقِعَةٍ فَسَمِّ وَارْفَعِ»',
+      'سورة «الْوَاقِعَة» تبتدئ بحرف الواو، فاقترن قسمها بلفظ «بِمَوَاقِعِ» المشتمل على حرف الواو، بينما في «الْحَاقَّة» جاء القسم بلفظ «بِمَا تُبْصِرُونَ».',
     quizPrompt: 'أكمل قول الحق تعالى في سورة «الواقعة»: ( فَلَا أُقْسِمُ .......... )',
     quizOptions: [
       { id: 'a', label: 'بِمَوَاقِعِ النُّجُومِ', isCorrect: true },
@@ -729,7 +721,6 @@ export async function loadVerifiedSurahAyahs(surahId: number): Promise<{
         translationEn: enEd.ayahs[idx]?.text ?? existing?.translationEn ?? '',
         translationFr: frEd.ayahs[idx]?.text ?? existing?.translationFr ?? '',
         transliteration: existing?.transliteration ?? '',
-        qalunNote: existing?.qalunNote,
       };
     });
 
