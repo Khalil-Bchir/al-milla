@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, CheckCircle2, Eye, EyeOff, Info, RotateCcw, Volume2 } from 'lucide-react';
 import { AppShell } from '@/components/milla/AppShell';
 import { cn } from '@/lib/utils';
-import { MILLA_COPY } from '@/lib/milla-i18n';
+import { MILLA_COPY, formatNum, getSurahDisplayName } from '@/lib/milla-i18n';
 import {
   getEveryAyahAudioUrl,
   getSurahById,
@@ -90,15 +90,15 @@ export default function SelfTestPage() {
   };
 
   const ratings: { id: SelfEvalRating; title: string; subtitle: string }[] = [
-    { id: 'difficult', title: 'صعبة', subtitle: 'تعثّرت / مراجعة غداً' },
-    { id: 'good', title: 'جيدة', subtitle: 'بتردّد يسير' },
-    { id: 'easy', title: 'سهلة', subtitle: 'ثابتة بيسر' },
+    { id: 'difficult', title: copy.evalDifficult, subtitle: copy.evalDifficultHint },
+    { id: 'good', title: copy.evalGood, subtitle: copy.evalGoodHint },
+    { id: 'easy', title: copy.evalEasy, subtitle: copy.evalEasyHint },
   ];
 
   return (
     <AppShell
-      title="التسميع الذاتي"
-      subtitle={`${surah.nameAr} • الآية ${toArabicDigits(portionOffset + 1)} من ${toArabicDigits(Math.max(1, portionAyahs.length))}`}
+      title={copy.selfTestTitle}
+      subtitle={`${getSurahDisplayName(surah, language)} • ${copy.ayahLabel} ${formatNum(portionOffset + 1, language)} / ${formatNum(Math.max(1, portionAyahs.length), language)}`}
     >
       <div className="space-y-5">
         {ayah && (
@@ -114,12 +114,15 @@ export default function SelfTestPage() {
         {/* Progress Header */}
         <section className="rounded-2xl border border-border bg-card p-4">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-bold text-primary">التسميع الغيبي الذاتي</span>
+            <span className="text-xs font-bold text-primary">{copy.selfTestTitle}</span>
             <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-semibold text-secondary-foreground">
-              الآية {toArabicDigits(portionOffset + 1)} من {toArabicDigits(Math.max(1, portionAyahs.length))}
+              {copy.ayahLabel} {formatNum(portionOffset + 1, language)} /{' '}
+              {formatNum(Math.max(1, portionAyahs.length), language)}
             </span>
           </div>
-          <h1 className="text-lg font-bold text-foreground">{surah.nameAr}</h1>
+          <h1 className="text-lg font-bold text-foreground">
+            {getSurahDisplayName(surah, language)}
+          </h1>
           <div className="mt-3 flex gap-1.5">
             {portionAyahs.map((item, idx) => (
               <span
@@ -135,20 +138,18 @@ export default function SelfTestPage() {
 
         {/* Hidden / Revealed Verse Card */}
         <section className="rounded-2xl border border-border bg-card p-5 text-center">
-          <p className="mb-4 text-sm font-medium text-muted-foreground">
-            اقرأ بصوتك غيباً بتؤدة ورتّل، ثم اكشف النص للمطابقة...
-          </p>
+          <p className="mb-4 text-sm font-medium text-muted-foreground">{copy.selfTestPrompt}</p>
 
           <div className="flex min-h-[140px] flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-secondary/40 p-5">
             {revealed && ayah ? (
               <p className="quran-text text-foreground" dir="rtl" lang="ar">
-                {ayah.textAr} ({ayah.number})
+                {ayah.textAr} ﴿{toArabicDigits(ayah.number)}﴾
               </p>
             ) : (
               <div className="space-y-2 py-4">
                 <EyeOff className="mx-auto h-7 w-7 text-muted-foreground" aria-hidden="true" />
                 <p className="text-sm font-medium text-muted-foreground">
-                  [ نص الآية محجوب لتنشيط الحفظ الغيبي ]
+                  {copy.selfTestHiddenHint}
                 </p>
               </div>
             )}
@@ -162,12 +163,12 @@ export default function SelfTestPage() {
             {revealed ? (
               <>
                 <EyeOff className="h-4 w-4" aria-hidden="true" />
-                <span>إخفاء النص مجدداً</span>
+                <span>{copy.selfTestHideBtn}</span>
               </>
             ) : (
               <>
                 <Eye className="h-4 w-4" aria-hidden="true" />
-                <span>كشف النص للتحقق والمطابقة</span>
+                <span>{copy.selfTestShowBtn}</span>
               </>
             )}
           </button>
@@ -177,10 +178,8 @@ export default function SelfTestPage() {
         <section className="rounded-2xl border border-border bg-card p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-sm font-bold text-foreground">التدقيق الصوتي المرجعي</h2>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                استمع للتحقق من مخارج الحروف والضبط
-              </p>
+              <h2 className="text-sm font-bold text-foreground">{copy.selfTestAudioTitle}</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">{copy.selfTestAudioSub}</p>
             </div>
             <button
               type="button"
@@ -188,7 +187,7 @@ export default function SelfTestPage() {
               className="inline-flex min-h-[48px] items-center gap-2 rounded-xl bg-primary px-4 text-xs font-bold text-primary-foreground"
             >
               <Volume2 className="h-4 w-4" aria-hidden="true" />
-              <span>{audioHintPlaying ? 'إيقاف' : 'استماع'}</span>
+              <span>{audioHintPlaying ? copy.selfTestStopBtn : copy.selfTestPlayBtn}</span>
             </button>
           </div>
         </section>
@@ -201,10 +200,7 @@ export default function SelfTestPage() {
 
         {/* Self-Evaluation Selector */}
         <section className="rounded-2xl border border-border bg-card p-4">
-          <h2 className="mb-1 text-base font-bold text-foreground">كيف وجدت استحضارك لهذه الآية؟</h2>
-          <p className="mb-3 text-xs text-muted-foreground">
-            صدق التقييم يحدّث موعد المراجعة القادمة تلقائياً في محفظتك
-          </p>
+          <h2 className="mb-3 text-base font-bold text-foreground">{copy.revisionEvalPrompt}</h2>
 
           <div className="grid grid-cols-3 gap-2.5">
             {ratings.map((item) => {
@@ -249,7 +245,7 @@ export default function SelfTestPage() {
             disabled={!rating}
             className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground transition-opacity disabled:opacity-45"
           >
-            <span>تثبيت التقييم والانتقال للآية التالية</span>
+            <span>{copy.selfTestNextBtn}</span>
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           </button>
 

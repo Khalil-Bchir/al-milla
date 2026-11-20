@@ -20,6 +20,7 @@ import {
 import { AppShell } from '@/components/milla/AppShell';
 import { AudioPlayerBar } from '@/components/milla/AudioPlayerBar';
 import { cn } from '@/lib/utils';
+import { MILLA_COPY, formatNum, getSurahDisplayName } from '@/lib/milla-i18n';
 import { getSurahById, loadVerifiedSurahAyahs, toArabicDigits } from '@/lib/quran-data';
 import {
   computeRevisionQueues,
@@ -41,7 +42,6 @@ interface RevisionGroupMeta {
   id: RevisionGroupId;
   title: string;
   subtitle: string;
-  badge: string;
   icon: typeof Clock;
   items: RevisionTargetItem[];
 }
@@ -63,10 +63,12 @@ function formatCueText(textAr: string): string {
 }
 
 export default function RevisionPage() {
+  const language = useMillaStore((s) => s.language);
   const verseRecords = useMillaStore((s) => s.verseRecords);
   const recordEvaluation = useMillaStore((s) => s.recordEvaluation);
   const setDailyStage = useMillaStore((s) => s.setDailyStage);
 
+  const copy = MILLA_COPY[language];
   const queues = useMemo(() => computeRevisionQueues(verseRecords), [verseRecords]);
   const totalMemorizedCount = Object.keys(verseRecords).length;
 
@@ -83,30 +85,27 @@ export default function RevisionPage() {
     () => [
       {
         id: 'yesterday',
-        title: '١. مراجعة الأمس',
-        subtitle: 'تثبيت ما حفظته مؤخراً قبل البدء بالآيات الجديدة.',
-        badge: 'القريب',
+        title: copy.revisionPillar1Title,
+        subtitle: copy.revisionPillar1Sub,
         icon: Clock,
         items: toTargetItems(queues.yesterdayItems),
       },
       {
         id: 'older',
-        title: '٢. المراجعة السابقة',
-        subtitle: 'تعاهد المحفوظ القديم في مواعيده المتباعدة.',
-        badge: 'المتباعد',
+        title: copy.revisionPillar2Title,
+        subtitle: copy.revisionPillar2Sub,
         icon: History,
         items: toTargetItems(queues.olderDueItems),
       },
       {
         id: 'weak',
-        title: '٣. مواضع العناية',
-        subtitle: 'الآيات التي احتاجت تكراراً إضافياً لتثبت بيسر.',
-        badge: 'أولوية',
+        title: copy.revisionPillar3Title,
+        subtitle: copy.revisionPillar3Sub,
         icon: AlertCircle,
         items: toTargetItems(queues.weakItems),
       },
     ],
-    [queues],
+    [queues, copy],
   );
 
   const activeGroup = useMemo(
@@ -183,18 +182,17 @@ export default function RevisionPage() {
   };
 
   const evalOptions: { id: SelfEvalRating; label: string; hint: string }[] = [
-    { id: 'difficult', label: 'صعبة', hint: 'إعادة غداً' },
-    { id: 'good', label: 'جيدة', hint: 'توسيع الفاصل' },
-    { id: 'easy', label: 'سهلة', hint: 'ثابتة بيسر' },
+    { id: 'difficult', label: copy.evalDifficult, hint: copy.evalDifficultHint },
+    { id: 'good', label: copy.evalGood, hint: copy.evalGoodHint },
+    { id: 'easy', label: copy.evalEasy, hint: copy.evalEasyHint },
   ];
 
   const activeTarget = activeGroup?.items[activeAudioIdx] ?? activeGroup?.items[0] ?? null;
   const activeSurah = activeTarget ? getSurahById(activeTarget.surahId) : null;
 
-  // FOCUSED REVISION VIEW
   if (activeGroup && activeTarget && activeSurah) {
     return (
-      <AppShell title={activeGroup.title} subtitle="تلاوة متصلة واسترجاع هادئ">
+      <AppShell title={activeGroup.title} subtitle={copy.revisionSubtitle}>
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <button
@@ -203,26 +201,25 @@ export default function RevisionPage() {
               className="inline-flex min-h-[42px] items-center gap-1.5 rounded-xl border border-border bg-card px-3.5 text-xs font-bold text-foreground hover:bg-secondary"
             >
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              <span>العودة إلى المراجعة</span>
+              <span>{copy.revisionBackBtn}</span>
             </button>
 
             <span className="rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold text-primary">
-              الآية {toArabicDigits(activeAudioIdx + 1)} من{' '}
-              {toArabicDigits(activeGroup.items.length)}
+              {copy.ayahLabel} {formatNum(activeAudioIdx + 1, language)} /{' '}
+              {formatNum(activeGroup.items.length, language)}
             </span>
           </div>
 
-          {/* 3-State Active Recall Selector */}
           <div
             role="group"
-            aria-label="وضع عرض النص"
+            aria-label={copy.revisionModeFull}
             className="grid grid-cols-3 gap-1.5 rounded-2xl border border-border bg-card p-1.5"
           >
             {(
               [
-                { id: 'full', label: 'النص الكامل', icon: Eye },
-                { id: 'cue', label: 'كلمات البداية', icon: Sparkles },
-                { id: 'hidden', label: 'إخفاء للتسميع', icon: EyeOff },
+                { id: 'full', label: copy.revisionModeFull, icon: Eye },
+                { id: 'cue', label: copy.revisionModeCue, icon: Sparkles },
+                { id: 'hidden', label: copy.revisionModeHidden, icon: EyeOff },
               ] as const
             ).map((mode) => {
               const Icon = mode.icon;
@@ -247,13 +244,13 @@ export default function RevisionPage() {
             })}
           </div>
 
-          {/* Connected Passage */}
           <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
             <div className="mb-3 flex items-center justify-between border-b border-border/70 pb-2.5 text-xs text-muted-foreground">
               <span className="font-bold text-foreground">
-                {activeSurah.nameAr} • الآية {toArabicDigits(activeTarget.ayahNumber)}
+                {getSurahDisplayName(activeSurah, language)} • {copy.ayahLabel}{' '}
+                {formatNum(activeTarget.ayahNumber, language)}
               </span>
-              <span>اضغط على أي آية للاستماع إليها</span>
+              <span>{copy.revisionTapAyahHint}</span>
             </div>
 
             <div
@@ -262,17 +259,15 @@ export default function RevisionPage() {
               lang="ar"
             >
               {recallMode === 'hidden' ? (
-                <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
+                <div className="flex flex-col items-center justify-center gap-2 py-10 text-center" dir={language === 'ar' ? 'rtl' : 'ltr'}>
                   <EyeOff className="h-7 w-7 text-primary/60" aria-hidden="true" />
-                  <p className="text-sm font-semibold text-foreground">النص مخفي للتسميع</p>
-                  <p className="text-xs text-muted-foreground">
-                    سمّع الآيات غيباً ثم اختر «كلمات البداية» أو «النص الكامل» للتحقق.
-                  </p>
+                  <p className="text-sm font-semibold text-foreground">{copy.revisionHiddenTitle}</p>
+                  <p className="text-xs text-muted-foreground">{copy.revisionHiddenBody}</p>
                 </div>
               ) : loadingTexts && !ayahTextMap[activeTarget.key] ? (
                 <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
                   <RefreshCw className="h-4 w-4 animate-spin text-primary" aria-hidden="true" />
-                  <span>جاري تحميل نص الآيات...</span>
+                  <span>{copy.loadingLabel}</span>
                 </div>
               ) : (
                 <p className="quran-text leading-[2.35] text-foreground">
@@ -310,7 +305,7 @@ export default function RevisionPage() {
                               : 'hover:bg-secondary/80',
                           )}
                         >
-                          {displayedText || 'تعذّر تحميل نص الآية'}{' '}
+                          {displayedText || copy.loadingLabel}{' '}
                           <span className="mx-1 font-quran text-primary">
                             ﴿{toArabicDigits(item.ayahNumber)}﴾
                           </span>
@@ -326,7 +321,7 @@ export default function RevisionPage() {
           <AudioPlayerBar
             mode="reference"
             surahId={activeTarget.surahId}
-            surahName={activeSurah.nameAr}
+            surahName={getSurahDisplayName(activeSurah, language)}
             ayahNumber={activeTarget.ayahNumber}
             onPrevAyah={
               activeAudioIdx > 0 ? () => setActiveAudioIdx((i) => i - 1) : undefined
@@ -339,7 +334,7 @@ export default function RevisionPage() {
           />
 
           <section className="space-y-3 rounded-2xl border border-border bg-card p-4">
-            <p className="text-xs font-bold text-foreground">تقييم التسميع:</p>
+            <p className="text-xs font-bold text-foreground">{copy.revisionEvalPrompt}</p>
             <div className="grid grid-cols-3 gap-2">
               {evalOptions.map((opt) => {
                 const selected = groupRating === opt.id;
@@ -369,7 +364,7 @@ export default function RevisionPage() {
               className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-base font-bold text-primary-foreground hover:opacity-95"
             >
               <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
-              <span>أتممت المراجعة وحفظت التقييم</span>
+              <span>{copy.revisionCompleteBtn}</span>
             </button>
           </section>
         </div>
@@ -377,38 +372,39 @@ export default function RevisionPage() {
     );
   }
 
-  // 3-SECTION REVISION OVERVIEW
   return (
-    <AppShell title="المراجعة اليومية" subtitle="الأقسام الثلاثة لتثبيت المحفوظ">
+    <AppShell title={copy.revisionTitle} subtitle={copy.revisionSubtitle}>
       <div className="space-y-5">
         <section className="rounded-2xl bg-primary p-5 text-primary-foreground">
           <div className="mb-3 flex items-center justify-between">
-            <span className="text-xs opacity-90">ورد المراجعة والتثبيت</span>
+            <span className="text-xs opacity-90">{copy.revisionHeaderLabel}</span>
             <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold">
-              ٣ أقسام للمراجعة
+              {copy.revisionThreePillars}
             </span>
           </div>
           <h1 className="text-xl font-bold">
             {queues.totalDueCount > 0
-              ? `مستحق للمراجعة اليوم: ${toArabicDigits(queues.totalDueCount)} آية`
-              : 'لا توجد مراجعات مستحقة بعد'}
+              ? `${copy.revisionDueToday} ${formatNum(queues.totalDueCount, language)} ${copy.versesUnit}`
+              : copy.revisionNoneDue}
           </h1>
           <div className="mt-4 grid grid-cols-3 gap-2.5 text-center">
             <div className="rounded-xl bg-white/10 p-3">
-              <p className="text-xs opacity-80">مراجعة الأمس</p>
+              <p className="text-xs opacity-80">{copy.homeYesterdayShort}</p>
               <p className="mt-1 text-lg font-bold">
-                {toArabicDigits(queues.yesterdayItems.length)}
+                {formatNum(queues.yesterdayItems.length, language)}
               </p>
             </div>
             <div className="rounded-xl bg-white/10 p-3">
-              <p className="text-xs opacity-80">المراجعة السابقة</p>
+              <p className="text-xs opacity-80">{copy.homeOlderShort}</p>
               <p className="mt-1 text-lg font-bold">
-                {toArabicDigits(queues.olderDueItems.length)}
+                {formatNum(queues.olderDueItems.length, language)}
               </p>
             </div>
             <div className="rounded-xl bg-white/10 p-3">
-              <p className="text-xs opacity-80">مواضع العناية</p>
-              <p className="mt-1 text-lg font-bold">{toArabicDigits(queues.weakItems.length)}</p>
+              <p className="text-xs opacity-80">{copy.homeWeakShort}</p>
+              <p className="mt-1 text-lg font-bold">
+                {formatNum(queues.weakItems.length, language)}
+              </p>
             </div>
           </div>
         </section>
@@ -420,16 +416,16 @@ export default function RevisionPage() {
                 <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
               </span>
               <div>
-                <p className="text-sm font-bold text-foreground">أتممت «{completedTitle}»</p>
-                <p className="text-xs text-muted-foreground">
-                  تم تحديث موعد المراجعة القادمة لآياتك تلقائياً.
+                <p className="text-sm font-bold text-foreground">
+                  {copy.revisionCompletedBanner}: {completedTitle}
                 </p>
+                <p className="text-xs text-muted-foreground">{copy.revisionCompletedSub}</p>
               </div>
             </div>
             <button
               type="button"
               onClick={() => setCompletedTitle(null)}
-              aria-label="إغلاق الإشعار"
+              aria-label={copy.mushafClose}
               className="rounded-lg p-2 text-muted-foreground hover:bg-secondary"
             >
               <X className="h-4 w-4" />
@@ -440,16 +436,15 @@ export default function RevisionPage() {
         {totalMemorizedCount === 0 ? (
           <section className="rounded-2xl border border-border bg-card p-6 text-center">
             <BookOpen className="mx-auto h-8 w-8 text-primary" aria-hidden="true" />
-            <h2 className="mt-3 text-lg font-bold text-foreground">ابدأ بحفظ وردك الأول اليوم</h2>
+            <h2 className="mt-3 text-lg font-bold text-foreground">{copy.revisionEmptyTitle}</h2>
             <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-              بمجرد حفظ آياتك الأولى، ستظهر هنا تلقائياً ضمن مراجعة الأمس والمراجعة السابقة ومواضع
-              العناية.
+              {copy.revisionEmptyBody}
             </p>
             <Link
               href="/memorize"
               className="mt-5 flex min-h-[50px] w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-base font-bold text-primary-foreground"
             >
-              <span>الانتقال إلى جلسة اليوم</span>
+              <span>{copy.revisionGoToSession}</span>
               <ArrowLeft className="h-5 w-5" aria-hidden="true" />
             </Link>
           </section>
@@ -459,10 +454,7 @@ export default function RevisionPage() {
               const Icon = group.icon;
               const isAvailable = group.items.length > 0;
               return (
-                <section
-                  key={group.id}
-                  className="rounded-2xl border border-border bg-card p-4"
-                >
+                <section key={group.id} className="rounded-2xl border border-border bg-card p-4">
                   <div className="mb-3 flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2.5">
                       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary">
@@ -474,8 +466,8 @@ export default function RevisionPage() {
                       </div>
                     </div>
                     <span className="shrink-0 rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold text-secondary-foreground">
-                      {toArabicDigits(group.items.length)}{' '}
-                      {group.items.length === 1 ? 'آية' : 'آيات'}
+                      {formatNum(group.items.length, language)}{' '}
+                      {group.items.length === 1 ? copy.verseSingular : copy.versesUnit}
                     </span>
                   </div>
 
@@ -491,9 +483,7 @@ export default function RevisionPage() {
                     )}
                   >
                     <PlayCircle className="h-4 w-4" aria-hidden="true" />
-                    <span>
-                      {isAvailable ? 'بدء المراجعة' : 'لا توجد آيات مستحقة في هذا القسم'}
-                    </span>
+                    <span>{isAvailable ? copy.revisionStartBtn : copy.revisionEmptyBtn}</span>
                   </button>
                 </section>
               );

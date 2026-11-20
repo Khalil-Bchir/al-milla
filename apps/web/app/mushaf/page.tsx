@@ -20,6 +20,7 @@ import { AppShell } from '@/components/milla/AppShell';
 import { AudioPlayerBar } from '@/components/milla/AudioPlayerBar';
 import { MillaPicker } from '@/components/milla/MillaPicker';
 import { cn } from '@/lib/utils';
+import { MILLA_COPY, formatNum } from '@/lib/milla-i18n';
 import {
   SURAHS,
   getSurahById,
@@ -53,6 +54,7 @@ export default function MushafPage() {
   const bookmarks = useMillaStore((s) => s.bookmarks);
   const toggleBookmark = useMillaStore((s) => s.toggleBookmark);
   const language = useMillaStore((s) => s.language);
+  const copy = MILLA_COPY[language];
 
   const surah = getSurahById(currentSurahId);
   const [ayahs, setAyahs] = useState<AyahEntry[]>(surah.ayahs);
@@ -265,11 +267,11 @@ export default function MushafPage() {
               {cachedOffline && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold text-primary">
                   <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>النص محفوظ محلياً</span>
+                  <span>{copy.mushafCachedText}</span>
                 </span>
               )}
               <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">
-                حفص عن عاصم
+                {copy.hafsBadge}
               </span>
             </div>
           </div>
@@ -280,26 +282,24 @@ export default function MushafPage() {
                 type="button"
                 onClick={() => setQuranFontSize(quranFontSize - 2)}
                 className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-foreground hover:bg-secondary"
-                aria-label="تصغير خط المصحف"
+                aria-label="-"
               >
                 <Minus className="h-4 w-4" aria-hidden="true" />
               </button>
               <span className="min-w-[44px] text-center text-xs font-bold text-muted-foreground">
-                {quranFontSize}px
+                {formatNum(quranFontSize, language)}
               </span>
               <button
                 type="button"
                 onClick={() => setQuranFontSize(quranFontSize + 2)}
                 className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-foreground hover:bg-secondary"
-                aria-label="تكبير خط المصحف"
+                aria-label="+"
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
 
-            <p className="text-xs text-muted-foreground">
-              اضغط على أي آية لعرض خيارات التلاوة والترجمة والعلامة المرجعية
-            </p>
+            <p className="text-xs text-muted-foreground">{copy.mushafTapHint}</p>
           </div>
         </section>
 

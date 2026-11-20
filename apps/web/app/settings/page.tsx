@@ -14,7 +14,7 @@ import {
 import { AppShell } from '@/components/milla/AppShell';
 import { MillaPicker } from '@/components/milla/MillaPicker';
 import { cn } from '@/lib/utils';
-import type { AppLanguage } from '@/lib/milla-i18n';
+import { MILLA_COPY, formatNum, type AppLanguage } from '@/lib/milla-i18n';
 import { RECITERS, type ReciterId } from '@/lib/quran-data';
 import {
   useMillaStore,
@@ -24,6 +24,7 @@ import {
 
 export default function SettingsPage() {
   const store = useMillaStore();
+  const copy = MILLA_COPY[store.language];
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
@@ -39,8 +40,8 @@ export default function SettingsPage() {
     try {
       const payload = JSON.stringify(
         {
+          version: 1,
           exportedAt: new Date().toISOString(),
-          language: store.language,
           narration: store.narration,
           dailyTarget: store.dailyTarget,
           quranFontSize: store.quranFontSize,
@@ -60,9 +61,9 @@ export default function SettingsPage() {
       a.download = 'al-milla-local-backup.json';
       a.click();
       URL.revokeObjectURL(url);
-      setStatusMessage('تم تصدير نسخة محلية من تقدّمك بنجاح.');
+      setStatusMessage(copy.settingsExportDone);
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : 'تعذر تصدير النسخة المحلية');
+      setStatusMessage(error instanceof Error ? error.message : 'Error');
     }
   };
 
@@ -73,18 +74,16 @@ export default function SettingsPage() {
       const text = await file.text();
       const parsed = JSON.parse(text) as BackupImportPayload;
       store.importBackupData(parsed);
-      setStatusMessage('تم استيراد النسخة الاحتياطية المحلية بنجاح.');
+      setStatusMessage(copy.settingsImportDone);
     } catch (error) {
-      setStatusMessage(
-        error instanceof Error ? `ملف غير صالح: ${error.message}` : 'تعذر استيراد الملف المحلي',
-      );
+      setStatusMessage(error instanceof Error ? error.message : 'Error');
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
   return (
-    <AppShell title="الإعدادات" subtitle="تفضيلات الحافظ • حفظ محلي بالكامل">
+    <AppShell title={copy.settingsTitle} subtitle={copy.settingsSubtitle}>
       <div className="space-y-5">
         {statusMessage && (
           <div
@@ -97,7 +96,7 @@ export default function SettingsPage() {
 
         {/* Language */}
         <section className="rounded-2xl border border-border bg-card p-4">
-          <h2 className="mb-3 text-sm font-bold text-foreground">لغة الواجهة</h2>
+          <h2 className="mb-3 text-sm font-bold text-foreground">{copy.settingsLanguageTitle}</h2>
           <div className="grid grid-cols-3 gap-2">
             {languages.map((lang) => (
               <button
@@ -122,32 +121,34 @@ export default function SettingsPage() {
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <BookOpen className="h-5 w-5 text-primary" aria-hidden="true" />
-              <h2 className="text-base font-bold text-foreground">القارئ وتفضيلات التلاوة</h2>
+              <h2 className="text-base font-bold text-foreground">{copy.settingsWirdTitle}</h2>
             </div>
             <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">
-              حفص عن عاصم
+              {copy.hafsBadge}
             </span>
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <span className="text-xs font-semibold text-foreground">الشيخ القارئ المفضّل</span>
+            <span className="text-xs font-semibold text-foreground">
+              {copy.settingsReciterLabel}
+            </span>
             <MillaPicker
               value={store.reciter}
               onChange={(val) => store.setReciter(val as ReciterId)}
-              title="اختر الشيخ القارئ المفضّل"
-              ariaLabel="الشيخ القارئ المفضّل"
+              title={copy.settingsReciterLabel}
+              ariaLabel={copy.settingsReciterLabel}
               triggerClassName="w-full"
               options={RECITERS.map((r) => ({
                 value: r.id,
-                label: r.nameAr,
-                description: r.styleAr,
-                keywords: r.nameEn,
+                label: store.language === 'ar' ? r.nameAr : r.nameEn,
+                description: store.language === 'ar' ? r.styleAr : r.nameAr,
+                keywords: `${r.nameAr} ${r.nameEn}`,
               }))}
             />
           </div>
 
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold text-foreground">سرعة التلاوة الافتراضية</span>
+            <span className="text-xs font-semibold text-foreground">{copy.settingsSpeedLabel}</span>
             <div className="flex gap-1.5">
               {speeds.map((sp) => (
                 <button
@@ -172,29 +173,33 @@ export default function SettingsPage() {
         <section className="space-y-4 rounded-2xl border border-border bg-card p-4">
           <div className="flex items-center gap-2">
             <Sliders className="h-5 w-5 text-primary" aria-hidden="true" />
-            <h2 className="text-base font-bold text-foreground">خطة الحفظ والمراجعة</h2>
+            <h2 className="text-base font-bold text-foreground">{copy.settingsWirdTitle}</h2>
           </div>
 
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-bold text-foreground">مقدار الورد اليومي</p>
-              <p className="text-xs text-muted-foreground">{store.dailyTarget} آيات يومياً</p>
+              <p className="text-sm font-bold text-foreground">{copy.settingsDailyGoalLabel}</p>
+              <p className="text-xs text-muted-foreground">
+                {formatNum(store.dailyTarget, store.language)} {copy.versesUnit}
+              </p>
             </div>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => store.setDailyTarget(store.dailyTarget - 1)}
                 className="h-12 w-12 rounded-xl border border-border bg-background text-lg font-bold"
-                aria-label="إنقاص الورد اليومي"
+                aria-label="-"
               >
                 -
               </button>
-              <span className="min-w-[28px] text-center text-sm font-bold">{store.dailyTarget}</span>
+              <span className="min-w-[28px] text-center text-sm font-bold">
+                {formatNum(store.dailyTarget, store.language)}
+              </span>
               <button
                 type="button"
                 onClick={() => store.setDailyTarget(store.dailyTarget + 1)}
                 className="h-12 w-12 rounded-xl border border-border bg-background text-lg font-bold"
-                aria-label="زيادة الورد اليومي"
+                aria-label="+"
               >
                 +
               </button>
@@ -203,8 +208,10 @@ export default function SettingsPage() {
 
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-bold text-foreground">التكرار المقترح لكل آية</p>
-              <p className="text-xs text-muted-foreground">{store.mandatoryRepeats} مرات</p>
+              <p className="text-sm font-bold text-foreground">{copy.settingsRepeatsLabel}</p>
+              <p className="text-xs text-muted-foreground">
+                {formatNum(store.mandatoryRepeats, store.language)}
+              </p>
             </div>
             <div className="flex gap-1.5">
               {[3, 5, 7, 10].map((num) => (
@@ -219,7 +226,7 @@ export default function SettingsPage() {
                       : 'border-border bg-background text-foreground',
                   )}
                 >
-                  {num}
+                  {formatNum(num, store.language)}
                 </button>
               ))}
             </div>
@@ -230,15 +237,17 @@ export default function SettingsPage() {
         <section className="space-y-4 rounded-2xl border border-border bg-card p-4">
           <div className="flex items-center gap-2">
             <Moon className="h-5 w-5 text-primary" aria-hidden="true" />
-            <h2 className="text-base font-bold text-foreground">مظهر المصحف وسهولة القراءة</h2>
+            <h2 className="text-base font-bold text-foreground">{copy.settingsDisplayTitle}</h2>
           </div>
 
           <div>
             <div className="mb-2 flex items-center justify-between text-xs">
               <label htmlFor="font-slider" className="font-semibold text-foreground">
-                حجم الخط القرآني
+                {copy.settingsFontSizeLabel}
               </label>
-              <span className="font-bold text-primary">{store.quranFontSize}px</span>
+              <span className="font-bold text-primary">
+                {formatNum(store.quranFontSize, store.language)}
+              </span>
             </div>
             <input
               id="font-slider"
@@ -258,8 +267,8 @@ export default function SettingsPage() {
 
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-bold text-foreground">طريقة عرض المصحف</p>
-              <p className="text-xs text-muted-foreground">بطاقات آيات أو صفحات المصحف (١-٦٠٤)</p>
+              <p className="text-sm font-bold text-foreground">{copy.settingsMushafModeLabel}</p>
+              <p className="text-xs text-muted-foreground">{copy.settingsMushafModeSub}</p>
             </div>
             <div className="flex gap-1.5">
               <button
@@ -272,7 +281,7 @@ export default function SettingsPage() {
                     : 'border-border bg-background text-foreground',
                 )}
               >
-                آيات
+                {copy.settingsModeVerses}
               </button>
               <button
                 type="button"
@@ -284,15 +293,15 @@ export default function SettingsPage() {
                     : 'border-border bg-background text-foreground',
                 )}
               >
-                صفحات المصحف
+                {copy.settingsModePages}
               </button>
             </div>
           </div>
 
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-bold text-foreground">الوضع الليلي الهادئ</p>
-              <p className="text-xs text-muted-foreground">مريح للعين أثناء القراءة الليلية</p>
+              <p className="text-sm font-bold text-foreground">{copy.settingsNightMode}</p>
+              <p className="text-xs text-muted-foreground">{copy.settingsNightModeSub}</p>
             </div>
             <button
               type="button"
@@ -305,14 +314,14 @@ export default function SettingsPage() {
                   : 'border-border bg-background text-foreground',
               )}
             >
-              {store.nightMode ? 'مُفعّل' : 'متوقف'}
+              {store.nightMode ? copy.settingsEnabled : copy.settingsDisabled}
             </button>
           </div>
 
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-bold text-foreground">تكبير خط الواجهة (لكبار السن)</p>
-              <p className="text-xs text-muted-foreground">عناصر وأزرار أكبر وضوحاً</p>
+              <p className="text-sm font-bold text-foreground">{copy.settingsLargeUi}</p>
+              <p className="text-xs text-muted-foreground">{copy.settingsLargeUiSub}</p>
             </div>
             <button
               type="button"
@@ -325,14 +334,14 @@ export default function SettingsPage() {
                   : 'border-border bg-background text-foreground',
               )}
             >
-              {store.largeUiMode ? 'مُفعّل' : 'متوقف'}
+              {store.largeUiMode ? copy.settingsEnabled : copy.settingsDisabled}
             </button>
           </div>
 
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-bold text-foreground">عرض ترجمة المعاني</p>
-              <p className="text-xs text-muted-foreground">إظهار الترجمة مع الآيات عند الحاجة</p>
+              <p className="text-sm font-bold text-foreground">{copy.settingsTranslation}</p>
+              <p className="text-xs text-muted-foreground">{copy.settingsTranslationSub}</p>
             </div>
             <button
               type="button"
@@ -345,14 +354,14 @@ export default function SettingsPage() {
                   : 'border-border bg-background text-foreground',
               )}
             >
-              {store.showTranslation ? 'مُفعّل' : 'متوقف'}
+              {store.showTranslation ? copy.settingsEnabled : copy.settingsDisabled}
             </button>
           </div>
 
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-bold text-foreground">النطق بالحروف اللاتينية</p>
-              <p className="text-xs text-muted-foreground">مفيد لغير الناطقين بالعربية</p>
+              <p className="text-sm font-bold text-foreground">{copy.settingsTranslit}</p>
+              <p className="text-xs text-muted-foreground">{copy.settingsTranslitSub}</p>
             </div>
             <button
               type="button"
@@ -365,13 +374,12 @@ export default function SettingsPage() {
                   : 'border-border bg-background text-foreground',
               )}
             >
-              {store.showTransliteration ? 'مُفعّل' : 'متوقف'}
+              {store.showTransliteration ? copy.settingsEnabled : copy.settingsDisabled}
             </button>
           </div>
 
           <p className="rounded-xl bg-secondary/50 p-3 text-xs leading-relaxed text-muted-foreground">
-            تنبيه: يتم حفظ نصوص السور التي تفتحها محلياً للقراءة دون اتصال، بينما تتطلب التلاوة
-            الصوتية اتصالاً بالإنترنت.
+            {copy.settingsOfflineNote}
           </p>
         </section>
 
@@ -379,12 +387,12 @@ export default function SettingsPage() {
         <section className="space-y-3 rounded-2xl border border-border bg-card p-4">
           <div className="flex items-center gap-2">
             <Bell className="h-5 w-5 text-primary" aria-hidden="true" />
-            <h2 className="text-base font-bold text-foreground">مواقيت التذكير الهادئة</h2>
+            <h2 className="text-base font-bold text-foreground">{copy.settingsRemindersTitle}</h2>
           </div>
 
           <div className="flex items-center justify-between rounded-xl bg-background p-3">
             <div>
-              <p className="text-sm font-bold text-foreground">ورد الفجر والتبكير</p>
+              <p className="text-sm font-bold text-foreground">{copy.settingsFajrReminder}</p>
               <p className="text-xs text-muted-foreground">{store.reminders.fajrTime}</p>
             </div>
             <button
@@ -398,7 +406,7 @@ export default function SettingsPage() {
                   : 'border-border bg-card text-muted-foreground',
               )}
             >
-              {store.reminders.fajrEnabled ? 'مُفعّل' : 'متوقف'}
+              {store.reminders.fajrEnabled ? copy.settingsEnabled : copy.settingsDisabled}
             </button>
           </div>
         </section>
@@ -407,17 +415,14 @@ export default function SettingsPage() {
         <section className="space-y-3.5 rounded-2xl border border-border bg-card p-4">
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-5 w-5 text-primary" aria-hidden="true" />
-            <h2 className="text-base font-bold text-foreground">حفظ تقدّمك واستعادته</h2>
+            <h2 className="text-base font-bold text-foreground">{copy.settingsBackupTitle}</h2>
           </div>
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            تُحفظ آياتك وتقدّمك محلياً على هذا الجهاز فقط دون أي خادم أو حساب. لحماية حفظك عند
-            تغيير الجهاز أو مسح بيانات المتصفح، احفظ نسخة احتياطية على جهازك.
-          </p>
+          <p className="text-xs leading-relaxed text-muted-foreground">{copy.settingsBackupDesc}</p>
 
           <div className="space-y-2 rounded-xl border border-border bg-background p-3.5">
-            <p className="text-xs font-bold text-foreground">نسخة احتياطية على جهازك</p>
+            <p className="text-xs font-bold text-foreground">{copy.settingsBackupCardTitle}</p>
             <p className="text-[11px] leading-relaxed text-muted-foreground">
-              احفظ ملفاً صغيراً في هاتفك أو حاسوبك، وأعد تحميله لاحقاً لاسترجاع حفظك بضغطة واحدة.
+              {copy.settingsBackupCardSub}
             </p>
             <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
               <button
@@ -426,12 +431,12 @@ export default function SettingsPage() {
                 className="flex min-h-[48px] items-center justify-center gap-1.5 rounded-xl bg-primary px-3 text-xs font-bold text-primary-foreground hover:opacity-95"
               >
                 <Download className="h-4 w-4" aria-hidden="true" />
-                <span>حفظ نسخة على جهازي</span>
+                <span>{copy.settingsExportBtn}</span>
               </button>
 
               <label className="flex min-h-[48px] cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-3 text-xs font-bold text-foreground hover:bg-secondary">
                 <Upload className="h-4 w-4 text-primary" aria-hidden="true" />
-                <span>استرجاع نسخة من جهازي</span>
+                <span>{copy.settingsImportBtn}</span>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -447,12 +452,12 @@ export default function SettingsPage() {
             type="button"
             onClick={() => {
               store.resetLocalProgress();
-              setStatusMessage('تم مسح التقدّم والبدء من جديد.');
+              setStatusMessage(copy.settingsResetDone);
             }}
             className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-destructive/40 bg-background px-4 text-xs font-bold text-destructive hover:bg-destructive/5"
           >
             <RotateCcw className="h-4 w-4" aria-hidden="true" />
-            <span>مسح الحفظ والبدء من جديد</span>
+            <span>{copy.settingsResetBtn}</span>
           </button>
         </section>
       </div>

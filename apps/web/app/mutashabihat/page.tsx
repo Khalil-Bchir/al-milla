@@ -5,11 +5,14 @@ import Link from 'next/link';
 import { CheckCircle2, HelpCircle, Lightbulb, Volume2 } from 'lucide-react';
 import { AppShell } from '@/components/milla/AppShell';
 import { cn } from '@/lib/utils';
+import { MILLA_COPY, formatNum } from '@/lib/milla-i18n';
 import { MUTASHABIHAT_DRILLS } from '@/lib/quran-data';
 import { useMillaStore } from '@/store/milla-store';
 
 export default function MutashabihatPage() {
   const drill = MUTASHABIHAT_DRILLS[0];
+  const language = useMillaStore((s) => s.language);
+  const copy = MILLA_COPY[language];
   const mutashabihatMastered = useMillaStore((s) => s.mutashabihatMastered);
   const setMutashabihatMastered = useMillaStore((s) => s.setMutashabihatMastered);
 
@@ -19,7 +22,7 @@ export default function MutashabihatPage() {
   const isMastered = Boolean(mutashabihatMastered[drill.id]);
 
   return (
-    <AppShell title="ضبط المتشابهات" subtitle="تمييز المواضع المتشابهة • حفص عن عاصم">
+    <AppShell title={copy.mutashabihatTitle} subtitle={copy.mutashabihatSubtitle}>
       <div className="space-y-5">
         {/* Comparison Header */}
         <section className="rounded-2xl border border-border bg-card p-4">
@@ -37,10 +40,10 @@ export default function MutashabihatPage() {
         <section className="rounded-2xl border-2 border-primary/40 bg-card p-4">
           <div className="mb-2 flex items-center justify-between">
             <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-bold text-primary">
-              الموضع الأصلي • {drill.primarySurahName}
+              {copy.mutashabihatPrimaryBadge} • {drill.primarySurahName}
             </span>
             <span className="text-xs text-muted-foreground">
-              {drill.primaryAyahRange} • الحزب {drill.primaryHizb}
+              {copy.hizbLabel} {formatNum(drill.primaryHizb, language)}
             </span>
           </div>
           <p className="quran-text my-3 text-center text-foreground" dir="rtl" lang="ar">
@@ -55,10 +58,10 @@ export default function MutashabihatPage() {
         <section className="rounded-2xl border border-accent/60 bg-card p-4">
           <div className="mb-2 flex items-center justify-between">
             <span className="rounded-full bg-accent/25 px-2.5 py-0.5 text-xs font-bold text-foreground">
-              الموضع المقابل • {drill.secondarySurahName}
+              {copy.mutashabihatSecondaryBadge} • {drill.secondarySurahName}
             </span>
             <span className="text-xs text-muted-foreground">
-              {drill.secondaryAyahRange} • الحزب {drill.secondaryHizb}
+              {copy.hizbLabel} {formatNum(drill.secondaryHizb, language)}
             </span>
           </div>
           <p className="quran-text my-3 text-center text-foreground" dir="rtl" lang="ar">

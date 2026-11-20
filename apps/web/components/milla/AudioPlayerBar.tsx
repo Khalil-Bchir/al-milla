@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Pause, Play, Repeat, RotateCcw, SkipBack, SkipForward, Volume2 } from 'lucide-react';
 import { MillaPicker } from '@/components/milla/MillaPicker';
 import { cn } from '@/lib/utils';
+import { MILLA_COPY, formatNum } from '@/lib/milla-i18n';
 import { RECITERS, getEveryAyahAudioUrl, type ReciterId } from '@/lib/quran-data';
 import { useMillaStore, type PlaybackSpeed } from '@/store/milla-store';
 
@@ -28,6 +29,8 @@ export function AudioPlayerBar({
   onNextAyah,
   onRepeatCycleComplete,
 }: AudioPlayerBarProps) {
+  const language = useMillaStore((s) => s.language);
+  const copy = MILLA_COPY[language];
   const reciter = useMillaStore((s) => s.reciter);
   const setReciter = useMillaStore((s) => s.setReciter);
   const playbackSpeed = useMillaStore((s) => s.playbackSpeed);
@@ -194,18 +197,18 @@ export function AudioPlayerBar({
           </span>
           <div>
             <p className="text-xs text-muted-foreground">
-              {surahName} • الآية {ayahNumber}
+              {surahName} • {copy.ayahLabel} {formatNum(ayahNumber, language)}
             </p>
             <p className="text-sm font-bold text-foreground">
               {isReferenceMode
-                ? 'استماع مرجعي للتحقق'
-                : `التكرار: ${currentRepeat} / ${mandatoryRepeats} مرات`}
+                ? copy.audioReferenceLabel
+                : `${copy.audioRepeatLabel} ${formatNum(currentRepeat, language)} / ${formatNum(mandatoryRepeats, language)}`}
             </p>
           </div>
         </div>
 
         {!isReferenceMode && (
-          <div className="flex items-center gap-1" aria-label="مؤشر التكرار">
+          <div className="flex items-center gap-1" aria-label={copy.audioRepeatLabel}>
             {Array.from({ length: mandatoryRepeats }).map((_, i) => (
               <span
                 key={i}
@@ -226,17 +229,17 @@ export function AudioPlayerBar({
             compact
             value={reciter}
             onChange={(val) => setReciter(val as ReciterId)}
-            title="اختر الشيخ القارئ"
-            ariaLabel="اختيار الشيخ القارئ"
+            title={copy.onboardingReciterPickerTitle}
+            ariaLabel={copy.onboardingReciterPickerTitle}
             icon={<Volume2 className="h-4 w-4" aria-hidden="true" />}
             options={RECITERS.map((r) => ({
               value: r.id,
-              label: r.nameAr,
-              description: r.styleAr,
-              keywords: r.nameEn,
+              label: language === 'ar' ? r.nameAr : r.nameEn,
+              description: language === 'ar' ? r.styleAr : r.nameAr,
+              keywords: `${r.nameAr} ${r.nameEn}`,
             }))}
           />
-          <span>{audioStatusNote}</span>
+          <span>{useFallbackTimer ? copy.audioOfflineStatus : copy.audioLiveStatus}</span>
         </div>
         <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
           <div
@@ -260,7 +263,7 @@ export function AudioPlayerBar({
           aria-pressed={repeatLoopActive}
         >
           <Repeat className="h-4 w-4" aria-hidden="true" />
-          <span>{repeatLoopActive ? 'تكرار مُفعّل' : 'تكرار متوقف'}</span>
+          <span>{repeatLoopActive ? copy.audioRepeatOn : copy.audioRepeatOff}</span>
         </button>
 
         <div className="flex items-center gap-2">

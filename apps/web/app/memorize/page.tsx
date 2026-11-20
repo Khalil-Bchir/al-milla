@@ -18,7 +18,7 @@ import { AppShell } from '@/components/milla/AppShell';
 import { AudioPlayerBar } from '@/components/milla/AudioPlayerBar';
 import { MillaPicker } from '@/components/milla/MillaPicker';
 import { cn } from '@/lib/utils';
-import { MILLA_COPY } from '@/lib/milla-i18n';
+import { MILLA_COPY, formatNum, getSurahDisplayName } from '@/lib/milla-i18n';
 import {
   SURAHS,
   getSurahById,
@@ -85,18 +85,33 @@ export default function MemorizePage() {
   const sessionSteps = useMemo<GuidedStepDef[]>(() => {
     const steps: GuidedStepDef[] = [];
     if (yesterdayQueue.length > 0) {
-      steps.push({ id: 'yesterdayReview', label: 'مراجعة الأمس' });
+      steps.push({
+        id: 'yesterdayReview',
+        label: language === 'en' ? 'Yesterday' : language === 'fr' ? 'Hier' : 'مراجعة الأمس',
+      });
     }
     if (olderQueue.length > 0) {
-      steps.push({ id: 'olderReview', label: 'المراجعة السابقة' });
+      steps.push({
+        id: 'olderReview',
+        label: language === 'en' ? 'Older' : language === 'fr' ? 'Ancien' : 'المراجعة السابقة',
+      });
     }
     steps.push(
-      { id: 'newMemorization', label: 'الحفظ الجديد' },
-      { id: 'selfTest', label: 'التسميع' },
-      { id: 'verseConnection', label: 'ربط الآيات' },
+      {
+        id: 'newMemorization',
+        label: language === 'en' ? 'Memorize' : language === 'fr' ? 'Mémoriser' : 'الحفظ الجديد',
+      },
+      {
+        id: 'selfTest',
+        label: language === 'en' ? 'Self-Test' : language === 'fr' ? 'Auto-test' : 'التسميع',
+      },
+      {
+        id: 'verseConnection',
+        label: language === 'en' ? 'Connect' : language === 'fr' ? 'Relier' : 'ربط الآيات',
+      },
     );
     return steps;
-  }, [yesterdayQueue.length, olderQueue.length]);
+  }, [yesterdayQueue.length, olderQueue.length, language]);
 
   const [stepIndex, setStepIndex] = useState(0);
   const [isSessionDone, setIsSessionDone] = useState(false);

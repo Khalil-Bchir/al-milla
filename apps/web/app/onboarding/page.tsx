@@ -6,8 +6,8 @@ import { ArrowLeft, BookOpen, Lock, Sparkles, Type, Volume2 } from 'lucide-react
 import { AppShell } from '@/components/milla/AppShell';
 import { MillaPicker } from '@/components/milla/MillaPicker';
 import { cn } from '@/lib/utils';
-import type { AppLanguage } from '@/lib/milla-i18n';
-import { RECITERS, SURAHS, toArabicDigits, type ReciterId } from '@/lib/quran-data';
+import { MILLA_COPY, formatNum, getSurahDisplayName, type AppLanguage } from '@/lib/milla-i18n';
+import { RECITERS, SURAHS, type ReciterId } from '@/lib/quran-data';
 import { useMillaStore } from '@/store/milla-store';
 
 export default function OnboardingPage() {
@@ -25,6 +25,7 @@ export default function OnboardingPage() {
   const completeOnboarding = useMillaStore((s) => s.completeOnboarding);
 
   const [customGoalInput, setCustomGoalInput] = useState<string>(String(dailyTarget));
+  const copy = MILLA_COPY[language];
 
   const languages: { id: AppLanguage; label: string }[] = [
     { id: 'ar', label: 'العربية' },
@@ -32,23 +33,57 @@ export default function OnboardingPage() {
     { id: 'fr', label: 'Français' },
   ];
 
-  const startingSurahPresets = [
-    { id: 1, label: 'سورة الفاتحة', hint: '٧ آيات • بداية ميسّرة' },
-    { id: 78, label: 'سورة النبأ', hint: '٤٠ آية • جزء عمّ' },
-    { id: 67, label: 'سورة الملك', hint: '٣٠ آية • المنجية' },
-    { id: 18, label: 'سورة الكهف', hint: '١١٠ آية • ورد الجمعة' },
-  ];
+  const startingSurahPresets = [1, 78, 67, 18].map((id) => {
+    const s = SURAHS.find((item) => item.id === id) ?? SURAHS[0];
+    return {
+      id: s.id,
+      label: getSurahDisplayName(s, language),
+      hint: `${formatNum(s.totalAyahs, language)} ${copy.versesUnit}`,
+    };
+  });
 
   const dailyGoals: { value: number; title: string; subtitle: string; recommended?: boolean }[] = [
-    { value: 1, title: 'آية واحدة يومياً', subtitle: 'للمبتدئين أو مع ضيق الوقت' },
-    { value: 2, title: 'آيتان يومياً', subtitle: 'خطوة هادئة ومستقرة' },
+    {
+      value: 1,
+      title: `${formatNum(1, language)} ${copy.verseSingular}`,
+      subtitle:
+        language === 'ar'
+          ? 'للمبتدئين أو مع ضيق الوقت'
+          : language === 'fr'
+            ? 'Pour débuter en douceur'
+            : 'For beginners or busy days',
+    },
+    {
+      value: 2,
+      title: `${formatNum(2, language)} ${copy.versesUnit}`,
+      subtitle:
+        language === 'ar'
+          ? 'خطوة هادئة ومستقرة'
+          : language === 'fr'
+            ? 'Un rythme calme et régulier'
+            : 'A calm, steady pace',
+    },
     {
       value: 3,
-      title: '٣ آيات يومياً',
-      subtitle: 'توازن مناسب بين الحفظ والمراجعة',
+      title: `${formatNum(3, language)} ${copy.versesUnit}`,
+      subtitle:
+        language === 'ar'
+          ? 'توازن مناسب بين الحفظ والمراجعة'
+          : language === 'fr'
+            ? 'Bon équilibre mémorisation / révision'
+            : 'Balanced pace for memorization & review',
       recommended: true,
     },
-    { value: 5, title: '٥ آيات يومياً', subtitle: 'للمعتادين على الحفظ اليومي' },
+    {
+      value: 5,
+      title: `${formatNum(5, language)} ${copy.versesUnit}`,
+      subtitle:
+        language === 'ar'
+          ? 'للمعتادين على الحفظ اليومي'
+          : language === 'fr'
+            ? 'Pour les habitués'
+            : 'For experienced daily learners',
+    },
   ];
 
   const handleStart = () => {
@@ -57,7 +92,7 @@ export default function OnboardingPage() {
   };
 
   return (
-    <AppShell title="البداية والتهيئة" hideBottomNav hideTopActions>
+    <AppShell title={copy.onboardingTitle} hideBottomNav hideTopActions>
       <div className="space-y-5 py-2">
         {/* Top Controls: Large Text & Language */}
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -73,7 +108,7 @@ export default function OnboardingPage() {
             )}
           >
             <Type className="h-4 w-4" aria-hidden="true" />
-            <span>الخط الواضح</span>
+            <span>{copy.onboardingLargeText}</span>
           </button>
 
           <div className="flex items-center gap-1 rounded-full border border-border bg-card p-1">
@@ -99,37 +134,36 @@ export default function OnboardingPage() {
         <section className="text-center">
           <img
             src="/images/al-milla-logo.png"
-            alt="شعار تطبيق المِلّة"
+            alt={copy.brandName}
             className="mx-auto h-20 w-20 rounded-2xl border border-border object-cover shadow-xs"
           />
-          <h1 className="mt-3 text-3xl font-bold text-primary">المِلّة</h1>
+          <h1 className="mt-3 text-3xl font-bold text-primary">{copy.brandName}</h1>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-            رفيقك المجاني لحفظ القرآن الكريم برواية <strong>حفص عن عاصم</strong>، بدون حساب أو
-            إعلانات.
+            {copy.onboardingIntro}
           </p>
         </section>
 
-        {/* 1. Preferred Sheikh (Compact Picker) */}
+        {/* 1. Preferred Sheikh */}
         <section className="rounded-2xl border border-border bg-card p-4">
           <div className="mb-2.5 flex items-center justify-between gap-2">
             <h2 className="flex items-center gap-2 text-base font-bold text-foreground">
               <Volume2 className="h-5 w-5 text-primary" aria-hidden="true" />
-              <span>القارئ المفضّل</span>
+              <span>{copy.onboardingReciterTitle}</span>
             </h2>
             <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-secondary-foreground">
-              حفص عن عاصم
+              {copy.hafsBadge}
             </span>
           </div>
 
           <MillaPicker
             value={reciter}
             onChange={(val) => setReciter(val as ReciterId)}
-            title="اختر الشيخ القارئ المفضّل"
-            ariaLabel="اختيار الشيخ القارئ المفضّل"
+            title={copy.onboardingReciterPickerTitle}
+            ariaLabel={copy.onboardingReciterPickerTitle}
             options={RECITERS.map((r) => ({
               value: r.id,
-              label: r.nameAr,
-              description: r.styleAr,
+              label: language === 'ar' ? r.nameAr : r.nameEn,
+              description: language === 'ar' ? r.styleAr : r.nameAr,
               keywords: `${r.nameAr} ${r.nameEn}`,
             }))}
           />
@@ -140,20 +174,20 @@ export default function OnboardingPage() {
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 className="flex items-center gap-2 text-base font-bold text-foreground">
               <BookOpen className="h-5 w-5 text-primary" aria-hidden="true" />
-              <span>سورة البداية</span>
+              <span>{copy.onboardingSurahTitle}</span>
             </h2>
             <MillaPicker
               compact
               searchable
               value={String(currentSurahId)}
               onChange={(val) => setCurrentPosition(Number(val), 1)}
-              title="اختر أي سورة أخرى"
-              ariaLabel="اختيار أي سورة من المصحف"
+              title={copy.onboardingSurahPickerTitle}
+              ariaLabel={copy.onboardingSurahPickerTitle}
               options={SURAHS.map((s) => ({
                 value: String(s.id),
-                label: `${toArabicDigits(s.id)}. ${s.nameAr}`,
-                description: `${toArabicDigits(s.totalAyahs)} آية • ${s.revelationTypeAr}`,
-                keywords: `${s.nameEn} ${s.nameFr}`,
+                label: `${formatNum(s.id, language)}. ${getSurahDisplayName(s, language)}`,
+                description: `${formatNum(s.totalAyahs, language)} ${copy.versesUnit}`,
+                keywords: `${s.nameAr} ${s.nameEn} ${s.nameFr}`,
               }))}
             />
           </div>
@@ -187,9 +221,9 @@ export default function OnboardingPage() {
           <div className="mb-3 flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-base font-bold text-foreground">
               <Sparkles className="h-5 w-5 text-primary" aria-hidden="true" />
-              <span>الورد اليومي للجديد</span>
+              <span>{copy.onboardingGoalTitle}</span>
             </h2>
-            <span className="text-xs text-muted-foreground">يمكن تغييره لاحقاً</span>
+            <span className="text-xs text-muted-foreground">{copy.onboardingGoalLater}</span>
           </div>
 
           <div className="grid grid-cols-2 gap-2.5">
@@ -215,7 +249,7 @@ export default function OnboardingPage() {
                     <span className="text-sm font-bold text-foreground">{goal.title}</span>
                     {goal.recommended && (
                       <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                        مستحسن
+                        {copy.onboardingRecommended}
                       </span>
                     )}
                   </div>
@@ -227,7 +261,7 @@ export default function OnboardingPage() {
 
           <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-background p-3">
             <label htmlFor="custom-daily-goal" className="text-xs font-bold text-foreground">
-              عدد مخصص للآيات يومياً:
+              {copy.onboardingCustomGoalLabel}
             </label>
             <input
               id="custom-daily-goal"
@@ -252,10 +286,7 @@ export default function OnboardingPage() {
         <div className="space-y-3 text-center">
           <p className="flex items-start justify-center gap-1.5 rounded-xl bg-secondary/50 p-3 text-start text-xs leading-relaxed text-muted-foreground">
             <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
-            <span>
-              يُحفظ تقدّمك محلياً في هذا المتصفح على جهازك (مسح بيانات المتصفح يحذفه، ويمكنك تصدير
-              نسخة احتياطية من الإعدادات في أي وقت).
-            </span>
+            <span>{copy.onboardingPrivacyNote}</span>
           </p>
 
           <button
@@ -263,7 +294,7 @@ export default function OnboardingPage() {
             onClick={handleStart}
             className="flex min-h-[56px] w-full items-center justify-center gap-2 rounded-2xl bg-primary px-6 text-base font-bold text-primary-foreground shadow-sm transition-opacity hover:opacity-95"
           >
-            <span>ابدأ بدون تسجيل</span>
+            <span>{copy.onboardingStartCta}</span>
             <ArrowLeft className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>

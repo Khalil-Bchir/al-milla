@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, BookMarked, BookOpen, RotateCcw } from 'lucide-react';
 import { AppShell } from '@/components/milla/AppShell';
-import { MILLA_COPY } from '@/lib/milla-i18n';
+import { MILLA_COPY, formatNum, getSurahDisplayName } from '@/lib/milla-i18n';
 import { getSurahById } from '@/lib/quran-data';
 import { computeRevisionQueues, useMillaStore } from '@/store/milla-store';
 
@@ -45,9 +45,8 @@ export default function HomePage() {
   }
 
   return (
-    <AppShell title={copy.navHome} subtitle="منهج المِلّة • المصحف العثماني (حفص عن عاصم)">
+    <AppShell title={copy.navHome} subtitle={copy.homeSubtitle}>
       <div className="space-y-5">
-        {/* Calm Greeting */}
         <section>
           <h1 className="text-2xl font-bold text-foreground">{copy.homeGreeting}</h1>
           <p className="mt-1 text-lg text-muted-foreground">{copy.homeSubgreeting}</p>
@@ -58,13 +57,15 @@ export default function HomePage() {
           <div className="mb-3 flex items-center justify-between gap-2 text-sm opacity-90">
             <span>{copy.homeTodayWird}</span>
             <span>
-              {Math.min(memorizedInCurrentSurah, dailyTarget)} / {dailyTarget} آيات
+              {formatNum(Math.min(memorizedInCurrentSurah, dailyTarget), language)} /{' '}
+              {formatNum(dailyTarget, language)} {copy.versesUnit}
             </span>
           </div>
 
-          <h2 className="text-2xl font-bold">{surah.nameAr}</h2>
+          <h2 className="text-2xl font-bold">{getSurahDisplayName(surah, language)}</h2>
           <p className="mt-1 text-lg opacity-90">
-            الآيات {currentAyah} - {rangeEnd} • الحزب {surah.hizb}
+            {copy.ayahLabel} {formatNum(currentAyah, language)} - {formatNum(rangeEnd, language)} •{' '}
+            {copy.hizbLabel} {formatNum(surah.hizb, language)}
           </p>
 
           <Link
@@ -72,9 +73,7 @@ export default function HomePage() {
             className="mt-5 flex min-h-[54px] w-full items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-lg font-bold text-[#073D35] transition-colors hover:bg-secondary"
           >
             <span>
-              {queues.totalDueCount > 0
-                ? 'بدء جلسة اليوم (المراجعة + الحفظ)'
-                : copy.homeContinueCta}
+              {queues.totalDueCount > 0 ? copy.homeContinueSessionCta : copy.homeContinueCta}
             </span>
             <ArrowLeft className="h-5 w-5" aria-hidden="true" />
           </Link>
@@ -93,8 +92,8 @@ export default function HomePage() {
               <h2 className="text-lg font-bold text-foreground">{copy.homeRevisionTitle}</h2>
               <p className="text-base text-muted-foreground">
                 {queues.totalDueCount > 0
-                  ? `${queues.totalDueCount} آيات مستحقة (${queues.yesterdayItems.length} أمس • ${queues.olderDueItems.length} سابقة • ${queues.weakItems.length} عناية)`
-                  : 'لا توجد مراجعات مستحقة بعد — ابدأ وردك الأول اليوم'}
+                  ? `${formatNum(queues.totalDueCount, language)} ${copy.homeDueSummary} (${formatNum(queues.yesterdayItems.length, language)} ${copy.homeYesterdayShort} • ${formatNum(queues.olderDueItems.length, language)} ${copy.homeOlderShort} • ${formatNum(queues.weakItems.length, language)} ${copy.homeWeakShort})`
+                  : copy.homeRevisionEmpty}
               </p>
             </div>
           </div>
@@ -113,7 +112,8 @@ export default function HomePage() {
             <div>
               <h2 className="text-lg font-bold text-foreground">{copy.homeNewMemTitle}</h2>
               <p className="text-base text-muted-foreground">
-                {surah.nameAr} • الآيات {currentAyah} - {rangeEnd}
+                {getSurahDisplayName(surah, language)} • {copy.ayahLabel}{' '}
+                {formatNum(currentAyah, language)} - {formatNum(rangeEnd, language)}
               </p>
             </div>
           </div>
