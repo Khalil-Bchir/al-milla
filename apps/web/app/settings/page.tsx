@@ -24,10 +24,9 @@ import {
   type ReciterId,
 } from '@/store/milla-store';
 
-const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(
-  /\/$/,
-  '',
-);
+const API_BASE_URL = (
+  process.env.NEXT_PUBLIC_API_URL ?? 'https://api-al-milla.khalilbchir.pro'
+).replace(/\/$/, '');
 
 export default function SettingsPage() {
   const store = useMillaStore();
