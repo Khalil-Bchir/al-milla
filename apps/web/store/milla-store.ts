@@ -64,6 +64,21 @@ export interface MillaPersistedState {
   bookmarks: string[];
   dailyStages: DailyStagesState;
   mutashabihatMastered: Record<string, boolean>;
+  syncKey: string;
+  lastSyncedAt: string | null;
+}
+
+export interface BackupImportPayload {
+  language?: AppLanguage;
+  narration?: NarrationId;
+  dailyTarget?: number;
+  quranFontSize?: number;
+  currentSurahId?: number;
+  currentAyah?: number;
+  bookmarks?: string[];
+  activityDates?: string[];
+  verseRecords?: Record<string, MemorizedVerseRecord>;
+  verses?: MemorizedVerseRecord[];
 }
 
 export interface MillaStoreActions {
@@ -88,6 +103,9 @@ export interface MillaStoreActions {
   toggleBookmark: (key: string) => void;
   toggleDailyStage: (stage: keyof DailyStagesState) => void;
   setMutashabihatMastered: (id: string, mastered: boolean) => void;
+  setSyncKey: (syncKey: string) => void;
+  setLastSyncedAt: (iso: string | null) => void;
+  importBackupData: (payload: BackupImportPayload) => void;
   resetLocalProgress: () => void;
 }
 
@@ -207,6 +225,8 @@ const INITIAL_STATE: MillaPersistedState = {
     verseConnection: false,
   },
   mutashabihatMastered: {},
+  syncKey: 'milla-local-portfolio-v1',
+  lastSyncedAt: null,
 };
 
 const STORAGE_KEY = 'almilla.local.v2';
@@ -324,6 +344,36 @@ export const useMillaStore = create<MillaStore>()(
           mutashabihatMastered: { ...state.mutashabihatMastered, [id]: mastered },
           activityDates: appendTodayActivity(state.activityDates),
         })),
+      setSyncKey: (syncKey) => set({ syncKey: syncKey.trim() || 'milla-local-portfolio-v1' }),
+      setLastSyncedAt: (lastSyncedAt) => set({ lastSyncedAt }),
+      importBackupData: (payload) =>
+        set((state) => {
+          const nextRecords = { ...state.verseRecords };
+          if (payload.verseRecords) {
+            Object.assign(nextRecords, payload.verseRecords);
+          }
+          if (Array.isArray(payload.verses)) {
+            for (const v of payload.verses) {
+              nextRecords[v.key] = v;
+            }
+          }
+          return {
+            language: payload.language ?? state.language,
+            narration: payload.narration ?? state.narration,
+            dailyTarget: payload.dailyTarget ?? state.dailyTarget,
+            quranFontSize: payload.quranFontSize ?? state.quranFontSize,
+            currentSurahId: payload.currentSurahId ?? state.currentSurahId,
+            currentAyah: payload.currentAyah ?? state.currentAyah,
+            bookmarks: Array.isArray(payload.bookmarks) ? payload.bookmarks : state.bookmarks,
+            activityDates: Array.isArray(payload.activityDates)
+              ? payload.activityDates
+              : state.activityDates,
+            verseRecords: nextRecords,
+            memorizedAyahs: Object.fromEntries(
+              Object.values(nextRecords).map((r) => [r.key, r.status]),
+            ),
+          };
+        }),
       resetLocalProgress: () => set({ ...INITIAL_STATE }),
     }),
     {
@@ -354,6 +404,8 @@ export const useMillaStore = create<MillaStore>()(
         bookmarks: state.bookmarks,
         dailyStages: state.dailyStages,
         mutashabihatMastered: state.mutashabihatMastered,
+        syncKey: state.syncKey,
+        lastSyncedAt: state.lastSyncedAt,
       }),
     },
   ),

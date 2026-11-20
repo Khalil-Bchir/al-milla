@@ -9,8 +9,8 @@ generator client {
 }
 
 model User {
-  id            String   @id @default(uuid())
-  email         String   @unique
+  id            String           @id @default(uuid())
+  email         String           @unique
   fullName      String?
   phone         String?
   streetAddress String?
@@ -18,9 +18,10 @@ model User {
   state         String?
   postalCode    String?
   country       String?
-  role          UserRole @default(USER)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  role          UserRole         @default(USER)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  portfolios    HafizPortfolio[]
 
   @@index([email])
   @@map("users")
@@ -44,4 +45,60 @@ model Review {
 
   @@index([createdAt])
   @@map("reviews")
+}
+
+model HafizPortfolio {
+  id              String            @id @default(uuid())
+  syncKey         String            @unique
+  userId          String?
+  user            User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  language        String            @default("ar")
+  narration       String            @default("qalun")
+  dailyTarget     Int               @default(4)
+  quranFontSize   Int               @default(26)
+  currentSurahId  Int               @default(18)
+  currentAyah     Int               @default(1)
+  bookmarks       String[]
+  activityDates   String[]
+  memorizedVerses MemorizedVerse[]
+  revisionLogs    RevisionAttempt[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([syncKey])
+  @@map("hafiz_portfolios")
+}
+
+model MemorizedVerse {
+  id               String         @id @default(uuid())
+  portfolioId      String
+  portfolio        HafizPortfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  surahId          Int
+  ayahNumber       Int
+  status           String         @default("memorized")
+  firstMemorizedAt DateTime       @default(now())
+  lastReviewedAt   DateTime       @default(now())
+  nextReviewAt     DateTime       @default(now())
+  intervalDays     Int            @default(1)
+  lastEvaluation   String?
+  reviewCount      Int            @default(1)
+  updatedAt        DateTime       @updatedAt
+
+  @@unique([portfolioId, surahId, ayahNumber])
+  @@index([portfolioId, nextReviewAt])
+  @@map("memorized_verses")
+}
+
+model RevisionAttempt {
+  id             String         @id @default(uuid())
+  portfolioId    String
+  portfolio      HafizPortfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  surahId        Int
+  ayahNumber     Int
+  selfEvaluation String
+  intervalDays   Int
+  attemptedAt    DateTime       @default(now())
+
+  @@index([portfolioId, attemptedAt])
+  @@map("revision_attempts")
 }
