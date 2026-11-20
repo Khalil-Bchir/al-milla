@@ -321,7 +321,7 @@ export default function MushafPage() {
             ) : pageAyahs.length > 0 ? (
               <div className="space-y-4">
                 <div
-                  className="quran-text select-none text-justify leading-[2.35] text-foreground"
+                  className="mushaf-quran-text select-none text-justify text-foreground"
                   dir="rtl"
                   lang="ar"
                 >

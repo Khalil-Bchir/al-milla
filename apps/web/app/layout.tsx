@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { IBM_Plex_Sans_Arabic, Inter, Amiri, Noto_Naskh_Arabic } from 'next/font/google';
+import { IBM_Plex_Sans_Arabic, Inter, Amiri, Amiri_Quran, Noto_Naskh_Arabic } from 'next/font/google';
 import './globals.css';
 import { ServiceWorkerRegister } from '@/components/milla/ServiceWorkerRegister';
 import { ThemeSync } from '@/components/milla/ThemeSync';
@@ -22,6 +22,13 @@ const amiri = Amiri({
   subsets: ['arabic', 'latin'],
   weight: ['400', '700'],
   variable: '--font-amiri',
+  display: 'swap',
+});
+
+const amiriQuran = Amiri_Quran({
+  subsets: ['arabic', 'latin'],
+  weight: '400',
+  variable: '--font-amiri-quran',
   display: 'swap',
 });
 
@@ -72,7 +79,7 @@ export default function RootLayout({
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
       <body
-        className={`${ibmArabic.variable} ${inter.variable} ${amiri.variable} ${notoNaskh.variable} min-h-screen bg-background font-sans text-foreground antialiased`}
+        className={`${ibmArabic.variable} ${inter.variable} ${amiri.variable} ${amiriQuran.variable} ${notoNaskh.variable} min-h-screen bg-background font-sans text-foreground antialiased`}
       >
         <ThemeSync />
         <ServiceWorkerRegister />
