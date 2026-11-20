@@ -1,4 +1,9 @@
-import { getCachedSurah, saveCachedSurah } from '@/lib/milla-db';
+import {
+  getCachedMushafPage,
+  getCachedSurah,
+  saveCachedMushafPage,
+  saveCachedSurah,
+} from '@/lib/milla-db';
 
 export type NarrationId = 'hafs';
 
@@ -733,4 +738,85 @@ export function getEveryAyahAudioUrl(
   const s = String(surahId).padStart(3, '0');
   const a = String(ayahNumber).padStart(3, '0');
   return `https://everyayah.com/data/${found.folder}/${s}${a}.mp3`;
+}
+
+export interface MushafPageAyah {
+  surahId: number;
+  surahNameAr: string;
+  ayahNumber: number;
+  textAr: string;
+  juz: number;
+  page: number;
+}
+
+interface AlQuranCloudPageResponse {
+  code: number;
+  data?: {
+    number: number;
+    ayahs: {
+      numberInSurah: number;
+      text: string;
+      juz: number;
+      page: number;
+      surah: {
+        number: number;
+        name: string;
+      };
+    }[];
+  };
+}
+
+export function toArabicDigits(num: number): string {
+  const digits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+  return String(num)
+    .split('')
+    .map((ch) => digits[Number(ch)] ?? ch)
+    .join('');
+}
+
+export async function loadMushafPage(pageNumber: number): Promise<{
+  ayahs: MushafPageAyah[];
+  fromCache: boolean;
+  error: string | null;
+}> {
+  const clampedPage = Math.max(1, Math.min(604, pageNumber));
+
+  const cached = await getCachedMushafPage(clampedPage);
+  if (cached && cached.ayahs.length > 0) {
+    return { ayahs: cached.ayahs, fromCache: true, error: null };
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.alquran.cloud/v1/page/${clampedPage}/quran-uthmani`,
+    );
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const json = (await response.json()) as AlQuranCloudPageResponse;
+    if (json.code !== 200 || !json.data || !Array.isArray(json.data.ayahs)) {
+      throw new Error('تعذّر قراءة بيانات صفحة المصحف');
+    }
+
+    const ayahs: MushafPageAyah[] = json.data.ayahs.map((a) => ({
+      surahId: a.surah.number,
+      surahNameAr: a.surah.name,
+      ayahNumber: a.numberInSurah,
+      textAr: a.text,
+      juz: a.juz,
+      page: a.page,
+    }));
+
+    await saveCachedMushafPage({
+      pageNumber: clampedPage,
+      ayahs,
+      cachedAt: new Date().toISOString(),
+      source: 'api.alquran.cloud (Madinah Mushaf 1-604 Uthmani)',
+    });
+
+    return { ayahs, fromCache: false, error: null };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'تعذّر تحميل صفحة المصحف';
+    return { ayahs: [], fromCache: false, error: msg };
+  }
 }

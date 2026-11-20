@@ -7,6 +7,7 @@ export type VerseStatus = 'memorized' | 'in_progress' | 'weak';
 export type SelfEvalRating = 'difficult' | 'good' | 'easy';
 export type PlaybackSpeed = 0.75 | 1.0 | 1.25;
 export type RevisionIntervalDays = 1 | 3 | 7 | 14 | 30;
+export type MushafViewMode = 'verses' | 'page';
 
 const INTERVAL_LADDER: RevisionIntervalDays[] = [1, 3, 7, 14, 30];
 
@@ -56,6 +57,8 @@ export interface MillaPersistedState {
   onboardingCompleted: boolean;
   currentSurahId: number;
   currentAyah: number;
+  mushafViewMode: MushafViewMode;
+  currentMushafPage: number;
   memorizedAyahs: Record<string, VerseStatus>;
   evaluations: Record<string, SelfEvalRating>;
   verseRecords: Record<string, MemorizedVerseRecord>;
@@ -97,6 +100,8 @@ export interface MillaStoreActions {
   updateReminders: (patch: Partial<ReminderSettings>) => void;
   completeOnboarding: () => void;
   setCurrentPosition: (surahId: number, ayah: number) => void;
+  setMushafViewMode: (mode: MushafViewMode) => void;
+  setCurrentMushafPage: (page: number) => void;
   setVerseStatus: (key: string, status: VerseStatus) => void;
   recordEvaluation: (key: string, rating: SelfEvalRating) => void;
   toggleBookmark: (key: string) => void;
@@ -151,6 +156,8 @@ const INITIAL_STATE: MillaPersistedState = {
   onboardingCompleted: false,
   currentSurahId: 1,
   currentAyah: 1,
+  mushafViewMode: 'verses',
+  currentMushafPage: 1,
   memorizedAyahs: {},
   evaluations: {},
   verseRecords: {},
@@ -211,7 +218,17 @@ export const useMillaStore = create<MillaStore>()(
       updateReminders: (patch) =>
         set((state) => ({ reminders: { ...state.reminders, ...patch } })),
       completeOnboarding: () => set({ onboardingCompleted: true }),
-      setCurrentPosition: (currentSurahId, currentAyah) => set({ currentSurahId, currentAyah }),
+      setCurrentPosition: (currentSurahId, currentAyah) => {
+        const surah = SURAHS.find((s) => s.id === currentSurahId);
+        set({
+          currentSurahId,
+          currentAyah,
+          currentMushafPage: surah?.pageStart ?? 1,
+        });
+      },
+      setMushafViewMode: (mushafViewMode) => set({ mushafViewMode }),
+      setCurrentMushafPage: (page) =>
+        set({ currentMushafPage: Math.max(1, Math.min(604, page)) }),
       setVerseStatus: (key, status) =>
         set((state) => {
           const { surahId, ayahNumber } = parseVerseKey(key);
@@ -350,6 +367,8 @@ export const useMillaStore = create<MillaStore>()(
         onboardingCompleted: state.onboardingCompleted,
         currentSurahId: state.currentSurahId,
         currentAyah: state.currentAyah,
+        mushafViewMode: state.mushafViewMode,
+        currentMushafPage: state.currentMushafPage,
         memorizedAyahs: state.memorizedAyahs,
         evaluations: state.evaluations,
         verseRecords: state.verseRecords,

@@ -321,6 +321,39 @@ export default function SettingsPage() {
 
           <div className="flex items-center justify-between">
             <div>
+              <p className="text-sm font-bold text-foreground">طريقة عرض المصحف</p>
+              <p className="text-xs text-muted-foreground">بطاقات آيات أو صفحات المصحف (١-٦٠٤)</p>
+            </div>
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                onClick={() => store.setMushafViewMode('verses')}
+                className={cn(
+                  'min-h-[44px] rounded-xl border px-3 text-xs font-bold',
+                  store.mushafViewMode === 'verses'
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-border bg-background text-foreground',
+                )}
+              >
+                آيات
+              </button>
+              <button
+                type="button"
+                onClick={() => store.setMushafViewMode('page')}
+                className={cn(
+                  'min-h-[44px] rounded-xl border px-3 text-xs font-bold',
+                  store.mushafViewMode === 'page'
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-border bg-background text-foreground',
+                )}
+              >
+                صفحات المصحف
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
               <p className="text-sm font-bold text-foreground">الوضع الليلي الهادئ</p>
               <p className="text-xs text-muted-foreground">مريح للعين أثناء القراءة الليلية</p>
             </div>
