@@ -91,7 +91,7 @@ export default function MushafPage() {
                 </span>
               )}
               <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">
-                {narration === 'qalun' ? 'قالون' : narration === 'warsh' ? 'ورش' : 'حفص'}
+                حفص عن عاصم
               </span>
             </div>
           </div>

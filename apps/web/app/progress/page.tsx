@@ -12,7 +12,6 @@ export default function ProgressPage() {
   const verseRecords = useMillaStore((s) => s.verseRecords);
   const activityDates = useMillaStore((s) => s.activityDates);
   const currentSurahId = useMillaStore((s) => s.currentSurahId);
-  const narration = useMillaStore((s) => s.narration);
   const setCurrentPosition = useMillaStore((s) => s.setCurrentPosition);
 
   const metrics = computeProgressMetrics(verseRecords, activityDates, currentSurahId);
@@ -25,7 +24,7 @@ export default function ProgressPage() {
           <div className="mb-3 flex items-center justify-between">
             <span className="text-xs opacity-90">مستوى الرسوخ التراكمي</span>
             <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold">
-              {narration === 'qalun' ? 'رواية قالون' : narration === 'warsh' ? 'رواية ورش' : 'رواية حفص'}
+              رواية حفص عن عاصم
             </span>
           </div>
 
@@ -98,7 +97,12 @@ export default function ProgressPage() {
             </span>
           </div>
 
-          {metrics.surahMasteryList.map((item) => (
+          {metrics.surahMasteryList.length === 0 ? (
+            <div className="rounded-2xl border border-border bg-card p-5 text-center text-sm text-muted-foreground">
+              لم تسجّل أي آيات محفوظة بعد. ابدأ جلستك الأولى من قسم «الحفظ» وستظهر خريطة السور هنا.
+            </div>
+          ) : (
+            metrics.surahMasteryList.map((item) => (
             <button
               key={item.surahId}
               type="button"
@@ -144,7 +148,8 @@ export default function ProgressPage() {
 
               <p className="mt-2 text-xs text-muted-foreground">{item.lastActivityAr}</p>
             </button>
-          ))}
+          ))
+          )}
         </section>
 
         {/* Actions */}

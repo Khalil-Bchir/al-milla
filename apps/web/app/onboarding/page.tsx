@@ -1,19 +1,21 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, BookOpen, CheckCircle2, Lock, Sparkles, Type } from 'lucide-react';
+import { ArrowLeft, BookOpen, CheckCircle2, Lock, Sparkles, Type, Volume2 } from 'lucide-react';
 import { AppShell } from '@/components/milla/AppShell';
 import { cn } from '@/lib/utils';
 import type { AppLanguage } from '@/lib/milla-i18n';
-import type { NarrationId } from '@/lib/quran-data';
+import { RECITERS, SURAHS } from '@/lib/quran-data';
 import { useMillaStore } from '@/store/milla-store';
 
 export default function OnboardingPage() {
   const router = useRouter();
   const language = useMillaStore((s) => s.language);
   const setLanguage = useMillaStore((s) => s.setLanguage);
-  const narration = useMillaStore((s) => s.narration);
-  const setNarration = useMillaStore((s) => s.setNarration);
+  const reciter = useMillaStore((s) => s.reciter);
+  const setReciter = useMillaStore((s) => s.setReciter);
+  const currentSurahId = useMillaStore((s) => s.currentSurahId);
+  const setCurrentPosition = useMillaStore((s) => s.setCurrentPosition);
   const dailyTarget = useMillaStore((s) => s.dailyTarget);
   const setDailyTarget = useMillaStore((s) => s.setDailyTarget);
   const largeUiMode = useMillaStore((s) => s.largeUiMode);
@@ -26,9 +28,11 @@ export default function OnboardingPage() {
     { id: 'fr', label: 'Français' },
   ];
 
-  const narrations: { id: NarrationId; title: string; subtitle: string }[] = [
-    { id: 'qalun', title: 'قالون عن نافع', subtitle: 'رسم تونسي معتمد' },
-    { id: 'hafs', title: 'حفص عن عاصم', subtitle: 'المصحف القياسي' },
+  const startingSurahPresets = [
+    { id: 1, label: 'سورة الفاتحة', hint: '٧ آيات • بداية موصى بها' },
+    { id: 78, label: 'سورة النبأ (جزء عمّ)', hint: '٤٠ آية • للسور القصيرة' },
+    { id: 67, label: 'سورة الملك', hint: '٣٠ آية • المنجية' },
+    { id: 18, label: 'سورة الكهف', hint: '١١٠ آيات • ورد الجمعة' },
   ];
 
   const dailyGoals: { value: number; title: string; subtitle: string; recommended?: boolean }[] = [
@@ -57,7 +61,7 @@ export default function OnboardingPage() {
             onClick={() => setLargeUiMode(!largeUiMode)}
             aria-pressed={largeUiMode}
             className={cn(
-              'inline-flex min-h-[44px] items-center gap-2 rounded-full border px-3.5 text-xs font-semibold transition-colors',
+              'inline-flex min-h-[48px] items-center gap-2 rounded-full border px-4 text-xs font-semibold transition-colors',
               largeUiMode
                 ? 'border-primary bg-primary text-primary-foreground'
                 : 'border-border bg-card text-foreground hover:bg-secondary',
@@ -74,7 +78,7 @@ export default function OnboardingPage() {
                 type="button"
                 onClick={() => setLanguage(lang.id)}
                 className={cn(
-                  'min-h-[38px] rounded-full px-3 text-xs font-semibold transition-colors',
+                  'min-h-[40px] rounded-full px-3 text-xs font-semibold transition-colors',
                   language === lang.id
                     ? 'bg-primary text-primary-foreground'
                     : 'text-muted-foreground hover:text-foreground',
@@ -96,51 +100,96 @@ export default function OnboardingPage() {
           <h1 className="mt-4 text-3xl font-bold text-primary">المِلّة</h1>
           <p className="mt-1 text-base text-muted-foreground">رحلتك مع حفظ القرآن الكريم</p>
           <div className="mt-4 rounded-2xl border border-border bg-secondary/60 p-4 text-sm leading-relaxed text-foreground">
-            تطبيق مجاني بالكامل مبني على المنهجية التونسية الأصيلة للحفظ المتقن والمستمر لكتاب الله،
-            بدون حساب إلزامي أو إعلانات.
+            تطبيق مجاني بالكامل مبني على المنهجية التونسية الأصيلة للحفظ المتقن والمستمر لكتاب الله
+            برواية <strong>حفص عن عاصم (الرسم العثماني)</strong>، بدون حساب إلزامي أو إعلانات.
           </div>
         </section>
 
-        {/* Narration Selection */}
+        {/* 1. Preferred Sheikh (Reciter) Selection */}
         <section className="rounded-2xl border border-border bg-card p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-base font-bold text-foreground">
-              <BookOpen className="h-5 w-5 text-primary" aria-hidden="true" />
-              <span>الرواية القرآنية</span>
+              <Volume2 className="h-5 w-5 text-primary" aria-hidden="true" />
+              <span>اختر الشيخ القارئ المفضّل</span>
             </h2>
             <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">
-              المقرأة التونسية
+              حفص عن عاصم
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            {narrations.map((item) => {
-              const selected = narration === item.id;
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            {RECITERS.map((item) => {
+              const selected = reciter === item.id;
               return (
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => setNarration(item.id)}
+                  onClick={() => setReciter(item.id)}
                   aria-pressed={selected}
                   className={cn(
-                    'flex min-h-[76px] flex-col items-start justify-between rounded-xl border p-3.5 text-start transition-colors',
+                    'flex min-h-[68px] flex-col items-start justify-between rounded-xl border p-3 text-start transition-colors',
                     selected
                       ? 'border-primary bg-secondary/70 text-foreground'
                       : 'border-border bg-background text-foreground hover:bg-muted',
                   )}
                 >
-                  <div className="flex w-full items-center justify-between">
-                    <span className="text-sm font-bold">{item.title}</span>
-                    {selected && <CheckCircle2 className="h-4 w-4 text-primary" aria-hidden="true" />}
+                  <div className="flex w-full items-center justify-between gap-2">
+                    <span className="text-sm font-bold">{item.nameAr}</span>
+                    {selected && <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />}
                   </div>
-                  <span className="text-xs text-muted-foreground">{item.subtitle}</span>
+                  <span className="text-xs text-muted-foreground">{item.styleAr}</span>
                 </button>
               );
             })}
           </div>
         </section>
 
-        {/* Daily Goal Selection */}
+        {/* 2. Starting Surah */}
+        <section className="rounded-2xl border border-border bg-card p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="flex items-center gap-2 text-base font-bold text-foreground">
+              <BookOpen className="h-5 w-5 text-primary" aria-hidden="true" />
+              <span>سورة البداية</span>
+            </h2>
+            <select
+              aria-label="اختيار أي سورة من المصحف"
+              value={currentSurahId}
+              onChange={(e) => setCurrentPosition(Number(e.target.value), 1)}
+              className="min-h-[40px] rounded-xl border border-border bg-background px-2.5 text-xs font-semibold text-foreground"
+            >
+              {SURAHS.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.id}. {s.nameAr}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2.5">
+            {startingSurahPresets.map((preset) => {
+              const selected = currentSurahId === preset.id;
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => setCurrentPosition(preset.id, 1)}
+                  aria-pressed={selected}
+                  className={cn(
+                    'flex min-h-[68px] flex-col items-start justify-between rounded-xl border p-3 text-start transition-colors',
+                    selected
+                      ? 'border-primary bg-secondary/70'
+                      : 'border-border bg-background hover:bg-muted',
+                  )}
+                >
+                  <span className="text-sm font-bold text-foreground">{preset.label}</span>
+                  <span className="text-xs text-muted-foreground">{preset.hint}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* 3. Daily Goal Selection */}
         <section className="rounded-2xl border border-border bg-card p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-base font-bold text-foreground">

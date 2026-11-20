@@ -1,6 +1,8 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ArrowLeft, BookMarked, BookOpen, RotateCcw } from 'lucide-react';
 import { AppShell } from '@/components/milla/AppShell';
 import { MILLA_COPY } from '@/lib/milla-i18n';
@@ -8,12 +10,25 @@ import { getSurahById } from '@/lib/quran-data';
 import { computeRevisionQueues, useMillaStore } from '@/store/milla-store';
 
 export default function HomePage() {
+  const router = useRouter();
+  const [hydrated, setHydrated] = useState(false);
+
+  const onboardingCompleted = useMillaStore((s) => s.onboardingCompleted);
   const language = useMillaStore((s) => s.language);
   const dailyTarget = useMillaStore((s) => s.dailyTarget);
   const currentSurahId = useMillaStore((s) => s.currentSurahId);
   const currentAyah = useMillaStore((s) => s.currentAyah);
   const verseRecords = useMillaStore((s) => s.verseRecords);
-  const narration = useMillaStore((s) => s.narration);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (hydrated && !onboardingCompleted) {
+      router.replace('/onboarding');
+    }
+  }, [hydrated, onboardingCompleted, router]);
 
   const copy = MILLA_COPY[language];
   const surah = getSurahById(currentSurahId);
@@ -25,15 +40,12 @@ export default function HomePage() {
 
   const queues = computeRevisionQueues(verseRecords);
 
-  const narrationLabel =
-    narration === 'qalun'
-      ? 'رواية قالون عن نافع'
-      : narration === 'warsh'
-        ? 'رواية ورش عن نافع'
-        : 'رواية حفص عن عاصم';
+  if (hydrated && !onboardingCompleted) {
+    return null;
+  }
 
   return (
-    <AppShell title={copy.navHome} subtitle={`منهج المِلّة • ${narrationLabel}`}>
+    <AppShell title={copy.navHome} subtitle="منهج المِلّة • المصحف العثماني (حفص عن عاصم)">
       <div className="space-y-5">
         {/* Calm Greeting */}
         <section>
@@ -76,8 +88,9 @@ export default function HomePage() {
             <div>
               <h2 className="text-lg font-bold text-foreground">{copy.homeRevisionTitle}</h2>
               <p className="text-base text-muted-foreground">
-                {queues.totalDueCount} آيات مستحقة ({queues.yesterdayItems.length} أمس •{' '}
-                {queues.olderDueItems.length} سابقة • {queues.weakItems.length} عناية)
+                {queues.totalDueCount > 0
+                  ? `${queues.totalDueCount} آيات مستحقة (${queues.yesterdayItems.length} أمس • ${queues.olderDueItems.length} سابقة • ${queues.weakItems.length} عناية)`
+                  : 'لا توجد مراجعات مستحقة بعد — ابدأ وردك الأول اليوم'}
               </p>
             </div>
           </div>

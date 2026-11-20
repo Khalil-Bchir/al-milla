@@ -16,12 +16,11 @@ import {
 import { AppShell } from '@/components/milla/AppShell';
 import { cn } from '@/lib/utils';
 import type { AppLanguage } from '@/lib/milla-i18n';
-import type { NarrationId } from '@/lib/quran-data';
+import { RECITERS, type ReciterId } from '@/lib/quran-data';
 import {
   useMillaStore,
   type BackupImportPayload,
   type PlaybackSpeed,
-  type ReciterId,
 } from '@/store/milla-store';
 
 const API_BASE_URL = (
@@ -33,12 +32,6 @@ export default function SettingsPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
-
-  const narrations: { id: NarrationId; label: string }[] = [
-    { id: 'qalun', label: 'قالون عن نافع' },
-    { id: 'warsh', label: 'ورش عن نافع' },
-    { id: 'hafs', label: 'حفص عن عاصم' },
-  ];
 
   const languages: { id: AppLanguage; label: string }[] = [
     { id: 'ar', label: 'العربية' },
@@ -188,42 +181,31 @@ export default function SettingsPage() {
 
         {/* Narration & Audio */}
         <section className="space-y-4 rounded-2xl border border-border bg-card p-4">
-          <div className="flex items-center gap-2">
-            <BookOpen className="h-5 w-5 text-primary" aria-hidden="true" />
-            <h2 className="text-base font-bold text-foreground">تفضيلات الرواية والقراءة</h2>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2">
-            {narrations.map((n) => (
-              <button
-                key={n.id}
-                type="button"
-                onClick={() => store.setNarration(n.id)}
-                className={cn(
-                  'min-h-[48px] rounded-xl border px-2 text-xs font-bold transition-colors',
-                  store.narration === n.id
-                    ? 'border-primary bg-primary text-primary-foreground'
-                    : 'border-border bg-background text-foreground hover:bg-secondary',
-                )}
-              >
-                {n.label}
-              </button>
-            ))}
-          </div>
-
           <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5 text-primary" aria-hidden="true" />
+              <h2 className="text-base font-bold text-foreground">القارئ وتفضيلات التلاوة</h2>
+            </div>
+            <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">
+              حفص عن عاصم
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
             <label htmlFor="reciter-select" className="text-xs font-semibold text-foreground">
-              القارئ المعتمد للتسميع
+              الشيخ القارئ المفضّل
             </label>
             <select
               id="reciter-select"
               value={store.reciter}
               onChange={(e) => store.setReciter(e.target.value as ReciterId)}
-              className="min-h-[48px] rounded-xl border border-border bg-background px-3 text-xs font-semibold text-foreground"
+              className="min-h-[48px] w-full rounded-xl border border-border bg-background px-3 text-xs font-semibold text-foreground"
             >
-              <option value="hudhaify">الشيخ علي الحذيفي</option>
-              <option value="husary">الشيخ محمود خليل الحصري</option>
-              <option value="minshawi">الشيخ محمد صديق المنشاوي</option>
+              {RECITERS.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.nameAr} — {r.styleAr}
+                </option>
+              ))}
             </select>
           </div>
 

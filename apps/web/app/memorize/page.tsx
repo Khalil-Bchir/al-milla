@@ -12,22 +12,27 @@ import {
   loadVerifiedSurahAyahs,
   type AyahEntry,
 } from '@/lib/quran-data';
-import { useMillaStore } from '@/store/milla-store';
+import { useMillaStore, type DailyStagesState } from '@/store/milla-store';
 
-const STANDARD_FIVE_STAGES = [
-  'مراجعة الأمس',
-  'المراجعة السابقة',
-  'الحفظ الجديد',
-  'التسميع',
-  'ربط الآيات',
-] as const;
+const STANDARD_FIVE_STAGES: {
+  key: keyof DailyStagesState;
+  label: string;
+}[] = [
+  { key: 'yesterdayReview', label: 'مراجعة الأمس' },
+  { key: 'olderReview', label: 'المراجعة السابقة' },
+  { key: 'newMemorization', label: 'الحفظ الجديد' },
+  { key: 'selfTest', label: 'التسميع' },
+  { key: 'verseConnection', label: 'ربط الآيات' },
+];
 
 export default function MemorizePage() {
   const currentSurahId = useMillaStore((s) => s.currentSurahId);
   const currentAyah = useMillaStore((s) => s.currentAyah);
   const setCurrentPosition = useMillaStore((s) => s.setCurrentPosition);
   const setVerseStatus = useMillaStore((s) => s.setVerseStatus);
-  const narration = useMillaStore((s) => s.narration);
+  const dailyStages = useMillaStore((s) => s.dailyStages);
+  const toggleDailyStage = useMillaStore((s) => s.toggleDailyStage);
+  const setDailyStage = useMillaStore((s) => s.setDailyStage);
   const language = useMillaStore((s) => s.language);
   const showTranslation = useMillaStore((s) => s.showTranslation);
   const showTransliteration = useMillaStore((s) => s.showTransliteration);
@@ -36,7 +41,6 @@ export default function MemorizePage() {
   const [ayahs, setAyahs] = useState<AyahEntry[]>(surah.ayahs);
   const [loadingAyahs, setLoadingAyahs] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [activeStage, setActiveStage] = useState<number>(2);
   const [hideWordsMode, setHideWordsMode] = useState(false);
   const [showTafsirBox, setShowTafsirBox] = useState(false);
 
@@ -66,6 +70,10 @@ export default function MemorizePage() {
   const activeAyah = ayahs[ayahIndex] ?? ayahs[0];
   const nextAyah = ayahs[ayahIndex + 1];
 
+  const completedStagesCount = STANDARD_FIVE_STAGES.filter((s) => dailyStages[s.key]).length;
+  const activeStageKey =
+    STANDARD_FIVE_STAGES.find((s) => !dailyStages[s.key])?.key ?? 'verseConnection';
+
   const handlePrev = () => {
     if (ayahIndex > 0) {
       setCurrentPosition(surah.id, ayahs[ayahIndex - 1].number);
@@ -81,8 +89,11 @@ export default function MemorizePage() {
   const handleMarkMastered = () => {
     if (!activeAyah) return;
     setVerseStatus(`${surah.id}:${activeAyah.number}`, 'memorized');
+    setDailyStage('newMemorization', true);
     if (nextAyah) {
       setCurrentPosition(surah.id, nextAyah.number);
+    } else {
+      setDailyStage('verseConnection', true);
     }
   };
 
@@ -116,40 +127,41 @@ export default function MemorizePage() {
             </select>
           </div>
           <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">
-            {narration === 'qalun' ? 'رواية قالون' : narration === 'warsh' ? 'رواية ورش' : 'رواية حفص'}
+            رواية حفص عن عاصم
           </span>
         </div>
 
-        {/* Standardized 5-Stage Daily Method */}
+        {/* Dynamic 5-Stage Daily Method */}
         <section className="rounded-2xl border border-border bg-card p-4">
           <div className="mb-3 flex items-center justify-between text-xs">
-            <span className="font-bold text-foreground">مراحل جلسة المِلّة</span>
-            <span className="text-muted-foreground">المرحلة {activeStage + 1} من ٥</span>
+            <span className="font-bold text-foreground">مراحل جلسة المِلّة (اضغط للتبديل)</span>
+            <span className="text-muted-foreground">{completedStagesCount} من ٥ مكتملة</span>
           </div>
           <div className="grid grid-cols-5 gap-1.5">
-            {STANDARD_FIVE_STAGES.map((label, idx) => {
-              const isCurrent = idx === activeStage;
-              const isDone = idx < activeStage;
+            {STANDARD_FIVE_STAGES.map((stage) => {
+              const isDone = dailyStages[stage.key];
+              const isCurrent = stage.key === activeStageKey;
               return (
                 <button
-                  key={label}
+                  key={stage.key}
                   type="button"
-                  onClick={() => setActiveStage(idx)}
+                  onClick={() => toggleDailyStage(stage.key)}
+                  aria-pressed={isDone}
                   className="flex min-h-[48px] flex-col items-center justify-center gap-1.5 rounded-lg px-1 text-center"
                 >
                   <span
                     className={cn(
                       'h-2 w-full rounded-full transition-colors',
-                      isCurrent ? 'bg-accent' : isDone ? 'bg-primary' : 'bg-muted',
+                      isDone ? 'bg-primary' : isCurrent ? 'bg-accent' : 'bg-muted',
                     )}
                   />
                   <span
                     className={cn(
                       'text-[11px] leading-tight font-medium',
-                      isCurrent ? 'font-bold text-foreground' : 'text-muted-foreground',
+                      isDone || isCurrent ? 'font-bold text-foreground' : 'text-muted-foreground',
                     )}
                   >
-                    {label}
+                    {stage.label}
                   </span>
                 </button>
               );
@@ -243,9 +255,6 @@ export default function MemorizePage() {
                     <p dir="ltr">
                       {language === 'fr' ? activeAyah.translationFr : activeAyah.translationEn}
                     </p>
-                    {activeAyah.qalunNote && (
-                      <p className="font-semibold text-primary">ملاحظة: {activeAyah.qalunNote}</p>
-                    )}
                   </div>
                 )}
               </div>
@@ -264,6 +273,7 @@ export default function MemorizePage() {
           ayahNumber={activeAyah?.number ?? 1}
           onPrevAyah={ayahIndex > 0 ? handlePrev : undefined}
           onNextAyah={nextAyah ? handleNext : undefined}
+          onRepeatCycleComplete={() => setDailyStage('newMemorization', true)}
         />
 
         {/* Calm Tip */}

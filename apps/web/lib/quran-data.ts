@@ -1,6 +1,67 @@
 import { getCachedSurah, saveCachedSurah } from '@/lib/milla-db';
 
-export type NarrationId = 'qalun' | 'warsh' | 'hafs';
+export type NarrationId = 'hafs';
+
+export type ReciterId =
+  | 'hudhaify'
+  | 'husary'
+  | 'minshawi'
+  | 'afasy'
+  | 'abdulbasit'
+  | 'maher';
+
+export interface ReciterInfo {
+  id: ReciterId;
+  nameAr: string;
+  nameEn: string;
+  styleAr: string;
+  folder: string;
+}
+
+export const RECITERS: ReciterInfo[] = [
+  {
+    id: 'hudhaify',
+    nameAr: 'الشيخ علي بن عبد الرحمن الحذيفي',
+    nameEn: 'Ali Al-Hudhaify',
+    styleAr: 'ترتيل متأنٍّ واضح المخارج',
+    folder: 'Hudhaify_128kbps',
+  },
+  {
+    id: 'husary',
+    nameAr: 'الشيخ محمود خليل الحصري',
+    nameEn: 'Mahmoud Khalil Al-Husary',
+    styleAr: 'معلّم الترتيل والضبط',
+    folder: 'Husary_128kbps',
+  },
+  {
+    id: 'minshawi',
+    nameAr: 'الشيخ محمد صديق المنشاوي',
+    nameEn: 'Mohamed Siddiq Al-Minshawi',
+    styleAr: 'ترتيل خاشع متزن',
+    folder: 'Minshawy_Murattal_128kbps',
+  },
+  {
+    id: 'afasy',
+    nameAr: 'الشيخ مشاري راشد العفاسي',
+    nameEn: 'Mishary Rashid Al-Afasy',
+    styleAr: 'صوت نديّ سهل المتابعة',
+    folder: 'Alafasy_128kbps',
+  },
+  {
+    id: 'abdulbasit',
+    nameAr: 'الشيخ عبد الباسط عبد الصمد',
+    nameEn: 'Abdul Basit Abdus Samad',
+    styleAr: 'المصحف المرتل',
+    folder: 'Abdul_Basit_Murattal_192kbps',
+  },
+  {
+    id: 'maher',
+    nameAr: 'الشيخ ماهر المعيقلي',
+    nameEn: 'Maher Al-Muaiqly',
+    styleAr: 'ترتيل هادئ مريح',
+    folder: 'MaherAlMuaiqly128kbps',
+  },
+];
 
 export interface AyahEntry {
   number: number;
@@ -648,17 +709,12 @@ export async function loadVerifiedSurahAyahs(surahId: number): Promise<{
 }
 
 export function getEveryAyahAudioUrl(
-  reciter: 'hudhaify' | 'husary' | 'minshawi',
+  reciter: ReciterId,
   surahId: number,
   ayahNumber: number,
 ): string {
-  const folder =
-    reciter === 'hudhaify'
-      ? 'Hudhaify_128kbps'
-      : reciter === 'husary'
-        ? 'Husary_128kbps'
-        : 'Minshawy_Murattal_128kbps';
+  const found = RECITERS.find((r) => r.id === reciter) ?? RECITERS[0];
   const s = String(surahId).padStart(3, '0');
   const a = String(ayahNumber).padStart(3, '0');
-  return `https://everyayah.com/data/${folder}/${s}${a}.mp3`;
+  return `https://everyayah.com/data/${found.folder}/${s}${a}.mp3`;
 }

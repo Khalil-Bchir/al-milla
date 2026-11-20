@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pause, Play, Repeat, RotateCcw, SkipBack, SkipForward, Volume2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getEveryAyahAudioUrl } from '@/lib/quran-data';
+import { RECITERS, getEveryAyahAudioUrl, type ReciterId } from '@/lib/quran-data';
 import { useMillaStore, type PlaybackSpeed } from '@/store/milla-store';
 
 interface AudioPlayerBarProps {
@@ -26,6 +26,7 @@ export function AudioPlayerBar({
   onRepeatCycleComplete,
 }: AudioPlayerBarProps) {
   const reciter = useMillaStore((s) => s.reciter);
+  const setReciter = useMillaStore((s) => s.setReciter);
   const playbackSpeed = useMillaStore((s) => s.playbackSpeed);
   const setPlaybackSpeed = useMillaStore((s) => s.setPlaybackSpeed);
   const mandatoryRepeats = useMillaStore((s) => s.mandatoryRepeats);
@@ -39,13 +40,6 @@ export function AudioPlayerBar({
   const [audioStatusNote, setAudioStatusNote] = useState<string>('تلاوة صوتية مباشرة');
 
   const audioUrl = getEveryAyahAudioUrl(reciter, surahId, ayahNumber);
-
-  const reciterLabel =
-    reciter === 'hudhaify'
-      ? 'الشيخ علي الحذيفي'
-      : reciter === 'husary'
-        ? 'الشيخ محمود خليل الحصري'
-        : 'الشيخ محمد صديق المنشاوي';
 
   // Reset playback state when surah/ayah/reciter changes
   useEffect(() => {
@@ -216,13 +210,24 @@ export function AudioPlayerBar({
         </div>
       </div>
 
-      {/* Progress Bar */}
+      {/* Progress Bar & Reciter Switcher */}
       <div className="mb-3">
-        <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1 font-medium text-foreground">
+        <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+          <label className="inline-flex items-center gap-1.5 font-medium text-foreground">
             <Volume2 className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-            <span>{reciterLabel}</span>
-          </span>
+            <select
+              aria-label="اختيار الشيخ القارئ"
+              value={reciter}
+              onChange={(e) => setReciter(e.target.value as ReciterId)}
+              className="rounded-lg border border-border bg-background px-2 py-1 text-xs font-semibold text-foreground"
+            >
+              {RECITERS.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.nameAr}
+                </option>
+              ))}
+            </select>
+          </label>
           <span>{audioStatusNote}</span>
         </div>
         <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
