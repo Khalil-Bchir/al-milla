@@ -4,8 +4,6 @@ import { useRef, useState } from 'react';
 import {
   Bell,
   BookOpen,
-  CloudDownload,
-  CloudUpload,
   Download,
   Moon,
   RotateCcw,
@@ -24,15 +22,10 @@ import {
   type PlaybackSpeed,
 } from '@/store/milla-store';
 
-const API_BASE_URL = (
-  process.env.NEXT_PUBLIC_API_URL ?? 'https://api-al-milla.khalilbchir.pro'
-).replace(/\/$/, '');
-
 export default function SettingsPage() {
   const store = useMillaStore();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [syncing, setSyncing] = useState(false);
 
   const languages: { id: AppLanguage; label: string }[] = [
     { id: 'ar', label: 'العربية' },
@@ -90,64 +83,8 @@ export default function SettingsPage() {
     }
   };
 
-  const handleCloudPush = async () => {
-    setSyncing(true);
-    setStatusMessage(null);
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          syncKey: store.syncKey,
-          narration: store.narration,
-          dailyTarget: store.dailyTarget,
-          currentSurahId: store.currentSurahId,
-          currentAyah: store.currentAyah,
-          bookmarks: store.bookmarks,
-          activityDates: store.activityDates.slice(-90),
-          verses: Object.values(store.verseRecords),
-        }),
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      const nowIso = new Date().toISOString();
-      store.setLastSyncedAt(nowIso);
-      setStatusMessage('تم حفظ النسخة الاحتياطية السحابية بنجاح.');
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : 'خطأ في الاتصال';
-      setStatusMessage(
-        `خادم المزامنة الاختياري غير متصل حالياً (${reason}). بياناتك محفوظة محلياً بأمان.`,
-      );
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  const handleCloudRestore = async () => {
-    setSyncing(true);
-    setStatusMessage(null);
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/v1/sync?syncKey=${encodeURIComponent(store.syncKey)}`,
-      );
-      if (!response.ok) {
-        throw new Error(response.status === 404 ? 'لم يتم العثور على نسخة لهذا المفتاح' : `HTTP ${response.status}`);
-      }
-      const json = (await response.json()) as { data: BackupImportPayload & { updatedAt?: string } };
-      store.importBackupData(json.data);
-      store.setLastSyncedAt(json.data.updatedAt ?? new Date().toISOString());
-      setStatusMessage('تمت استعادة المحفظة من السحابة بنجاح.');
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : 'خطأ في الاتصال';
-      setStatusMessage(`تعذّر الاسترجاع السحابي (${reason}). يمكنك استخدام ملف JSON المحلي.`);
-    } finally {
-      setSyncing(false);
-    }
-  };
-
   return (
-    <AppShell title="الإعدادات" subtitle="تفضيلات الحافظ • حفظ محلي ومزامنة اختيارية">
+    <AppShell title="الإعدادات" subtitle="تفضيلات الحافظ • حفظ محلي بالكامل">
       <div className="space-y-5">
         {statusMessage && (
           <div
@@ -466,18 +403,17 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* Simple Device Backup & Optional Transfer */}
+        {/* Fully Local Device Backup */}
         <section className="space-y-3.5 rounded-2xl border border-border bg-card p-4">
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-5 w-5 text-primary" aria-hidden="true" />
             <h2 className="text-base font-bold text-foreground">حفظ تقدّمك واستعادته</h2>
           </div>
           <p className="text-xs leading-relaxed text-muted-foreground">
-            تُحفظ آياتك وتقدّمك على هذا المتصفح فقط. حتى لا يضيع حفظك عند تغيير الجهاز أو مسح
-            بيانات المتصفح، يمكنك حفظ نسخة على جهازك.
+            تُحفظ آياتك وتقدّمك محلياً على هذا الجهاز فقط دون أي خادم أو حساب. لحماية حفظك عند
+            تغيير الجهاز أو مسح بيانات المتصفح، احفظ نسخة احتياطية على جهازك.
           </p>
 
-          {/* Primary: Simple File Backup on Device */}
           <div className="space-y-2 rounded-xl border border-border bg-background p-3.5">
             <p className="text-xs font-bold text-foreground">نسخة احتياطية على جهازك</p>
             <p className="text-[11px] leading-relaxed text-muted-foreground">
@@ -506,51 +442,6 @@ export default function SettingsPage() {
               </label>
             </div>
           </div>
-
-          {/* Optional: Transfer Between Devices */}
-          <details className="rounded-xl border border-border bg-background p-3.5">
-            <summary className="cursor-pointer text-xs font-bold text-foreground">
-              نقل الحفظ إلى جهاز آخر بكلمة سر (اختياري)
-            </summary>
-            <div className="mt-3 space-y-2.5">
-              <label htmlFor="sync-key-input" className="block text-[11px] text-muted-foreground">
-                اكتب كلمة سر خاصة بك لحفظ تقدمك أو استرجاعه على هاتف آخر:
-              </label>
-              <input
-                id="sync-key-input"
-                type="text"
-                placeholder="مثال: حفظ-أحمد-٢٠٢٦"
-                value={store.syncKey === 'milla-local-portfolio-v1' ? '' : store.syncKey}
-                onChange={(e) => store.setSyncKey(e.target.value)}
-                className="min-h-[44px] w-full rounded-lg border border-border bg-card px-3 text-xs text-foreground"
-              />
-              {store.lastSyncedAt && (
-                <p className="text-[11px] text-muted-foreground">
-                  آخر نقل: {new Date(store.lastSyncedAt).toLocaleString('ar-TN')}
-                </p>
-              )}
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  disabled={syncing}
-                  onClick={() => void handleCloudPush()}
-                  className="flex min-h-[46px] items-center justify-center gap-1.5 rounded-xl bg-primary px-3 text-xs font-bold text-primary-foreground disabled:opacity-50"
-                >
-                  <CloudUpload className="h-4 w-4" aria-hidden="true" />
-                  <span>رفع الحفظ</span>
-                </button>
-                <button
-                  type="button"
-                  disabled={syncing}
-                  onClick={() => void handleCloudRestore()}
-                  className="flex min-h-[46px] items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-3 text-xs font-bold text-foreground hover:bg-secondary disabled:opacity-50"
-                >
-                  <CloudDownload className="h-4 w-4 text-primary" aria-hidden="true" />
-                  <span>استرجاع الحفظ</span>
-                </button>
-              </div>
-            </div>
-          </details>
 
           <button
             type="button"
