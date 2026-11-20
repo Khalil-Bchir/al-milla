@@ -8,7 +8,9 @@ export type ReciterId =
   | 'minshawi'
   | 'afasy'
   | 'abdulbasit'
-  | 'maher';
+  | 'maher'
+  | 'dosari'
+  | 'sudais';
 
 export interface ReciterInfo {
   id: ReciterId;
@@ -60,6 +62,20 @@ export const RECITERS: ReciterInfo[] = [
     nameEn: 'Maher Al-Muaiqly',
     styleAr: 'ترتيل هادئ مريح',
     folder: 'MaherAlMuaiqly128kbps',
+  },
+  {
+    id: 'dosari',
+    nameAr: 'الشيخ ياسر الدوسري',
+    nameEn: 'Yasser Al-Dosari',
+    styleAr: 'ترتيل مؤثر متقن',
+    folder: 'Yasser_Ad-Dussary_128kbps',
+  },
+  {
+    id: 'sudais',
+    nameAr: 'الشيخ عبد الرحمن السديس',
+    nameEn: 'Abdurrahman As-Sudais',
+    styleAr: 'تلاوة الحرم المكي',
+    folder: 'Abdurrahmaan_As-Sudais_192kbps',
   },
 ];
 
