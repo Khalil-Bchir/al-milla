@@ -14,6 +14,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { AppShell } from '@/components/milla/AppShell';
+import { MillaPicker } from '@/components/milla/MillaPicker';
 import { cn } from '@/lib/utils';
 import type { AppLanguage } from '@/lib/milla-i18n';
 import { RECITERS, type ReciterId } from '@/lib/quran-data';
@@ -192,21 +193,20 @@ export default function SettingsPage() {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="reciter-select" className="text-xs font-semibold text-foreground">
-              الشيخ القارئ المفضّل
-            </label>
-            <select
-              id="reciter-select"
+            <span className="text-xs font-semibold text-foreground">الشيخ القارئ المفضّل</span>
+            <MillaPicker
               value={store.reciter}
-              onChange={(e) => store.setReciter(e.target.value as ReciterId)}
-              className="min-h-[48px] w-full rounded-xl border border-border bg-background px-3 text-xs font-semibold text-foreground"
-            >
-              {RECITERS.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.nameAr} — {r.styleAr}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => store.setReciter(val as ReciterId)}
+              title="اختر الشيخ القارئ المفضّل"
+              ariaLabel="الشيخ القارئ المفضّل"
+              triggerClassName="w-full"
+              options={RECITERS.map((r) => ({
+                value: r.id,
+                label: r.nameAr,
+                description: r.styleAr,
+                keywords: r.nameEn,
+              }))}
+            />
           </div>
 
           <div className="flex items-center justify-between gap-2">

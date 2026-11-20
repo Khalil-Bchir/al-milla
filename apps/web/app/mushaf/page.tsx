@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { AppShell } from '@/components/milla/AppShell';
 import { AudioPlayerBar } from '@/components/milla/AudioPlayerBar';
+import { MillaPicker } from '@/components/milla/MillaPicker';
 import { cn } from '@/lib/utils';
 import {
   SURAHS,
@@ -157,26 +158,25 @@ export default function MushafPage() {
         <section className="rounded-2xl border border-border bg-card p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-2">
-              <label htmlFor="surah-select" className="sr-only">
-                اختر السورة
-              </label>
-              <select
-                id="surah-select"
-                value={surah.id}
-                onChange={(e) => {
-                  const nextId = Number(e.target.value);
+              <MillaPicker
+                searchable
+                value={String(surah.id)}
+                onChange={(val) => {
+                  const nextId = Number(val);
                   setCurrentPosition(nextId, 1);
                   setSelectedSurahForAudio(nextId);
                   setSelectedAyah(1);
                 }}
-                className="min-h-[48px] rounded-xl border border-border bg-background px-3 text-sm font-bold text-foreground"
-              >
-                {SURAHS.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.id}. {s.nameAr} ({s.totalAyahs} آية)
-                  </option>
-                ))}
-              </select>
+                title="اختر السورة من المصحف"
+                ariaLabel="اختر السورة"
+                icon={<BookOpen className="h-4 w-4" aria-hidden="true" />}
+                options={SURAHS.map((s) => ({
+                  value: String(s.id),
+                  label: `${toArabicDigits(s.id)}. ${s.nameAr}`,
+                  description: `${toArabicDigits(s.totalAyahs)} آية • ${s.revelationTypeAr} • صفحة ${toArabicDigits(s.pageStart)}`,
+                  keywords: `${s.nameEn} ${s.nameFr}`,
+                }))}
+              />
 
               {mushafViewMode === 'page' && (
                 <div className="flex items-center gap-1.5">

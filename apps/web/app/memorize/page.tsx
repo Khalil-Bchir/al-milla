@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { BookOpen, CheckCircle2, ChevronDown, Eye, EyeOff, Lightbulb, RefreshCw } from 'lucide-react';
 import { AppShell } from '@/components/milla/AppShell';
 import { AudioPlayerBar } from '@/components/milla/AudioPlayerBar';
+import { MillaPicker } from '@/components/milla/MillaPicker';
 import { cn } from '@/lib/utils';
 import {
   SURAHS,
@@ -108,24 +109,20 @@ export default function MemorizePage() {
       <div className="space-y-4">
         {/* Top Surah Selector & Narration Header */}
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border bg-card px-4 py-3">
-          <div className="flex items-center gap-2">
-            <BookOpen className="h-5 w-5 text-primary" aria-hidden="true" />
-            <label htmlFor="memorize-surah-select" className="sr-only">
-              اختر السورة
-            </label>
-            <select
-              id="memorize-surah-select"
-              value={surah.id}
-              onChange={(e) => setCurrentPosition(Number(e.target.value), 1)}
-              className="min-h-[44px] rounded-xl border border-border bg-background px-3 text-sm font-bold text-foreground"
-            >
-              {SURAHS.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.id}. {s.nameAr}
-                </option>
-              ))}
-            </select>
-          </div>
+          <MillaPicker
+            searchable
+            value={String(surah.id)}
+            onChange={(val) => setCurrentPosition(Number(val), 1)}
+            title="اختر السورة للحفظ"
+            ariaLabel="اختر السورة"
+            icon={<BookOpen className="h-4 w-4" aria-hidden="true" />}
+            options={SURAHS.map((s) => ({
+              value: String(s.id),
+              label: `${s.id}. ${s.nameAr}`,
+              description: `${s.totalAyahs} آية • ${s.revelationTypeAr}`,
+              keywords: `${s.nameEn} ${s.nameFr}`,
+            }))}
+          />
           <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">
             رواية حفص عن عاصم
           </span>

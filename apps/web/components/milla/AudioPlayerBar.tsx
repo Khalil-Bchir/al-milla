@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Pause, Play, Repeat, RotateCcw, SkipBack, SkipForward, Volume2 } from 'lucide-react';
+import { MillaPicker } from '@/components/milla/MillaPicker';
 import { cn } from '@/lib/utils';
 import { RECITERS, getEveryAyahAudioUrl, type ReciterId } from '@/lib/quran-data';
 import { useMillaStore, type PlaybackSpeed } from '@/store/milla-store';
@@ -212,22 +213,21 @@ export function AudioPlayerBar({
 
       {/* Progress Bar & Reciter Switcher */}
       <div className="mb-3">
-        <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-          <label className="inline-flex items-center gap-1.5 font-medium text-foreground">
-            <Volume2 className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-            <select
-              aria-label="اختيار الشيخ القارئ"
-              value={reciter}
-              onChange={(e) => setReciter(e.target.value as ReciterId)}
-              className="rounded-lg border border-border bg-background px-2 py-1 text-xs font-semibold text-foreground"
-            >
-              {RECITERS.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.nameAr}
-                </option>
-              ))}
-            </select>
-          </label>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+          <MillaPicker
+            compact
+            value={reciter}
+            onChange={(val) => setReciter(val as ReciterId)}
+            title="اختر الشيخ القارئ"
+            ariaLabel="اختيار الشيخ القارئ"
+            icon={<Volume2 className="h-4 w-4" aria-hidden="true" />}
+            options={RECITERS.map((r) => ({
+              value: r.id,
+              label: r.nameAr,
+              description: r.styleAr,
+              keywords: r.nameEn,
+            }))}
+          />
           <span>{audioStatusNote}</span>
         </div>
         <div className="h-2 w-full overflow-hidden rounded-full bg-muted">

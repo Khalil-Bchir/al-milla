@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, BookOpen, CheckCircle2, Lock, Sparkles, Type, Volume2 } from 'lucide-react';
 import { AppShell } from '@/components/milla/AppShell';
+import { MillaPicker } from '@/components/milla/MillaPicker';
 import { cn } from '@/lib/utils';
 import type { AppLanguage } from '@/lib/milla-i18n';
 import { RECITERS, SURAHS } from '@/lib/quran-data';
@@ -146,23 +147,25 @@ export default function OnboardingPage() {
 
         {/* 2. Starting Surah */}
         <section className="rounded-2xl border border-border bg-card p-4">
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 className="flex items-center gap-2 text-base font-bold text-foreground">
               <BookOpen className="h-5 w-5 text-primary" aria-hidden="true" />
               <span>سورة البداية</span>
             </h2>
-            <select
-              aria-label="اختيار أي سورة من المصحف"
-              value={currentSurahId}
-              onChange={(e) => setCurrentPosition(Number(e.target.value), 1)}
-              className="min-h-[40px] rounded-xl border border-border bg-background px-2.5 text-xs font-semibold text-foreground"
-            >
-              {SURAHS.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.id}. {s.nameAr}
-                </option>
-              ))}
-            </select>
+            <MillaPicker
+              compact
+              searchable
+              value={String(currentSurahId)}
+              onChange={(val) => setCurrentPosition(Number(val), 1)}
+              title="اختر سورة البداية من المصحف"
+              ariaLabel="اختيار أي سورة من المصحف"
+              options={SURAHS.map((s) => ({
+                value: String(s.id),
+                label: `${s.id}. ${s.nameAr}`,
+                description: `${s.totalAyahs} آية • ${s.revelationTypeAr}`,
+                keywords: `${s.nameEn} ${s.nameFr}`,
+              }))}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-2.5">
