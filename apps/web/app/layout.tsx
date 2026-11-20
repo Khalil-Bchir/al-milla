@@ -1,88 +1,83 @@
-import type { Metadata } from 'next'
-import { Geist, Noto_Serif, Fira_Code } from "next/font/google";
-import './globals.css'
-import { Analytics } from '@vercel/analytics/next'
-import { ThemeProvider } from "@/components/common/theme-provider"
-import { strings } from '@/lib/strings'
+import type { Metadata, Viewport } from 'next';
+import { IBM_Plex_Sans_Arabic, Inter, Amiri, Noto_Naskh_Arabic } from 'next/font/google';
+import './globals.css';
+import { ServiceWorkerRegister } from '@/components/milla/ServiceWorkerRegister';
+import { ThemeSync } from '@/components/milla/ThemeSync';
 
-function metadataBaseUrl(): URL {
-  const explicit = process.env.NEXT_PUBLIC_APP_URL?.trim()
-  if (explicit) {
-    return new URL(explicit.endsWith('/') ? explicit.slice(0, -1) : explicit)
-  }
-  if (process.env.VERCEL_URL) {
-    return new URL(`https://${process.env.VERCEL_URL}`)
-  }
-  return new URL('http://localhost:3001')
-}
-
-const fontSans = Geist({
-  subsets: ["latin"],
-  variable: "--font-sans",
+const ibmArabic = IBM_Plex_Sans_Arabic({
+  subsets: ['arabic', 'latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-ibm-arabic',
+  display: 'swap',
 });
 
-const fontSerif = Noto_Serif({
-  subsets: ["latin"],
-  variable: "--font-serif",
+const inter = Inter({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-inter',
+  display: 'swap',
 });
 
-const fontMono = Fira_Code({
-  subsets: ["latin"],
-  variable: "--font-mono",
+const amiri = Amiri({
+  subsets: ['arabic', 'latin'],
+  weight: ['400', '700'],
+  variable: '--font-amiri',
+  display: 'swap',
 });
 
-const siteDescription = strings.landing_description
+const notoNaskh = Noto_Naskh_Arabic({
+  subsets: ['arabic'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-noto-naskh',
+  display: 'swap',
+});
+
+export const viewport: Viewport = {
+  themeColor: '#073d35',
+  width: 'device-width',
+  initialScale: 1,
+};
 
 export const metadata: Metadata = {
-  metadataBase: metadataBaseUrl(),
   title: {
-    default: strings.app_name,
-    template: `%s | ${strings.app_name}`,
+    default: 'المِلّة — رفيقك لحفظ القرآن الكريم',
+    template: '%s | المِلّة',
   },
-  description: siteDescription,
-  applicationName: strings.app_name,
+  description:
+    'تطبيق مجاني فردي لحفظ القرآن الكريم ومراجعته وفق المنهجية التونسية الأصيلة برواية قالون عن نافع وحفص عن عاصم.',
+  applicationName: 'المِلّة',
   manifest: '/manifest.json',
-  alternates: {
-    canonical: '/',
-  },
-  openGraph: {
-    type: 'website',
-    locale: 'en_US',
-    url: '/',
-    siteName: strings.app_name,
-    title: strings.app_name,
-    description: siteDescription,
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: strings.app_name,
-    description: siteDescription,
+  icons: {
+    icon: [
+      { url: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [{ url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
   },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: strings.app_name,
+    title: 'المِلّة',
   },
   formatDetection: {
     telephone: false,
   },
-}
+};
 
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode
+  children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className="scroll-smooth">
+    <html lang="ar" dir="rtl" suppressHydrationWarning>
       <body
-        className={`${fontSans.variable} ${fontSerif.variable} ${fontMono.variable} font-sans antialiased`}
+        className={`${ibmArabic.variable} ${inter.variable} ${amiri.variable} ${notoNaskh.variable} min-h-screen bg-background font-sans text-foreground antialiased`}
       >
-        <ThemeProvider>
-          {children}
-        </ThemeProvider>
-        <Analytics />
+        <ThemeSync />
+        <ServiceWorkerRegister />
+        {children}
       </body>
     </html>
-  )
+  );
 }

@@ -1,5 +1,5 @@
 {
-  "name": "saas-monorepo",
+  "name": "al-milla",
   "private": true,
   "scripts": {
     "build": "turbo run build",

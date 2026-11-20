@@ -35,6 +35,18 @@ importers:
 
   apps/api:
     dependencies:
+      '@al-milla/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      '@al-milla/eslint-config':
+        specifier: workspace:*
+        version: link:../../packages/eslint-config
+      '@al-milla/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@al-milla/typescript-config':
+        specifier: workspace:*
+        version: link:../../packages/typescript-config
       '@hono/node-server':
         specifier: ^1.12.0
         version: 1.19.14(hono@4.12.12)
@@ -47,18 +59,6 @@ importers:
       '@hono/zod-validator':
         specifier: ^0.2.1
         version: 0.2.2(hono@4.12.12)(zod@3.25.76)
-      '@repo/database':
-        specifier: workspace:*
-        version: link:../../packages/database
-      '@repo/eslint-config':
-        specifier: workspace:*
-        version: link:../../packages/eslint-config
-      '@repo/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-      '@repo/typescript-config':
-        specifier: workspace:*
-        version: link:../../packages/typescript-config
       '@supabase/supabase-js':
         specifier: ^2.39.3
         version: 2.103.0
@@ -122,6 +122,9 @@ importers:
       '@ai-sdk/react':
         specifier: ^2.0.117
         version: 2.0.175(react@19.2.1)(zod@3.25.76)
+      '@al-milla/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@hookform/resolvers':
         specifier: ^3.10.0
         version: 3.10.0(react-hook-form@7.72.1(react@19.2.1))
@@ -206,9 +209,6 @@ importers:
       '@radix-ui/react-tooltip':
         specifier: 1.1.6
         version: 1.1.6(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
-      '@repo/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       '@tailwindcss/postcss':
         specifier: ^4.1.9
         version: 4.2.2
@@ -323,15 +323,15 @@ importers:
 
   packages/database:
     dependencies:
+      '@al-milla/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
       '@faker-js/faker':
         specifier: ^8.4.0
         version: 8.4.1
       '@prisma/client':
         specifier: ^6.19.0
         version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
-      '@repo/typescript-config':
-        specifier: workspace:*
-        version: link:../typescript-config
       '@supabase/supabase-js':
         specifier: ^2.48.0
         version: 2.103.0
@@ -410,7 +410,7 @@ importers:
 
   packages/types:
     dependencies:
-      '@repo/typescript-config':
+      '@al-milla/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
       typescript:

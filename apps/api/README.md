@@ -106,13 +106,13 @@ ALLOWED_ORIGINS=http://localhost:3001
 
 ```bash
 # Generate Prisma client
-pnpm --filter @repo/database db:generate
+pnpm --filter @al-milla/database db:generate
 
 # Run migrations
-pnpm --filter @repo/database db:migrate:dev
+pnpm --filter @al-milla/database db:migrate:dev
 
 # (Optional) Seed database
-pnpm --filter @repo/database db:seed:dev
+pnpm --filter @al-milla/database db:seed:dev
 ```
 
 ### Development Server
@@ -323,7 +323,7 @@ Ensure all required environment variables are set:
 ### Running Migrations
 
 ```bash
-pnpm --filter @repo/database db:migrate:prod
+pnpm --filter @al-milla/database db:migrate:prod
 ```
 
 ### Starting Server

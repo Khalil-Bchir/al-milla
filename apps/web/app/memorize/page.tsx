@@ -1,0 +1,237 @@
+'use client';
+
+import { useState } from 'react';
+import Link from 'next/link';
+import { BookOpen, CheckCircle2, ChevronDown, Eye, EyeOff, Lightbulb } from 'lucide-react';
+import { AppShell } from '@/components/milla/AppShell';
+import { AudioPlayerBar } from '@/components/milla/AudioPlayerBar';
+import { cn } from '@/lib/utils';
+import { getSurahById } from '@/lib/quran-data';
+import { useMillaStore } from '@/store/milla-store';
+
+const STANDARD_FIVE_STAGES = [
+  'مراجعة الأمس',
+  'المراجعة السابقة',
+  'الحفظ الجديد',
+  'التسميع',
+  'ربط الآيات',
+] as const;
+
+export default function MemorizePage() {
+  const currentSurahId = useMillaStore((s) => s.currentSurahId);
+  const currentAyah = useMillaStore((s) => s.currentAyah);
+  const setCurrentPosition = useMillaStore((s) => s.setCurrentPosition);
+  const setVerseStatus = useMillaStore((s) => s.setVerseStatus);
+  const narration = useMillaStore((s) => s.narration);
+  const showTranslation = useMillaStore((s) => s.showTranslation);
+  const showTransliteration = useMillaStore((s) => s.showTransliteration);
+
+  const [activeStage, setActiveStage] = useState<number>(2);
+  const [hideWordsMode, setHideWordsMode] = useState(false);
+  const [showTafsirBox, setShowTafsirBox] = useState(false);
+
+  const surah = getSurahById(currentSurahId);
+  const ayahIndex = Math.max(
+    0,
+    surah.ayahs.findIndex((a) => a.number === currentAyah),
+  );
+  const activeAyah = surah.ayahs[ayahIndex] ?? surah.ayahs[0];
+  const nextAyah = surah.ayahs[ayahIndex + 1];
+
+  const handlePrev = () => {
+    if (ayahIndex > 0) {
+      setCurrentPosition(surah.id, surah.ayahs[ayahIndex - 1].number);
+    }
+  };
+
+  const handleNext = () => {
+    if (nextAyah) {
+      setCurrentPosition(surah.id, nextAyah.number);
+    }
+  };
+
+  const handleMarkMastered = () => {
+    setVerseStatus(`${surah.id}:${activeAyah.number}`, 'memorized');
+    if (nextAyah) {
+      setCurrentPosition(surah.id, nextAyah.number);
+    }
+  };
+
+  const renderMaskedText = (text: string) => {
+    if (!hideWordsMode) return text;
+    const words = text.split(' ');
+    return words.map((w, idx) => (idx % 2 === 1 ? '•••••' : w)).join(' ');
+  };
+
+  return (
+    <AppShell title="الحفظ الموجه" subtitle={`${surah.nameAr} • الحزب ${surah.hizb}`}>
+      <div className="space-y-4">
+        {/* Top Surah & Narration Header */}
+        <div className="flex items-center justify-between rounded-2xl border border-border bg-card px-4 py-3">
+          <div className="flex items-center gap-2">
+            <BookOpen className="h-5 w-5 text-primary" aria-hidden="true" />
+            <span className="text-base font-bold text-foreground">
+              {surah.nameAr} • الآية {activeAyah.number}
+            </span>
+          </div>
+          <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">
+            {narration === 'qalun' ? 'رواية قالون' : narration === 'warsh' ? 'رواية ورش' : 'رواية حفص'}
+          </span>
+        </div>
+
+        {/* Standardized 5-Stage Daily Method */}
+        <section className="rounded-2xl border border-border bg-card p-4">
+          <div className="mb-3 flex items-center justify-between text-xs">
+            <span className="font-bold text-foreground">مراحل جلسة المِلّة</span>
+            <span className="text-muted-foreground">المرحلة {activeStage + 1} من ٥</span>
+          </div>
+          <div className="grid grid-cols-5 gap-1.5">
+            {STANDARD_FIVE_STAGES.map((label, idx) => {
+              const isCurrent = idx === activeStage;
+              const isDone = idx < activeStage;
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => setActiveStage(idx)}
+                  className="flex min-h-[48px] flex-col items-center justify-center gap-1.5 rounded-lg px-1 text-center"
+                >
+                  <span
+                    className={cn(
+                      'h-2 w-full rounded-full transition-colors',
+                      isCurrent ? 'bg-accent' : isDone ? 'bg-primary' : 'bg-muted',
+                    )}
+                  />
+                  <span
+                    className={cn(
+                      'text-[11px] leading-tight font-medium',
+                      isCurrent ? 'font-bold text-foreground' : 'text-muted-foreground',
+                    )}
+                  >
+                    {label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Quran Verse Card */}
+        <section className="rounded-2xl border border-border bg-card p-5">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">
+              {surah.nameAr} • {surah.revelationTypeAr}
+            </span>
+            <button
+              type="button"
+              onClick={() => setHideWordsMode((v) => !v)}
+              aria-pressed={hideWordsMode}
+              className={cn(
+                'inline-flex min-h-[48px] items-center gap-1.5 rounded-xl border px-3.5 text-sm font-semibold transition-colors',
+                hideWordsMode
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border bg-background text-foreground hover:bg-secondary',
+              )}
+            >
+              {hideWordsMode ? (
+                <Eye className="h-4 w-4" aria-hidden="true" />
+              ) : (
+                <EyeOff className="h-4 w-4" aria-hidden="true" />
+              )}
+              <span>{hideWordsMode ? 'إظهار الآية' : 'إخفاء كلمات'}</span>
+            </button>
+          </div>
+
+          <p className="mb-4 text-center font-quran text-xl text-muted-foreground">
+            بِسْمِ اللَّهِ الرَّحْمَـٰنِ الرَّحِيمِ
+          </p>
+
+          <div className="rounded-2xl bg-secondary/50 p-4 text-center">
+            <p className="quran-text text-foreground" dir="rtl" lang="ar">
+              {renderMaskedText(activeAyah.textAr)}{' '}
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card font-sans text-xs font-bold text-primary">
+                {activeAyah.number}
+              </span>
+            </p>
+          </div>
+
+          {showTranslation && (
+            <p className="mt-3 text-base leading-relaxed text-muted-foreground" dir="ltr">
+              {activeAyah.translationEn}
+            </p>
+          )}
+          {showTransliteration && (
+            <p className="mt-2 font-latin text-sm italic text-muted-foreground" dir="ltr">
+              {activeAyah.transliteration}
+            </p>
+          )}
+
+          {nextAyah && (
+            <div className="mt-4 rounded-xl border border-dashed border-border p-3 text-center opacity-80">
+              <p className="mb-1 text-xs font-medium text-muted-foreground">الآية التالية للربط</p>
+              <p className="font-quran text-lg text-foreground" dir="rtl" lang="ar">
+                {nextAyah.textAr} ({nextAyah.number})
+              </p>
+            </div>
+          )}
+
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={() => setShowTafsirBox((v) => !v)}
+              className="flex min-h-[48px] w-full items-center justify-between rounded-xl border border-border bg-background px-3.5 text-sm font-semibold text-foreground hover:bg-secondary"
+              aria-expanded={showTafsirBox}
+            >
+              <span>المعنى والتفسير الميسر</span>
+              <ChevronDown
+                className={cn('h-4 w-4 transition-transform', showTafsirBox && 'rotate-180')}
+                aria-hidden="true"
+              />
+            </button>
+            {showTafsirBox && (
+              <div className="mt-2 space-y-2 rounded-xl bg-muted/60 p-3.5 text-sm leading-relaxed text-foreground">
+                <p>{activeAyah.translationEn}</p>
+                {activeAyah.qalunNote && (
+                  <p className="font-semibold text-primary">ملاحظة أولية: {activeAyah.qalunNote}</p>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Audio & Repeat Control */}
+        <AudioPlayerBar
+          surahName={surah.nameAr}
+          ayahNumber={activeAyah.number}
+          onPrevAyah={ayahIndex > 0 ? handlePrev : undefined}
+          onNextAyah={nextAyah ? handleNext : undefined}
+        />
+
+        {/* Calm Tip */}
+        <div className="flex items-start gap-2.5 rounded-2xl border border-border bg-secondary/40 p-3.5 text-sm leading-relaxed text-foreground">
+          <Lightbulb className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+          <p>ثبّت موضع الوقف في الآية الأولى قبل الانتقال لربطها بالآية التالية.</p>
+        </div>
+
+        {/* Actions */}
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={handleMarkMastered}
+            className="flex min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-base font-bold text-primary-foreground hover:opacity-95"
+          >
+            <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+            <span>تمّ الحفظ • الآية التالية</span>
+          </button>
+
+          <Link
+            href="/self-test"
+            className="flex min-h-[52px] items-center justify-center rounded-2xl border border-border bg-card px-4 py-3 text-base font-bold text-foreground hover:bg-secondary"
+          >
+            الانتقال للتسميع الذاتي
+          </Link>
+        </div>
+      </div>
+    </AppShell>
+  );
+}

@@ -1,6 +1,6 @@
-import type { PrismaClient, UserRole as PrismaUserRole } from '@repo/database';
+import type { PrismaClient, UserRole as PrismaUserRole } from '@al-milla/database';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
-import type { Database } from '@repo/types';
+import type { Database } from '@al-milla/types';
 import type { AuthenticationServiceOptions } from '../types/services.js';
 import { getSupabaseServiceClient } from '../lib/supabase.js';
 import { env } from '../config/env.js';

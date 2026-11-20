@@ -1,4 +1,4 @@
-# @repo/eslint-config
+# @al-milla/eslint-config
 
 Shared ESLint configurations for consistent code quality across the monorepo.
 
@@ -34,7 +34,7 @@ Extend the configurations in your `eslint.config.js`:
 
 ```javascript
 // eslint.config.js
-import baseConfig from '@repo/eslint-config/base.js'
+import baseConfig from '@al-milla/eslint-config/base.js'
 
 export default [
   ...baseConfig,
@@ -46,7 +46,7 @@ export default [
 
 ```javascript
 // eslint.config.js (in Next.js app)
-import nextConfig from '@repo/eslint-config/next.js'
+import nextConfig from '@al-milla/eslint-config/next.js'
 
 export default [
   ...nextConfig,
@@ -58,7 +58,7 @@ export default [
 
 ```javascript
 // eslint.config.js (for React libraries)
-import reactInternalConfig from '@repo/eslint-config/react-internal.js'
+import reactInternalConfig from '@al-milla/eslint-config/react-internal.js'
 
 export default [
   ...reactInternalConfig,
@@ -98,7 +98,7 @@ React-specific configuration for internal packages:
 You can extend any configuration:
 
 ```javascript
-import baseConfig from '@repo/eslint-config/base.js'
+import baseConfig from '@al-milla/eslint-config/base.js'
 
 export default [
   ...baseConfig,

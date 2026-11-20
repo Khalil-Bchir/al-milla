@@ -114,13 +114,13 @@ function ArchitectureDiagram() {
 
       {/* packages/database */}
       <rect x="80" y="190" width="200" height="64" rx="10" fill="var(--card)" fillOpacity="0.9" stroke="var(--border)" strokeOpacity="1" strokeWidth="1.5" />
-      <text x="180" y="216" textAnchor="middle" fontSize="13" fontWeight="600" fontFamily="monospace" fill="var(--foreground)">@repo/database</text>
+      <text x="180" y="216" textAnchor="middle" fontSize="13" fontWeight="600" fontFamily="monospace" fill="var(--foreground)">@al-milla/database</text>
       <text x="180" y="234" textAnchor="middle" fontSize="10" fontFamily="monospace" fill="var(--muted-foreground)">Prisma schema · migrations</text>
       <text x="180" y="247" textAnchor="middle" fontSize="10" fontFamily="monospace" fill="var(--muted-foreground)">generated client · seed</text>
 
       {/* packages/types */}
       <rect x="440" y="190" width="200" height="64" rx="10" fill="var(--card)" fillOpacity="0.9" stroke="var(--border)" strokeOpacity="1" strokeWidth="1.5" />
-      <text x="540" y="216" textAnchor="middle" fontSize="13" fontWeight="600" fontFamily="monospace" fill="var(--foreground)">@repo/types</text>
+      <text x="540" y="216" textAnchor="middle" fontSize="13" fontWeight="600" fontFamily="monospace" fill="var(--foreground)">@al-milla/types</text>
       <text x="540" y="234" textAnchor="middle" fontSize="10" fontFamily="monospace" fill="var(--muted-foreground)">shared TS types · enums</text>
       <text x="540" y="247" textAnchor="middle" fontSize="10" fontFamily="monospace" fill="var(--muted-foreground)">role constants · Prisma re-export</text>
 
@@ -149,7 +149,7 @@ const route = createRoute({
 app.openapi(route, async (c) => {
   const user = c.get("user")          // typed — set by authMiddleware
   const profile = await userService
-    .findById(user.id)                 // @repo/database Prisma client
+    .findById(user.id)                 // @al-milla/database Prisma client
   return c.json(profile)
 })`
 
