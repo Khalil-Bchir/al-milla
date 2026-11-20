@@ -59,8 +59,10 @@ export default function MemorizePage() {
   const [loadingAyahs, setLoadingAyahs] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Snapshot initial revision queues once per session so completing steps doesn't shift the array mid-session
-  const [initialQueues] = useState(() => computeRevisionQueues(verseRecords));
+  // Snapshot initial revision queues once per session
+  const [initialQueues, setInitialQueues] = useState(() =>
+    computeRevisionQueues(verseRecords),
+  );
 
   const sessionSteps = useMemo<GuidedStepDef[]>(() => {
     const steps: GuidedStepDef[] = [];
@@ -81,6 +83,16 @@ export default function MemorizePage() {
   const [stepIndex, setStepIndex] = useState(0);
   const [isSessionDone, setIsSessionDone] = useState(false);
 
+  // Loaded ayahs for yesterday & older review steps (from IndexedDB or API)
+  const yesterdayTarget = initialQueues.yesterdayItems[0];
+  const yesterdaySurah = yesterdayTarget ? getSurahById(yesterdayTarget.surahId) : null;
+  const olderTarget = initialQueues.weakItems[0] ?? initialQueues.olderDueItems[0];
+  const olderSurah = olderTarget ? getSurahById(olderTarget.surahId) : null;
+
+  const [yesterdayAyahText, setYesterdayAyahText] = useState<string | null>(null);
+  const [olderAyahText, setOlderAyahText] = useState<string | null>(null);
+  const [loadingReviewText, setLoadingReviewText] = useState(false);
+
   // Sub-state for Review steps
   const [reviewHidden, setReviewHidden] = useState(false);
 
@@ -94,6 +106,7 @@ export default function MemorizePage() {
   const [testRevealed, setTestRevealed] = useState(false);
   const [testRating, setTestRating] = useState<SelfEvalRating | null>(null);
 
+  // Load current Surah ayahs
   useEffect(() => {
     let cancelled = false;
     const fetchSurah = async () => {
@@ -113,6 +126,38 @@ export default function MemorizePage() {
     };
   }, [currentSurahId]);
 
+  // Load yesterday review verse text from IndexedDB / verified API
+  useEffect(() => {
+    if (!yesterdayTarget) return;
+    let cancelled = false;
+    setLoadingReviewText(true);
+    void loadVerifiedSurahAyahs(yesterdayTarget.surahId).then((res) => {
+      if (cancelled) return;
+      const found = res.ayahs.find((a) => a.number === yesterdayTarget.ayahNumber);
+      setYesterdayAyahText(found?.textAr ?? null);
+      setLoadingReviewText(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [yesterdayTarget]);
+
+  // Load older review verse text from IndexedDB / verified API
+  useEffect(() => {
+    if (!olderTarget) return;
+    let cancelled = false;
+    setLoadingReviewText(true);
+    void loadVerifiedSurahAyahs(olderTarget.surahId).then((res) => {
+      if (cancelled) return;
+      const found = res.ayahs.find((a) => a.number === olderTarget.ayahNumber);
+      setOlderAyahText(found?.textAr ?? null);
+      setLoadingReviewText(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [olderTarget]);
+
   // Compute today's portion slice in the current Surah
   const startIdx = Math.max(
     0,
@@ -130,6 +175,17 @@ export default function MemorizePage() {
     ? 'completed'
     : (sessionSteps[stepIndex]?.id ?? 'newMemorization');
 
+  const advanceNextWirdPosition = () => {
+    const lastCompletedAyah = portionAyahs[portionAyahs.length - 1]?.number ?? currentAyah;
+    if (lastCompletedAyah < surah.totalAyahs) {
+      setCurrentPosition(surah.id, lastCompletedAyah + 1);
+    } else if (surah.id < 114) {
+      setCurrentPosition(surah.id + 1, 1);
+    } else {
+      setCurrentPosition(1, 1);
+    }
+  };
+
   const advanceStep = (completedKey: keyof DailyStagesState) => {
     setDailyStage(completedKey, true);
     setReviewHidden(false);
@@ -140,8 +196,22 @@ export default function MemorizePage() {
     if (stepIndex + 1 < sessionSteps.length) {
       setStepIndex((i) => i + 1);
     } else {
+      // Session finished: advance currentSurahId / currentAyah to the NEXT unmemorized verses!
+      advanceNextWirdPosition();
       setIsSessionDone(true);
     }
+  };
+
+  const handleStartNextSession = () => {
+    setInitialQueues(computeRevisionQueues(verseRecords));
+    setMemOffset(0);
+    setTestOffset(0);
+    setReviewHidden(false);
+    setHideWordsMode(false);
+    setTestRevealed(false);
+    setTestRating(null);
+    setStepIndex(0);
+    setIsSessionDone(false);
   };
 
   const handleSurahChange = (nextSurahId: number) => {
@@ -149,7 +219,6 @@ export default function MemorizePage() {
     setMemOffset(0);
     setTestOffset(0);
     setIsSessionDone(false);
-    // Starting a new Surah: start fresh at New Memorization if they were on review
     const memIdx = sessionSteps.findIndex((s) => s.id === 'newMemorization');
     setStepIndex(memIdx >= 0 ? memIdx : 0);
   };
@@ -186,15 +255,12 @@ export default function MemorizePage() {
       .join(' ');
   };
 
-  const yesterdayTarget = initialQueues.yesterdayItems[0];
-  const yesterdaySurah = yesterdayTarget ? getSurahById(yesterdayTarget.surahId) : null;
-  const olderTarget = initialQueues.weakItems[0] ?? initialQueues.olderDueItems[0];
-  const olderSurah = olderTarget ? getSurahById(olderTarget.surahId) : null;
-
   return (
     <AppShell
       title="الحفظ الموجّه"
-      subtitle={`${surah.nameAr} • ورد اليوم (${toArabicDigits(portionAyahs.length || dailyTarget)} آيات)`}
+      subtitle={`${surah.nameAr} • الآيات ${toArabicDigits(currentAyah)} - ${toArabicDigits(
+        Math.min(surah.totalAyahs, currentAyah + dailyTarget - 1),
+      )}`}
     >
       <div className="space-y-4">
         {/* Top Surah Selector */}
@@ -218,7 +284,7 @@ export default function MemorizePage() {
           </span>
         </div>
 
-        {/* Read-Only Guided Session Progress Bar (No manual skipping) */}
+        {/* Read-Only Guided Session Progress Bar */}
         <section
           aria-label="مراحل جلسة المِلّة"
           className="rounded-2xl border border-border bg-card p-4"
@@ -269,7 +335,7 @@ export default function MemorizePage() {
           </ol>
         </section>
 
-        {/* STEP 1: Yesterday's Review (Only if due) */}
+        {/* STEP 1: Yesterday's Review */}
         {currentStep === 'yesterdayReview' && yesterdayTarget && yesterdaySurah && (
           <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
             <div className="flex items-center justify-between">
@@ -280,18 +346,25 @@ export default function MemorizePage() {
             </div>
 
             <p className="text-sm text-muted-foreground">
-              راجع محفوظ الأمس أولاً قبل البدء بالآيات الجديدة لتثبيت الربط في الذاكرة.
+              راجع محفوظ الأمس قراءةً أو استماعاً قبل البدء بالآيات الجديدة لتثبيت الربط في الذاكرة.
             </p>
 
             <div className="rounded-2xl bg-secondary/50 p-4 text-center">
               {reviewHidden ? (
                 <p className="py-4 text-sm font-medium text-muted-foreground">
-                  [ النص مخفي — سمّع غيباً ثم اكشف للتحقق ]
+                  [ النص مخفي — سمّع غيباً ثم أظهره للتحقق ]
                 </p>
+              ) : loadingReviewText && !yesterdayAyahText ? (
+                <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
+                  <RefreshCw className="h-4 w-4 animate-spin text-primary" aria-hidden="true" />
+                  <span>جاري تحميل نص الآية...</span>
+                </div>
               ) : (
                 <p className="quran-text text-foreground" dir="rtl" lang="ar">
-                  {yesterdaySurah.ayahs.find((a) => a.number === yesterdayTarget.ayahNumber)
-                    ?.textAr ?? 'استحضر الآية غيباً ثم استمع للتلاوة للتحقق'}
+                  {yesterdayAyahText ?? 'تعذّر تحميل نص الآية دون اتصال'}{' '}
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card font-sans text-xs font-bold text-primary">
+                    {toArabicDigits(yesterdayTarget.ayahNumber)}
+                  </span>
                 </p>
               )}
             </div>
@@ -322,7 +395,7 @@ export default function MemorizePage() {
           </section>
         )}
 
-        {/* STEP 2: Older / Weak Material Review (Only if due) */}
+        {/* STEP 2: Older / Weak Material Review */}
         {currentStep === 'olderReview' && olderTarget && olderSurah && (
           <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
             <div className="flex items-center justify-between">
@@ -335,6 +408,35 @@ export default function MemorizePage() {
             <p className="text-sm text-muted-foreground">
               تدوير المحفوظ القديم ومواضع العناية يحفظ القرآن غضّاً في الصدر.
             </p>
+
+            <div className="rounded-2xl bg-secondary/50 p-4 text-center">
+              {reviewHidden ? (
+                <p className="py-4 text-sm font-medium text-muted-foreground">
+                  [ النص مخفي — سمّع غيباً ثم أظهره للتحقق ]
+                </p>
+              ) : loadingReviewText && !olderAyahText ? (
+                <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
+                  <RefreshCw className="h-4 w-4 animate-spin text-primary" aria-hidden="true" />
+                  <span>جاري تحميل نص الآية...</span>
+                </div>
+              ) : (
+                <p className="quran-text text-foreground" dir="rtl" lang="ar">
+                  {olderAyahText ?? 'تعذّر تحميل نص الآية دون اتصال'}{' '}
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card font-sans text-xs font-bold text-primary">
+                    {toArabicDigits(olderTarget.ayahNumber)}
+                  </span>
+                </p>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setReviewHidden((v) => !v)}
+              className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-border bg-background text-sm font-semibold text-foreground hover:bg-secondary"
+            >
+              {reviewHidden ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+              <span>{reviewHidden ? 'إظهار النص للتحقق' : 'إخفاء النص للتسميع'}</span>
+            </button>
 
             <AudioPlayerBar
               surahId={olderTarget.surahId}
@@ -353,7 +455,7 @@ export default function MemorizePage() {
           </section>
         )}
 
-        {/* STEP 3: New Memorization (Guided verse-by-verse) */}
+        {/* STEP 3: New Memorization */}
         {currentStep === 'newMemorization' && (
           <>
             <section className="rounded-2xl border border-border bg-card p-5">
@@ -453,7 +555,7 @@ export default function MemorizePage() {
 
             <div className="flex items-start gap-2.5 rounded-2xl border border-border bg-secondary/40 p-3.5 text-sm leading-relaxed text-foreground">
               <Lightbulb className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
-              <p>استمع للآية وكررها بهدوء، وعندما تثبت في ذهنك انتقل للخطوة التالية.</p>
+              <p>استمع للآية أو اقرأها بهدوء، وعندما تثبت في ذهنك انتقل للخطوة التالية.</p>
             </div>
 
             <button
@@ -609,22 +711,24 @@ export default function MemorizePage() {
             </span>
             <h1 className="text-2xl font-bold text-primary">أحسنت، واصل</h1>
             <p className="text-base leading-relaxed text-muted-foreground">
-              أتممت وردك اليومي في {surah.nameAr} وحُفظ تقدّمك وموعد مراجعتك القادمة محلياً على
-              جهازك.
+              تمّ حفظ الورد بنجاح وتحديث موضعك القادم إلى {surah.nameAr} • الآية{' '}
+              {toArabicDigits(currentAyah)}.
             </p>
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={handleStartNextSession}
+                className="flex min-h-[50px] items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground"
+              >
+                <span>بدء الورد التالي الآن</span>
+                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              </button>
               <Link
                 href="/"
-                className="flex min-h-[50px] items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground"
+                className="flex min-h-[50px] items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-bold text-foreground hover:bg-secondary"
               >
                 <Home className="h-4 w-4" aria-hidden="true" />
                 <span>العودة للرئيسية</span>
-              </Link>
-              <Link
-                href="/progress"
-                className="flex min-h-[50px] items-center justify-center rounded-xl border border-border bg-background px-4 text-sm font-bold text-foreground hover:bg-secondary"
-              >
-                عرض محفظة الحافظ
               </Link>
             </div>
           </section>
