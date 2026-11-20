@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   ArrowRight,
@@ -13,6 +13,8 @@ import {
   Minus,
   Plus,
   RefreshCw,
+  Sparkles,
+  X,
 } from 'lucide-react';
 import { AppShell } from '@/components/milla/AppShell';
 import { AudioPlayerBar } from '@/components/milla/AudioPlayerBar';
@@ -29,9 +31,18 @@ import {
 } from '@/lib/quran-data';
 import { useMillaStore } from '@/store/milla-store';
 
+interface ActiveVerseTarget {
+  surahId: number;
+  surahNameAr: string;
+  ayahNumber: number;
+  textAr: string;
+  translationEn?: string;
+  translationFr?: string;
+}
+
 export default function MushafPage() {
+  const router = useRouter();
   const currentSurahId = useMillaStore((s) => s.currentSurahId);
-  const currentAyah = useMillaStore((s) => s.currentAyah);
   const setCurrentPosition = useMillaStore((s) => s.setCurrentPosition);
   const mushafViewMode = useMillaStore((s) => s.mushafViewMode);
   const setMushafViewMode = useMillaStore((s) => s.setMushafViewMode);
@@ -41,19 +52,20 @@ export default function MushafPage() {
   const setQuranFontSize = useMillaStore((s) => s.setQuranFontSize);
   const bookmarks = useMillaStore((s) => s.bookmarks);
   const toggleBookmark = useMillaStore((s) => s.toggleBookmark);
-  const showTranslation = useMillaStore((s) => s.showTranslation);
-  const setShowTranslation = useMillaStore((s) => s.setShowTranslation);
   const language = useMillaStore((s) => s.language);
 
   const surah = getSurahById(currentSurahId);
-  const [selectedSurahForAudio, setSelectedSurahForAudio] = useState(currentSurahId);
-  const [selectedAyah, setSelectedAyah] = useState(currentAyah);
-
   const [ayahs, setAyahs] = useState<AyahEntry[]>(surah.ayahs);
   const [pageAyahs, setPageAyahs] = useState<MushafPageAyah[]>([]);
   const [loading, setLoading] = useState(false);
   const [cachedOffline, setCachedOffline] = useState(surah.ayahs.length === surah.totalAyahs);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Specific-verse popover state (opened via long-press, right-click, or tap)
+  const [verseMenuTarget, setVerseMenuTarget] = useState<ActiveVerseTarget | null>(null);
+  const [showVerseTranslation, setShowVerseTranslation] = useState(false);
+  const [loadingTranslation, setLoadingTranslation] = useState(false);
+  const longPressTimerRef = useRef<number | null>(null);
 
   // Load verse-by-verse surah data
   useEffect(() => {
@@ -89,8 +101,6 @@ export default function MushafPage() {
       if (res.ayahs.length > 0) {
         setPageAyahs(res.ayahs);
         setCachedOffline(true);
-        setSelectedSurahForAudio(res.ayahs[0].surahId);
-        setSelectedAyah(res.ayahs[0].ayahNumber);
       }
       setErrorMsg(res.error);
       setLoading(false);
@@ -101,13 +111,70 @@ export default function MushafPage() {
     };
   }, [currentMushafPage, mushafViewMode]);
 
-  const activeSurahId = mushafViewMode === 'page' ? selectedSurahForAudio : surah.id;
-  const activeSurahObj = getSurahById(activeSurahId);
-  const bookmarkKey = `${activeSurahId}:${selectedAyah}`;
-  const isBookmarked = bookmarks.includes(bookmarkKey);
+  // Escape closes verse popover
+  useEffect(() => {
+    if (!verseMenuTarget) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setVerseMenuTarget(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [verseMenuTarget]);
+
+  const openVerseMenu = (target: ActiveVerseTarget) => {
+    setShowVerseTranslation(false);
+    setVerseMenuTarget(target);
+  };
+
+  const startLongPress = (target: ActiveVerseTarget) => {
+    if (longPressTimerRef.current !== null) {
+      window.clearTimeout(longPressTimerRef.current);
+    }
+    longPressTimerRef.current = window.setTimeout(() => {
+      openVerseMenu(target);
+      longPressTimerRef.current = null;
+    }, 420);
+  };
+
+  const cancelLongPress = () => {
+    if (longPressTimerRef.current !== null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const handleToggleTranslationInModal = async () => {
+    if (!verseMenuTarget) return;
+    if (showVerseTranslation) {
+      setShowVerseTranslation(false);
+      return;
+    }
+    if (verseMenuTarget.translationEn || verseMenuTarget.translationFr) {
+      setShowVerseTranslation(true);
+      return;
+    }
+    setLoadingTranslation(true);
+    const res = await loadVerifiedSurahAyahs(verseMenuTarget.surahId);
+    const matched = res.ayahs.find((a) => a.number === verseMenuTarget.ayahNumber);
+    setVerseMenuTarget((prev) =>
+      prev
+        ? {
+            ...prev,
+            translationEn: matched?.translationEn ?? 'Translation unavailable offline.',
+            translationFr: matched?.translationFr ?? 'Traduction indisponible hors ligne.',
+          }
+        : null,
+    );
+    setLoadingTranslation(false);
+    setShowVerseTranslation(true);
+  };
 
   const pageJuz = pageAyahs[0]?.juz ?? surah.juz;
   const pageHeaderSurah = pageAyahs[0]?.surahNameAr ?? surah.nameAr;
+
+  const isTargetBookmarked = verseMenuTarget
+    ? bookmarks.includes(`${verseMenuTarget.surahId}:${verseMenuTarget.ayahNumber}`)
+    : false;
 
   return (
     <AppShell
@@ -119,7 +186,7 @@ export default function MushafPage() {
       }
     >
       <div className="space-y-4">
-        {/* View Mode Switcher: Verse Cards vs Real Mushaf Pages */}
+        {/* View Mode Switcher */}
         <section className="rounded-2xl border border-border bg-card p-3">
           <div className="grid grid-cols-2 gap-2">
             <button
@@ -154,7 +221,7 @@ export default function MushafPage() {
           </div>
         </section>
 
-        {/* Surah / Page Selector & Controls */}
+        {/* Surah / Page Selector & Font Controls */}
         <section className="rounded-2xl border border-border bg-card p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-2">
@@ -164,8 +231,6 @@ export default function MushafPage() {
                 onChange={(val) => {
                   const nextId = Number(val);
                   setCurrentPosition(nextId, 1);
-                  setSelectedSurahForAudio(nextId);
-                  setSelectedAyah(1);
                 }}
                 title="اختر السورة من المصحف"
                 ariaLabel="اختر السورة"
@@ -232,46 +297,15 @@ export default function MushafPage() {
               </button>
             </div>
 
-            <div className="flex items-center gap-2">
-              {mushafViewMode === 'verses' && (
-                <button
-                  type="button"
-                  onClick={() => setShowTranslation(!showTranslation)}
-                  aria-pressed={showTranslation}
-                  className={cn(
-                    'inline-flex min-h-[48px] items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold',
-                    showTranslation
-                      ? 'border-primary bg-primary text-primary-foreground'
-                      : 'border-border bg-background text-foreground hover:bg-secondary',
-                  )}
-                >
-                  <BookOpen className="h-4 w-4" aria-hidden="true" />
-                  <span>الترجمة</span>
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => toggleBookmark(bookmarkKey)}
-                aria-pressed={isBookmarked}
-                className={cn(
-                  'inline-flex min-h-[48px] items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold',
-                  isBookmarked
-                    ? 'border-accent bg-accent/25 text-foreground'
-                    : 'border-border bg-background text-foreground hover:bg-secondary',
-                )}
-              >
-                <Bookmark className="h-4 w-4" aria-hidden="true" />
-                <span>{isBookmarked ? 'محفوظة' : 'علامة'}</span>
-              </button>
-            </div>
+            <p className="text-xs text-muted-foreground">
+              اضغط مطولاً أو بزر الفأرة الأيمن على أي آية للتلاوة والترجمة والعلامة
+            </p>
           </div>
         </section>
 
         {/* Reading Surface */}
         {mushafViewMode === 'page' ? (
           <article className="rounded-2xl border-2 border-primary/20 bg-card p-5 shadow-xs">
-            {/* Classic Mushaf Page Header */}
             <div className="mb-4 flex items-center justify-between border-b border-border pb-2.5 text-xs font-semibold text-muted-foreground">
               <span>{pageHeaderSurah}</span>
               <span className="rounded-full bg-secondary px-2.5 py-0.5 text-primary">
@@ -287,7 +321,7 @@ export default function MushafPage() {
             ) : pageAyahs.length > 0 ? (
               <div className="space-y-4">
                 <div
-                  className="quran-text text-justify leading-[2.35] text-foreground"
+                  className="quran-text select-none text-justify leading-[2.35] text-foreground"
                   dir="rtl"
                   lang="ar"
                 >
@@ -295,8 +329,13 @@ export default function MushafPage() {
                     const isNewSurahOnPage =
                       item.ayahNumber === 1 &&
                       (index === 0 || pageAyahs[index - 1].surahId !== item.surahId);
-                    const isSelected =
-                      selectedSurahForAudio === item.surahId && selectedAyah === item.ayahNumber;
+                    const bookmarked = bookmarks.includes(`${item.surahId}:${item.ayahNumber}`);
+                    const target: ActiveVerseTarget = {
+                      surahId: item.surahId,
+                      surahNameAr: item.surahNameAr,
+                      ayahNumber: item.ayahNumber,
+                      textAr: item.textAr,
+                    };
 
                     return (
                       <span key={`${item.surahId}:${item.ayahNumber}`}>
@@ -310,22 +349,39 @@ export default function MushafPage() {
                             )}
                           </span>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedSurahForAudio(item.surahId);
-                            setSelectedAyah(item.ayahNumber);
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            openVerseMenu(target);
+                          }}
+                          onTouchStart={() => startLongPress(target)}
+                          onTouchEnd={cancelLongPress}
+                          onTouchMove={cancelLongPress}
+                          onClick={() => openVerseMenu(target)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              openVerseMenu(target);
+                            }
                           }}
                           className={cn(
-                            'inline rounded-lg px-0.5 text-start transition-colors',
-                            isSelected ? 'bg-secondary text-foreground' : 'hover:bg-muted/50',
+                            'cursor-pointer rounded-lg px-0.5 transition-colors hover:bg-secondary/60',
+                            bookmarked && 'bg-accent/20',
                           )}
                         >
                           {item.textAr}{' '}
                           <span className="mx-1 inline-block font-quran text-primary">
                             ﴿{toArabicDigits(item.ayahNumber)}﴾
                           </span>
-                        </button>{' '}
+                          {bookmarked && (
+                            <Bookmark
+                              className="mx-0.5 inline h-3.5 w-3.5 text-primary"
+                              aria-label="علامة مرجعية"
+                            />
+                          )}
+                        </span>{' '}
                       </span>
                     );
                   })}
@@ -369,7 +425,8 @@ export default function MushafPage() {
             <div className="mb-4 rounded-xl border border-border bg-secondary/50 py-3 text-center">
               <h1 className="font-quran text-2xl font-bold text-primary">{surah.nameAr}</h1>
               <p className="text-xs text-muted-foreground">
-                آياتها {surah.totalAyahs} • {surah.revelationTypeAr} • الجزء {surah.juz}
+                آياتها {toArabicDigits(surah.totalAyahs)} • {surah.revelationTypeAr} • الجزء{' '}
+                {toArabicDigits(surah.juz)}
               </p>
             </div>
 
@@ -385,33 +442,54 @@ export default function MushafPage() {
                 <span>جاري تحميل نص {surah.nameAr} الموثّق وحفظه للاستخدام دون اتصال...</span>
               </div>
             ) : ayahs.length > 0 ? (
-              <div className="space-y-4">
+              <div className="space-y-3 select-none">
                 {ayahs.map((ayah) => {
-                  const active = selectedAyah === ayah.number;
+                  const bookmarked = bookmarks.includes(`${surah.id}:${ayah.number}`);
+                  const target: ActiveVerseTarget = {
+                    surahId: surah.id,
+                    surahNameAr: surah.nameAr,
+                    ayahNumber: ayah.number,
+                    textAr: ayah.textAr,
+                    translationEn: ayah.translationEn,
+                    translationFr: ayah.translationFr,
+                  };
+
                   return (
                     <div
                       key={ayah.number}
-                      onClick={() => {
-                        setSelectedSurahForAudio(surah.id);
-                        setSelectedAyah(ayah.number);
-                        setCurrentPosition(surah.id, ayah.number);
+                      role="button"
+                      tabIndex={0}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        openVerseMenu(target);
+                      }}
+                      onTouchStart={() => startLongPress(target)}
+                      onTouchEnd={cancelLongPress}
+                      onTouchMove={cancelLongPress}
+                      onClick={() => openVerseMenu(target)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          openVerseMenu(target);
+                        }
                       }}
                       className={cn(
-                        'cursor-pointer rounded-xl p-3 transition-colors',
-                        active ? 'bg-secondary/80' : 'hover:bg-muted/40',
+                        'cursor-pointer rounded-xl p-3 transition-colors hover:bg-secondary/60',
+                        bookmarked && 'border border-accent bg-accent/15',
                       )}
                     >
                       <p className="quran-text text-foreground" dir="rtl" lang="ar">
                         {ayah.textAr}{' '}
                         <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border bg-background font-sans text-xs font-bold text-primary">
-                          {ayah.number}
+                          {toArabicDigits(ayah.number)}
                         </span>
+                        {bookmarked && (
+                          <Bookmark
+                            className="ms-1.5 inline h-4 w-4 text-primary"
+                            aria-label="علامة مرجعية"
+                          />
+                        )}
                       </p>
-                      {showTranslation && (
-                        <p className="mt-2 font-latin text-sm leading-relaxed text-muted-foreground" dir="ltr">
-                          {language === 'fr' ? ayah.translationFr : ayah.translationEn}
-                        </p>
-                      )}
                     </div>
                   );
                 })}
@@ -423,22 +501,118 @@ export default function MushafPage() {
             )}
           </article>
         )}
-
-        {/* Quick Action to Memorize */}
-        <Link
-          href="/memorize"
-          className="flex min-h-[48px] w-full items-center justify-center rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground hover:opacity-95"
-        >
-          حفظ آيات {activeSurahObj.nameAr}
-        </Link>
-
-        {/* Audio Bar */}
-        <AudioPlayerBar
-          surahId={activeSurahId}
-          surahName={activeSurahObj.nameAr}
-          ayahNumber={selectedAyah}
-        />
       </div>
+
+      {/* Verse-Specific Options Popover / Action Sheet */}
+      {verseMenuTarget && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`خيارات ${verseMenuTarget.surahNameAr} الآية ${verseMenuTarget.ayahNumber}`}
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-0 backdrop-blur-[2px] sm:items-center sm:p-4"
+          onClick={() => setVerseMenuTarget(null)}
+        >
+          <div
+            className="flex max-h-[88vh] w-full max-w-md flex-col gap-3 overflow-y-auto rounded-t-3xl border border-border bg-card p-4 shadow-lg sm:rounded-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div>
+                <h2 className="text-base font-bold text-primary">
+                  {verseMenuTarget.surahNameAr} • الآية {toArabicDigits(verseMenuTarget.ayahNumber)}
+                </h2>
+                <p className="text-xs text-muted-foreground">خيارات الآية المحددة</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setVerseMenuTarget(null)}
+                aria-label="إغلاق"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-background text-foreground hover:bg-secondary"
+              >
+                <X className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </div>
+
+            {/* Verse Text Preview */}
+            <div className="rounded-xl bg-secondary/50 p-3.5 text-center">
+              <p className="font-quran text-xl leading-[2] text-foreground" dir="rtl" lang="ar">
+                {verseMenuTarget.textAr}
+              </p>
+            </div>
+
+            {/* Specific Verse Audio Player */}
+            <AudioPlayerBar
+              surahId={verseMenuTarget.surahId}
+              surahName={verseMenuTarget.surahNameAr}
+              ayahNumber={verseMenuTarget.ayahNumber}
+            />
+
+            {/* Specific Verse Actions: Translation, Bookmark, Memorize */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => void handleToggleTranslationInModal()}
+                aria-pressed={showVerseTranslation}
+                className={cn(
+                  'flex min-h-[48px] items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-bold transition-colors',
+                  showVerseTranslation
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-border bg-background text-foreground hover:bg-secondary',
+                )}
+              >
+                <BookOpen className="h-4 w-4" aria-hidden="true" />
+                <span>{showVerseTranslation ? 'إخفاء الترجمة' : 'ترجمة الآية'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  toggleBookmark(`${verseMenuTarget.surahId}:${verseMenuTarget.ayahNumber}`)
+                }
+                aria-pressed={isTargetBookmarked}
+                className={cn(
+                  'flex min-h-[48px] items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-bold transition-colors',
+                  isTargetBookmarked
+                    ? 'border-accent bg-accent/25 text-foreground'
+                    : 'border-border bg-background text-foreground hover:bg-secondary',
+                )}
+              >
+                <Bookmark className="h-4 w-4" aria-hidden="true" />
+                <span>{isTargetBookmarked ? 'إزالة العلامة' : 'وضع علامة'}</span>
+              </button>
+            </div>
+
+            {loadingTranslation && (
+              <div className="flex items-center justify-center gap-2 py-2 text-xs text-muted-foreground">
+                <RefreshCw className="h-4 w-4 animate-spin text-primary" aria-hidden="true" />
+                <span>جاري تحميل الترجمة...</span>
+              </div>
+            )}
+
+            {showVerseTranslation && !loadingTranslation && (
+              <div className="rounded-xl border border-border bg-muted/50 p-3.5 text-sm leading-relaxed text-foreground" dir="ltr">
+                {language === 'fr'
+                  ? verseMenuTarget.translationFr
+                  : verseMenuTarget.translationEn}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                setCurrentPosition(verseMenuTarget.surahId, verseMenuTarget.ayahNumber);
+                setVerseMenuTarget(null);
+                router.push('/memorize');
+              }}
+              className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground hover:opacity-95"
+            >
+              <Sparkles className="h-4 w-4" aria-hidden="true" />
+              <span>حفظ هذه الآية</span>
+            </button>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }
