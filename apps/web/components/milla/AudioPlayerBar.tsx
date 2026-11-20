@@ -77,10 +77,27 @@ export function AudioPlayerBar({
     }
   }, [playbackSpeed]);
 
+  // Smooth 60fps progress tracking for live HTML5 audio
+  useEffect(() => {
+    if (!isPlaying || useFallbackTimer) return;
+    let rafId = 0;
+
+    const tick = () => {
+      const el = audioRef.current;
+      if (el && el.duration && !Number.isNaN(el.duration)) {
+        setProgress(Math.min(100, (el.currentTime / el.duration) * 100));
+      }
+      rafId = window.requestAnimationFrame(tick);
+    };
+
+    rafId = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(rafId);
+  }, [isPlaying, useFallbackTimer]);
+
   // Fallback cadence timer when offline or external MP3 fails to load
   useEffect(() => {
     if (!isPlaying || !useFallbackTimer) return;
-    const intervalMs = Math.round(120 / playbackSpeed);
+    const intervalMs = Math.round(30 / playbackSpeed);
     const timer = window.setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) {
@@ -92,7 +109,7 @@ export function AudioPlayerBar({
           if (onRepeatCycleComplete) onRepeatCycleComplete();
           return 100;
         }
-        return prev + 4;
+        return prev + 1;
       });
     }, intervalMs);
 
@@ -181,7 +198,7 @@ export function AudioPlayerBar({
         onTimeUpdate={() => {
           const el = audioRef.current;
           if (!el || !el.duration || Number.isNaN(el.duration)) return;
-          setProgress(Math.min(100, Math.round((el.currentTime / el.duration) * 100)));
+          setProgress(Math.min(100, (el.currentTime / el.duration) * 100));
         }}
         onEnded={handleAudioEnded}
         onError={() => {
@@ -243,7 +260,7 @@ export function AudioPlayerBar({
         </div>
         <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
           <div
-            className="h-full rounded-full bg-primary transition-all"
+            className="h-full rounded-full bg-primary"
             style={{ width: `${progress}%` }}
           />
         </div>
