@@ -1,93 +1,65 @@
-import { ImageResponse } from "next/og"
+import { ImageResponse } from 'next/og';
 
-export const dynamic = "force-static"
-export const alt = "المِلّة: رفيقك لحفظ القرآن الكريم"
-export const size = { width: 1200, height: 630 }
-export const contentType = "image/png"
+export const dynamic = 'force-static';
+export const alt = 'Al-Millah: Calm Quran Memorization Companion';
+export const size = { width: 1200, height: 630 };
+export const contentType = 'image/png';
 
 export default function OpenGraphImage() {
   return new ImageResponse(
     (
       <div
         style={{
-          height: "100%",
-          width: "100%",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "linear-gradient(145deg, #0f172a 0%, #1e293b 40%, #0f172a 100%)",
-          color: "#fafaf9",
-          fontFamily: "ui-sans-serif, system-ui, sans-serif",
+          height: '100%',
+          width: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          padding: '64px 72px',
+          background: 'linear-gradient(135deg, #073d35 0%, #0b4f45 55%, #062b25 100%)',
+          color: '#f7f5ed',
+          fontFamily: 'ui-sans-serif, system-ui, sans-serif',
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 36,
-          }}
-        >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div
             style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 8,
-              padding: 20,
-              borderRadius: 24,
-              background: "rgba(249, 115, 22, 0.14)",
-              border: "2px solid rgba(249, 115, 22, 0.45)",
+              display: 'flex',
+              alignItems: 'center',
+              borderRadius: 999,
+              padding: '10px 22px',
+              background: 'rgba(255, 142, 121, 0.16)',
+              border: '1px solid rgba(255, 142, 121, 0.45)',
+              color: '#ff8e79',
+              fontSize: 22,
+              fontWeight: 700,
             }}
           >
-            <div style={{ display: "flex", gap: 10 }}>
-              <div
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 8,
-                  border: "3px solid #fb923c",
-                }}
-              />
-              <div
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 8,
-                  border: "3px solid #fb923c",
-                }}
-              />
-            </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <div
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 8,
-                  border: "3px solid #fb923c",
-                }}
-              />
-              <div
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 8,
-                  border: "3px solid #fb923c",
-                }}
-              />
-            </div>
+            <span>Quran Memorization PWA • Hafs an Asim</span>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 720 }}>
-            <div style={{ fontSize: 62, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.05 }}>
-              Al-Millah: Quran Companion
-            </div>
-            <div style={{ fontSize: 30, color: "#94a3b8", lineHeight: 1.3 }}>
-              Calm daily memorization, revision, and Uthmani Mushaf
-            </div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: '#dce8e2' }}>
+            app.al-milla.khalilbchir.pro
           </div>
         </div>
-        <div style={{ marginTop: 40, fontSize: 22, color: "#64748b" }}>Open source starter</div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 960 }}>
+          <div style={{ fontSize: 70, fontWeight: 800, lineHeight: 1.1, color: '#ffffff' }}>
+            Al-Millah
+          </div>
+          <div style={{ fontSize: 34, lineHeight: 1.35, color: '#dce8e2' }}>
+            Guided daily memorization, spaced revision, self-testing, and Uthmani Mushaf.
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 20, fontSize: 22, color: '#9fd0c5' }}>
+          <span>Free Forever</span>
+          <span>•</span>
+          <span>Offline-Capable</span>
+          <span>•</span>
+          <span>Private & Local-First</span>
+        </div>
       </div>
     ),
-    { ...size }
-  )
+    { ...size },
+  );
 }
