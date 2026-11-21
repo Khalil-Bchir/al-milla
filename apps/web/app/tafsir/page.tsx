@@ -69,9 +69,9 @@ export default function TafsirPage() {
             <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
             <p>
               {language === 'en'
-                ? 'Connect the ending of verse 1 (“ʿiwajā” — no crookedness) directly to the beginning of verse 2 (“qayyiman” — straight).'
+                ? 'Connect the ending of verse 1 (“ʿiwajā”, no crookedness) directly to the beginning of verse 2 (“qayyiman”, straight).'
                 : language === 'fr'
-                  ? 'Reliez directement la fin du verset 1 (« ʿiwajā » — sans tortuosité) au début du verset 2 (« qayyiman » — droit).'
+                  ? 'Reliez directement la fin du verset 1 (« ʿiwajā », sans tortuosité) au début du verset 2 (« qayyiman », droit).'
                   : 'حين تقف على رأس الآية الأولى «عِوَجًا» تذكّر أن بداية الآية الثانية تعلّة لما بعدها: «قَيِّمًا لِّيُنذِرَ».'}
             </p>
           </div>

@@ -78,10 +78,10 @@ export default function OpenGraphImage() {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 720 }}>
             <div style={{ fontSize: 62, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.05 }}>
-              Al-Millah — Quran Companion
+              Al-Millah: Quran Companion
             </div>
             <div style={{ fontSize: 30, color: "#94a3b8", lineHeight: 1.3 }}>
-              Next.js + Hono monorepo — auth, typed API, Prisma, Turborepo
+              Calm daily memorization, revision, and Uthmani Mushaf
             </div>
           </div>
         </div>

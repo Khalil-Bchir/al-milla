@@ -73,7 +73,7 @@ const GUIDE_TEXT: Record<
       'Note: For your security, browsers always require one confirmation tap before adding an app icon to your home screen.',
     trustTitle: 'Safe, Free & Zero Data Collection',
     trustBody:
-      'Al-Millah is offered purely as a free service with no ads and no hidden agenda. We never ask for your name, email, or phone number, and we never collect or track your personal data. Adding it to your home screen does not install an invasive program or access your photos, contacts, or files—it is simply a safe browser shortcut that you can remove anytime with one tap.',
+      'Al-Millah is offered purely as a free service with no ads and no hidden agenda. We never ask for your name, email, or phone number, and we never collect or track your personal data. Adding it to your home screen does not install an invasive program or access your photos, contacts, or files; it is simply a safe browser shortcut that you can remove anytime with one tap.',
     tabs: [
       {
         id: 'android',

@@ -597,8 +597,8 @@ export const KAHF_TAFSIR_WORDS: TafsirWordNote[] = [
   {
     word: 'عِوَجًا',
     meaningAr: 'الميل والانحراف والتناقض واللبس؛ فنفى الله عن كتابه أي اختلاف شكلاً أو مضموناً.',
-    meaningEn: 'Crookedness, deviation, or contradiction — Allah negated any flaw from His Book.',
-    meaningFr: 'Tortuosité, contradiction ou ambiguïté — Allah a écarté tout défaut de Son Livre.',
+    meaningEn: 'Crookedness, deviation, or contradiction. Allah negated any flaw from His Book.',
+    meaningFr: 'Tortuosité, contradiction ou ambiguïté. Allah a écarté tout défaut de Son Livre.',
   },
   {
     word: 'قَيِّمًا',

@@ -137,7 +137,7 @@ export const LANDING_COPY: Record<LandingLang, LandingCopy> = {
     heroBadge: 'Hafs an Asim • 100% Free',
     heroTitle: 'Memorize the Quran with calm steadiness, never rushed',
     heroSubtitle:
-      'A private daily companion guiding you through yesterday’s review, older retention, new memorization, self-testing, and verse connection — with no accounts, no ads, and no leaderboards.',
+      'A private daily companion guiding you through yesterday’s review, older retention, new memorization, self-testing, and verse connection, with no accounts, no ads, and no leaderboards.',
     heroPrimaryCta: 'Start Memorizing Now',
     heroSecondaryCta: 'See the 5-Stage Loop',
     heroNoAccount: 'Runs directly in your browser • No sign-up required',
@@ -194,7 +194,7 @@ export const LANDING_COPY: Record<LandingLang, LandingCopy> = {
     finalTitle: 'One calm step a day is enough',
     finalSubtitle: 'Open Al-Millah, pick your starting Surah and daily goal in under a minute.',
     finalCta: 'Launch Al-Millah App',
-    footerTagline: 'Al-Millah — A calm companion for Quran memorization (Hafs an Asim).',
+    footerTagline: 'Al-Millah: A calm companion for Quran memorization (Hafs an Asim).',
     footerOpenApp: 'Open App',
     previewHeader: 'Live interactive session preview',
     previewHideText: 'Hide text to recite',
@@ -206,7 +206,7 @@ export const LANDING_COPY: Record<LandingLang, LandingCopy> = {
       { id: 'good', label: 'Good', hint: 'With ease' },
       { id: 'easy', label: 'Easy', hint: 'Firmly retained' },
     ],
-    previewEvalThanks: 'Saved calmly — your next review interval adapts automatically.',
+    previewEvalThanks: 'Saved calmly. Your next review interval adapts automatically.',
   },
   fr: {
     brand: 'Al-Millah',
@@ -216,7 +216,7 @@ export const LANDING_COPY: Record<LandingLang, LandingCopy> = {
     heroBadge: 'Hafs an Asim • 100% Gratuit',
     heroTitle: 'Mémorisez le Coran avec sérénité, sans hâte ni bruit',
     heroSubtitle:
-      'Un compagnon personnel quotidien qui réunit révision d’hier, consolidation, nouvelle mémorisation, auto-test et liaison des versets — sans compte, sans publicité et sans classement.',
+      'Un compagnon personnel quotidien qui réunit révision d’hier, consolidation, nouvelle mémorisation, auto-test et liaison des versets, sans compte, sans publicité et sans classement.',
     heroPrimaryCta: 'Commencer maintenant',
     heroSecondaryCta: 'Découvrir les 5 étapes',
     heroNoAccount: 'Directement dans votre navigateur • Sans inscription',
@@ -273,7 +273,7 @@ export const LANDING_COPY: Record<LandingLang, LandingCopy> = {
     finalTitle: 'Un pas serein chaque jour suffit',
     finalSubtitle: 'Ouvrez Al-Millah et choisissez votre sourate de départ en moins d’une minute.',
     finalCta: 'Ouvrir l’application',
-    footerTagline: 'Al-Millah — Compagnon serein de mémorisation du Coran (Hafs an Asim).',
+    footerTagline: 'Al-Millah : Compagnon serein de mémorisation du Coran (Hafs an Asim).',
     footerOpenApp: 'Ouvrir l’app',
     previewHeader: 'Aperçu interactif de la séance',
     previewHideText: 'Masquer pour réciter',
@@ -285,6 +285,6 @@ export const LANDING_COPY: Record<LandingLang, LandingCopy> = {
       { id: 'good', label: 'Bien', hint: 'Posément' },
       { id: 'easy', label: 'Facile', hint: 'Bien retenu' },
     ],
-    previewEvalThanks: 'Enregistré sereinement — le prochain rappel s’adapte automatiquement.',
+    previewEvalThanks: 'Enregistré sereinement. Le prochain rappel s’adapte automatiquement.',
   },
 };

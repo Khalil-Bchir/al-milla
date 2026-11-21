@@ -22,7 +22,7 @@ export const strings = {
   footer_resources_blurb:
     'Configure environment variables, run database migrations from the workspace scripts, then start the web and API dev servers.',
   footer_tagline:
-    'Next.js and Hono monorepo with typed APIs, Prisma, and Supabase-ready auth—swap in your product and ship.',
+    'Next.js and Hono monorepo with typed APIs, Prisma, and Supabase-ready auth. Swap in your product and ship.',
   footer_github: 'Source on GitHub',
   footer_rights_reserved: 'All rights reserved.',
   footer_reviews: 'Reviews',
@@ -51,7 +51,7 @@ export const strings = {
   landing_repo_cta: 'Open repository',
   landing_repo_title: 'Get the code on GitHub',
   landing_repo_description:
-    'Full source, issues, and discussions—fork the monorepo, run it locally, and adapt auth, API routes, and Prisma models to your product.',
+    'Full source, issues, and discussions. Fork the monorepo, run it locally, and adapt auth, API routes, and Prisma models to your product.',
   landing_cta_badge: 'Get started',
   landing_cta_title: 'Ready to build your app?',
   landing_cta_description:
