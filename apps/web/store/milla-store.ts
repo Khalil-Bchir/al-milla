@@ -177,9 +177,31 @@ const INITIAL_STATE: MillaPersistedState = {
 
 const STORAGE_KEY = 'almilla.local.v3';
 
+type MillaStoredSlice = Pick<
+  MillaPersistedState,
+  | 'language'
+  | 'dailyTarget'
+  | 'quranFontSize'
+  | 'largeUiMode'
+  | 'nightMode'
+  | 'showTranslation'
+  | 'showTransliteration'
+  | 'mandatoryRepeats'
+  | 'reciter'
+  | 'playbackSpeed'
+  | 'onboardingCompleted'
+  | 'currentSurahId'
+  | 'currentAyah'
+  | 'mushafViewMode'
+  | 'currentMushafPage'
+  | 'verseRecords'
+  | 'bookmarks'
+  | 'mutashabihatMastered'
+>;
+
 const safeStorage =
   typeof window !== 'undefined'
-    ? createJSONStorage<MillaPersistedState>(() => localStorage)
+    ? createJSONStorage<MillaStoredSlice>(() => localStorage)
     : undefined;
 
 function parseVerseKey(key: string): { surahId: number; ayahNumber: number } {
@@ -349,36 +371,38 @@ export const useMillaStore = create<MillaStore>()(
     {
       name: STORAGE_KEY,
       storage: safeStorage,
-      partialize: (state): MillaPersistedState => ({
+      partialize: (state): MillaStoredSlice => ({
         language: state.language,
-        narration: state.narration,
         dailyTarget: state.dailyTarget,
         quranFontSize: state.quranFontSize,
         largeUiMode: state.largeUiMode,
         nightMode: state.nightMode,
         showTranslation: state.showTranslation,
         showTransliteration: state.showTransliteration,
-        threePillarsEnabled: state.threePillarsEnabled,
-        autoMutashabihatHighlight: state.autoMutashabihatHighlight,
         mandatoryRepeats: state.mandatoryRepeats,
         reciter: state.reciter,
         playbackSpeed: state.playbackSpeed,
-        reminders: state.reminders,
         onboardingCompleted: state.onboardingCompleted,
         currentSurahId: state.currentSurahId,
         currentAyah: state.currentAyah,
         mushafViewMode: state.mushafViewMode,
         currentMushafPage: state.currentMushafPage,
-        memorizedAyahs: state.memorizedAyahs,
-        evaluations: state.evaluations,
         verseRecords: state.verseRecords,
-        activityDates: state.activityDates,
         bookmarks: state.bookmarks,
-        dailyStages: state.dailyStages,
         mutashabihatMastered: state.mutashabihatMastered,
-        syncKey: state.syncKey,
-        lastSyncedAt: state.lastSyncedAt,
       }),
+      onRehydrateStorage: () => (state) => {
+        if (!state) return;
+        const records = state.verseRecords ?? {};
+        state.memorizedAyahs = Object.fromEntries(
+          Object.values(records).map((r) => [r.key, r.status]),
+        );
+        state.evaluations = Object.fromEntries(
+          Object.values(records)
+            .filter((r) => Boolean(r.lastEvaluation))
+            .map((r) => [r.key, r.lastEvaluation as SelfEvalRating]),
+        );
+      },
     },
   ),
 );
