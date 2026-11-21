@@ -8,11 +8,13 @@ import {
   Bookmark,
   BookOpen,
   CheckCircle2,
+  ChevronDown,
   FileText,
   List,
   Minus,
   Plus,
   RefreshCw,
+  SlidersHorizontal,
   Sparkles,
   X,
 } from 'lucide-react';
@@ -67,6 +69,8 @@ export default function MushafPage() {
   const [verseMenuTarget, setVerseMenuTarget] = useState<ActiveVerseTarget | null>(null);
   const [showVerseTranslation, setShowVerseTranslation] = useState(false);
   const [loadingTranslation, setLoadingTranslation] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsMenuRef = useRef<HTMLDivElement | null>(null);
   const longPressTimerRef = useRef<number | null>(null);
 
   // Load verse-by-verse surah data
@@ -122,6 +126,25 @@ export default function MushafPage() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [verseMenuTarget]);
+
+  // Outside click & Escape close Mushaf settings popup
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const handlePointerDown = (e: PointerEvent) => {
+      if (settingsMenuRef.current && !settingsMenuRef.current.contains(e.target as Node)) {
+        setSettingsOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSettingsOpen(false);
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [settingsOpen]);
 
   const openVerseMenu = (target: ActiveVerseTarget) => {
     setShowVerseTranslation(false);
@@ -188,118 +211,192 @@ export default function MushafPage() {
       }
     >
       <div className="space-y-4">
-        {/* View Mode Switcher */}
-        <section className="rounded-2xl border border-border bg-card p-3">
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setMushafViewMode('verses')}
-              aria-pressed={mushafViewMode === 'verses'}
-              className={cn(
-                'flex min-h-[48px] items-center justify-center gap-2 rounded-xl border text-xs font-bold transition-colors',
-                mushafViewMode === 'verses'
-                  ? 'border-primary bg-primary text-primary-foreground'
-                  : 'border-border bg-background text-foreground hover:bg-secondary',
-              )}
-            >
-              <List className="h-4 w-4" aria-hidden="true" />
-              <span>وضع الآيات</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setMushafViewMode('page')}
-              aria-pressed={mushafViewMode === 'page'}
-              className={cn(
-                'flex min-h-[48px] items-center justify-center gap-2 rounded-xl border text-xs font-bold transition-colors',
-                mushafViewMode === 'page'
-                  ? 'border-primary bg-primary text-primary-foreground'
-                  : 'border-border bg-background text-foreground hover:bg-secondary',
-              )}
-            >
-              <FileText className="h-4 w-4" aria-hidden="true" />
-              <span>صفحات المصحف (١-٦٠٤)</span>
-            </button>
+        {/* Compact Mushaf Toolbar + Settings Popup */}
+        <section className="flex items-center justify-between gap-2 rounded-2xl border border-border bg-card p-2.5 sm:p-3">
+          <div className="min-w-0 flex-1">
+            <MillaPicker
+              searchable
+              value={String(surah.id)}
+              onChange={(val) => {
+                const nextId = Number(val);
+                setCurrentPosition(nextId, 1);
+              }}
+              title="اختر السورة من المصحف"
+              ariaLabel="اختر السورة"
+              icon={<BookOpen className="h-4 w-4" aria-hidden="true" />}
+              options={SURAHS.map((s) => ({
+                value: String(s.id),
+                label: `${toArabicDigits(s.id)}. ${s.nameAr}`,
+                description: `${toArabicDigits(s.totalAyahs)} آية • ${s.revelationTypeAr} • صفحة ${toArabicDigits(s.pageStart)}`,
+                keywords: `${s.nameEn} ${s.nameFr}`,
+              }))}
+            />
           </div>
-        </section>
 
-        {/* Surah / Page Selector & Font Controls */}
-        <section className="rounded-2xl border border-border bg-card p-4">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <MillaPicker
-                searchable
-                value={String(surah.id)}
-                onChange={(val) => {
-                  const nextId = Number(val);
-                  setCurrentPosition(nextId, 1);
-                }}
-                title="اختر السورة من المصحف"
-                ariaLabel="اختر السورة"
-                icon={<BookOpen className="h-4 w-4" aria-hidden="true" />}
-                options={SURAHS.map((s) => ({
-                  value: String(s.id),
-                  label: `${toArabicDigits(s.id)}. ${s.nameAr}`,
-                  description: `${toArabicDigits(s.totalAyahs)} آية • ${s.revelationTypeAr} • صفحة ${toArabicDigits(s.pageStart)}`,
-                  keywords: `${s.nameEn} ${s.nameFr}`,
-                }))}
+          <div ref={settingsMenuRef} className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setSettingsOpen((prev) => !prev)}
+              aria-haspopup="dialog"
+              aria-expanded={settingsOpen}
+              className={cn(
+                'inline-flex h-12 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold transition-colors',
+                settingsOpen
+                  ? 'border-primary bg-secondary text-primary'
+                  : 'border-border bg-background text-foreground hover:bg-secondary',
+              )}
+            >
+              <SlidersHorizontal className="h-4 w-4 text-primary" aria-hidden="true" />
+              <span>
+                {language === 'en' ? 'Display' : language === 'fr' ? 'Affichage' : 'العرض'}
+              </span>
+              <ChevronDown
+                className={cn(
+                  'h-3.5 w-3.5 text-muted-foreground transition-transform',
+                  settingsOpen && 'rotate-180',
+                )}
+                aria-hidden="true"
               />
+            </button>
 
-              {mushafViewMode === 'page' && (
-                <div className="flex items-center gap-1.5">
-                  <label htmlFor="mushaf-page-input" className="text-xs font-semibold text-muted-foreground">
-                    صفحة:
-                  </label>
-                  <input
-                    id="mushaf-page-input"
-                    type="number"
-                    min={1}
-                    max={604}
-                    value={currentMushafPage}
-                    onChange={(e) => setCurrentMushafPage(Number(e.target.value) || 1)}
-                    className="min-h-[48px] w-20 rounded-xl border border-border bg-background px-2.5 text-center text-sm font-bold text-foreground"
-                  />
+            {settingsOpen && (
+              <div
+                role="dialog"
+                aria-label={
+                  language === 'en'
+                    ? 'Mushaf settings'
+                    : language === 'fr'
+                      ? 'Paramètres du Mushaf'
+                      : 'إعدادات المصحف'
+                }
+                className="absolute end-0 top-full z-40 mt-2 w-80 max-w-[calc(100vw-2rem)] space-y-4 rounded-2xl border border-border bg-card p-4 shadow-xl"
+              >
+                {/* View Mode */}
+                <div className="space-y-1.5">
+                  <span className="block text-[11px] font-bold text-muted-foreground">
+                    {language === 'en'
+                      ? 'Reading mode'
+                      : language === 'fr'
+                        ? 'Mode de lecture'
+                        : 'وضع القراءة'}
+                  </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setMushafViewMode('verses')}
+                      aria-pressed={mushafViewMode === 'verses'}
+                      className={cn(
+                        'flex min-h-[42px] items-center justify-center gap-1.5 rounded-xl border px-2 text-xs font-bold transition-colors',
+                        mushafViewMode === 'verses'
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-border bg-background text-foreground hover:bg-secondary',
+                      )}
+                    >
+                      <List className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span>
+                        {language === 'en' ? 'Verses' : language === 'fr' ? 'Versets' : 'الآيات'}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setMushafViewMode('page')}
+                      aria-pressed={mushafViewMode === 'page'}
+                      className={cn(
+                        'flex min-h-[42px] items-center justify-center gap-1.5 rounded-xl border px-2 text-xs font-bold transition-colors',
+                        mushafViewMode === 'page'
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-border bg-background text-foreground hover:bg-secondary',
+                      )}
+                    >
+                      <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span>
+                        {language === 'en'
+                          ? 'Pages (1-604)'
+                          : language === 'fr'
+                            ? 'Pages (1-604)'
+                            : 'الصفحات (١-٦٠٤)'}
+                      </span>
+                    </button>
+                  </div>
                 </div>
-              )}
-            </div>
 
-            <div className="flex items-center gap-1.5">
-              {cachedOffline && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold text-primary">
-                  <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>{copy.mushafCachedText}</span>
-                </span>
-              )}
-              <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">
-                {copy.hafsBadge}
-              </span>
-            </div>
-          </div>
+                {/* Page Jump */}
+                {mushafViewMode === 'page' && (
+                  <div className="flex items-center justify-between gap-3">
+                    <label
+                      htmlFor="mushaf-page-input"
+                      className="text-xs font-semibold text-foreground"
+                    >
+                      {language === 'en'
+                        ? 'Go to page'
+                        : language === 'fr'
+                          ? 'Aller à la page'
+                          : 'الانتقال إلى صفحة'}
+                    </label>
+                    <input
+                      id="mushaf-page-input"
+                      type="number"
+                      min={1}
+                      max={604}
+                      value={currentMushafPage}
+                      onChange={(e) => setCurrentMushafPage(Number(e.target.value) || 1)}
+                      className="h-10 w-20 rounded-xl border border-border bg-background px-2.5 text-center text-sm font-bold text-foreground"
+                    />
+                  </div>
+                )}
 
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => setQuranFontSize(quranFontSize - 2)}
-                className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-foreground hover:bg-secondary"
-                aria-label="-"
-              >
-                <Minus className="h-4 w-4" aria-hidden="true" />
-              </button>
-              <span className="min-w-[44px] text-center text-xs font-bold text-muted-foreground">
-                {formatNum(quranFontSize, language)}
-              </span>
-              <button
-                type="button"
-                onClick={() => setQuranFontSize(quranFontSize + 2)}
-                className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background text-foreground hover:bg-secondary"
-                aria-label="+"
-              >
-                <Plus className="h-4 w-4" aria-hidden="true" />
-              </button>
-            </div>
+                {/* Font Size */}
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-semibold text-foreground">
+                    {language === 'en'
+                      ? 'Quran text size'
+                      : language === 'fr'
+                        ? 'Taille du texte'
+                        : 'حجم خط المصحف'}
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setQuranFontSize(quranFontSize - 2)}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-background text-foreground hover:bg-secondary"
+                      aria-label="-"
+                    >
+                      <Minus className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                    <span className="min-w-[36px] text-center text-xs font-bold text-muted-foreground">
+                      {formatNum(quranFontSize, language)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setQuranFontSize(quranFontSize + 2)}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-background text-foreground hover:bg-secondary"
+                      aria-label="+"
+                    >
+                      <Plus className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
 
-            <p className="text-xs text-muted-foreground">{copy.mushafTapHint}</p>
+                {/* Badges & Tap Hint */}
+                <div className="space-y-2 border-t border-border pt-3">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {cachedOffline && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-[11px] font-semibold text-primary">
+                        <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+                        <span>{copy.mushafCachedText}</span>
+                      </span>
+                    )}
+                    <span className="rounded-full bg-secondary px-2.5 py-1 text-[11px] font-semibold text-secondary-foreground">
+                      {copy.hafsBadge}
+                    </span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    {copy.mushafTapHint}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 
