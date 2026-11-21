@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, BookOpen, RotateCcw } from 'lucide-react';
 import { AppShell } from '@/components/milla/AppShell';
+import { HomeInstallButton } from '@/components/milla/InstallPwaBanner';
 import { MushafIcon } from '@/components/milla/MushafIcon';
 import { MILLA_COPY, formatNum, getSurahDisplayName } from '@/lib/milla-i18n';
 import { getSurahById } from '@/lib/quran-data';
@@ -129,6 +130,9 @@ export default function HomePage() {
           <MushafIcon className="h-5 w-5" />
           <span>{copy.homeOpenMushaf}</span>
         </Link>
+
+        {/* Automated / Manual Home-Screen Install Guide Button */}
+        <HomeInstallButton />
       </div>
     </AppShell>
   );
