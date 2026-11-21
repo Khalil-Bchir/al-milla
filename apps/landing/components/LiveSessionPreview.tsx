@@ -7,6 +7,8 @@ import { formatLandingNum, type LandingCopy, type LandingLang } from '@/lib/land
 interface LiveSessionPreviewProps {
   lang: LandingLang;
   copy: LandingCopy;
+  activeStage?: number;
+  onStageChange?: (idx: number) => void;
 }
 
 const SAMPLE_VERSES = [
@@ -20,8 +22,18 @@ const ARABIC_VERSE_DIGITS = ['١', '٢', '٣'] as const;
 /**
  * Interactive preview of Al-Millah's 5-stage session directly on the landing page.
  */
-export function LiveSessionPreview({ lang, copy }: LiveSessionPreviewProps) {
-  const [activeStage, setActiveStage] = useState<number>(0);
+export function LiveSessionPreview({
+  lang,
+  copy,
+  activeStage: controlledStage,
+  onStageChange,
+}: LiveSessionPreviewProps) {
+  const [internalStage, setInternalStage] = useState<number>(0);
+  const activeStage = controlledStage ?? internalStage;
+  const setActiveStage = (idx: number) => {
+    setInternalStage(idx);
+    if (onStageChange) onStageChange(idx);
+  };
   const [hidden, setHidden] = useState<boolean>(false);
   const [rating, setRating] = useState<'difficult' | 'good' | 'easy' | null>(null);
 

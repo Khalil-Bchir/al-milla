@@ -1,12 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ArrowLeft, BookOpen, Eye, HeartHandshake, ShieldCheck, Sparkles } from 'lucide-react';
+import { motion } from 'motion/react';
+import { ArrowLeft, BookOpen } from 'lucide-react';
 import { AnimatedContent } from '@/components/reactbits/AnimatedContent';
 import { BlurText } from '@/components/reactbits/BlurText';
 import { CountUp } from '@/components/reactbits/CountUp';
+import { LivingPaperBackground } from '@/components/reactbits/LivingPaperBackground';
 import { Magnet } from '@/components/reactbits/Magnet';
-import { SpotlightCard } from '@/components/reactbits/SpotlightCard';
+import { SurahRibbon } from '@/components/reactbits/SurahRibbon';
+import { TiltedCard } from '@/components/reactbits/TiltedCard';
 import { LiveSessionPreview } from '@/components/LiveSessionPreview';
 import { LANDING_COPY, formatLandingNum, type LandingLang } from '@/lib/landing-copy';
 
@@ -14,6 +17,7 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://al-milla.khalilbchir
 
 export default function LandingPage() {
   const [lang, setLang] = useState<LandingLang>('ar');
+  const [activeMethodStep, setActiveMethodStep] = useState<number>(0);
   const copy = LANDING_COPY[lang];
 
   useEffect(() => {
@@ -21,13 +25,13 @@ export default function LandingPage() {
     document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
   }, [lang]);
 
-  const principleIcons = [ShieldCheck, HeartHandshake, Eye] as const;
-
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="relative min-h-screen bg-background text-foreground">
+      <LivingPaperBackground />
+
       {/* Top Navigation */}
-      <header className="sticky top-0 z-40 border-b border-border/80 bg-background/90 backdrop-blur-md">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+      <header className="sticky top-0 z-40 border-b border-border/70 bg-background/85 backdrop-blur-md">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <a href="#" className="flex items-center gap-2.5">
             <img
               src="/images/al-milla-logo.png"
@@ -37,7 +41,7 @@ export default function LandingPage() {
             <span className="text-lg font-bold text-primary">{copy.brand}</span>
           </a>
 
-          <nav className="hidden items-center gap-6 text-sm font-semibold text-muted-foreground md:flex">
+          <nav className="hidden items-center gap-7 text-sm font-semibold text-muted-foreground md:flex">
             <a href="#method" className="transition-colors hover:text-foreground">
               {copy.navMethod}
             </a>
@@ -81,21 +85,18 @@ export default function LandingPage() {
         </div>
       </header>
 
-      <main>
-        {/* Hero Section */}
-        <section className="mx-auto max-w-5xl px-4 pb-16 pt-12 sm:px-6 sm:pt-16">
+      <main className="relative z-10">
+        {/* Editorial Hero with Mushaf Photography & Floating Calligraphy */}
+        <section className="mx-auto max-w-6xl px-4 pb-16 pt-10 sm:px-6 sm:pt-16">
           <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-12">
             <div className="space-y-6 lg:col-span-6">
-              <span className="inline-flex items-center gap-2 rounded-full border border-border bg-secondary px-3.5 py-1.5 text-xs font-semibold text-primary">
-                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>{copy.heroBadge}</span>
-              </span>
+              <p className="text-xs font-bold tracking-wide text-primary">{copy.heroBadge}</p>
 
-              <h1 className="text-3xl font-bold leading-tight text-foreground sm:text-4xl lg:text-[42px]">
+              <h1 className="text-3xl font-bold leading-[1.28] text-foreground sm:text-4xl lg:text-[44px]">
                 <BlurText text={copy.heroTitle} />
               </h1>
 
-              <p className="text-base leading-relaxed text-muted-foreground sm:text-lg">
+              <p className="max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
                 {copy.heroSubtitle}
               </p>
 
@@ -103,7 +104,7 @@ export default function LandingPage() {
                 <Magnet>
                   <a
                     href={APP_URL}
-                    className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-primary px-6 text-base font-bold text-primary-foreground shadow-sm transition-opacity hover:opacity-95"
+                    className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-2xl bg-primary px-7 text-base font-bold text-primary-foreground shadow-sm transition-opacity hover:opacity-95"
                   >
                     <span>{copy.heroPrimaryCta}</span>
                     <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -112,7 +113,7 @@ export default function LandingPage() {
 
                 <a
                   href="#method"
-                  className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border border-border bg-card px-5 text-sm font-bold text-foreground transition-colors hover:bg-secondary"
+                  className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-2xl border border-border bg-card/80 px-5 text-sm font-bold text-foreground transition-colors hover:bg-secondary"
                 >
                   <BookOpen className="h-4 w-4 text-primary" aria-hidden="true" />
                   <span>{copy.heroSecondaryCta}</span>
@@ -122,108 +123,176 @@ export default function LandingPage() {
               <p className="text-xs text-muted-foreground">{copy.heroNoAccount}</p>
             </div>
 
+            {/* Right: Tilted Editorial Mushaf Photo + Floating Verse */}
             <div className="lg:col-span-6">
-              <AnimatedContent delay={0.15}>
-                <LiveSessionPreview lang={lang} copy={copy} />
-              </AnimatedContent>
-            </div>
-          </div>
-        </section>
-
-        {/* Calm Numbers Strip */}
-        <section className="border-y border-border bg-card/60 py-10">
-          <div className="mx-auto grid max-w-5xl grid-cols-2 gap-6 px-4 text-center sm:grid-cols-4 sm:px-6">
-            {[
-              { value: 114, label: copy.statsSurahs },
-              { value: 6236, label: copy.statsVerses },
-              { value: 604, label: copy.statsPages },
-              { value: 8, label: copy.statsReciters },
-            ].map((stat) => (
-              <div key={stat.label}>
-                <p className="text-3xl font-bold text-primary">
-                  <CountUp to={stat.value} format={(v) => formatLandingNum(v, lang)} />
-                </p>
-                <p className="mt-1 text-xs font-medium text-muted-foreground">{stat.label}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* 5-Stage Method Section */}
-        <section id="method" className="mx-auto max-w-5xl px-4 py-16 sm:px-6">
-          <AnimatedContent>
-            <div className="mx-auto max-w-2xl text-center">
-              <h2 className="text-2xl font-bold text-foreground sm:text-3xl">{copy.methodTitle}</h2>
-              <p className="mt-2 text-base text-muted-foreground">{copy.methodSubtitle}</p>
-            </div>
-          </AnimatedContent>
-
-          <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            {copy.stages.map((stage, idx) => (
-              <AnimatedContent key={stage.step} delay={idx * 0.06}>
-                <SpotlightCard className="h-full p-5">
-                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-secondary text-xs font-bold text-primary">
-                    {formatLandingNum(stage.step, lang)}
-                  </span>
-                  <h3 className="mt-3 text-base font-bold text-foreground">{stage.title}</h3>
-                  <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                    {stage.desc}
-                  </p>
-                </SpotlightCard>
-              </AnimatedContent>
-            ))}
-          </div>
-        </section>
-
-        {/* Principles Section */}
-        <section id="principles" className="border-t border-border bg-secondary/35 py-16">
-          <div className="mx-auto max-w-5xl px-4 sm:px-6">
-            <AnimatedContent>
-              <div className="mx-auto max-w-2xl text-center">
-                <h2 className="text-2xl font-bold text-foreground sm:text-3xl">
-                  {copy.principlesTitle}
-                </h2>
-                <p className="mt-2 text-base text-muted-foreground">{copy.principlesSubtitle}</p>
-              </div>
-            </AnimatedContent>
-
-            <div className="mt-10 grid grid-cols-1 gap-5 md:grid-cols-3">
-              {copy.principles.map((item, idx) => {
-                const Icon = principleIcons[idx] ?? ShieldCheck;
-                return (
-                  <AnimatedContent key={item.title} delay={idx * 0.08}>
-                    <SpotlightCard
-                      className="h-full p-6"
-                      spotlightColor="rgba(255, 142, 121, 0.10)"
+              <AnimatedContent delay={0.1}>
+                <TiltedCard className="relative">
+                  <div className="relative overflow-hidden rounded-3xl border border-border bg-card shadow-md">
+                    <img
+                      src="/images/mushaf-morning.jpg"
+                      alt="Mushaf resting on a wooden rehal in morning light"
+                      className="aspect-[4/3] w-full object-cover"
+                    />
+                    <div
+                      className="absolute inset-x-4 bottom-4 rounded-2xl border border-white/40 bg-[#f7f5ed]/92 px-5 py-3.5 text-center shadow-sm backdrop-blur-md"
+                      dir="rtl"
+                      lang="ar"
                     >
-                      <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-secondary text-primary">
-                        <Icon className="h-5 w-5" aria-hidden="true" />
-                      </span>
-                      <h3 className="mt-4 text-lg font-bold text-foreground">{item.title}</h3>
-                      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                        {item.desc}
+                      <p className="quran-script text-xl text-primary sm:text-2xl">
+                        بِسْمِ اللَّهِ الرَّحْمَـٰنِ الرَّحِيمِ ﴿١﴾
                       </p>
-                    </SpotlightCard>
-                  </AnimatedContent>
-                );
-              })}
+                    </div>
+                  </div>
+                </TiltedCard>
+              </AnimatedContent>
             </div>
           </div>
         </section>
 
-        {/* Final Calm Invitation */}
-        <section className="mx-auto max-w-4xl px-4 py-16 sm:px-6">
+        {/* Living Calligraphy Ribbon */}
+        <SurahRibbon />
+
+        {/* Interactive 5-Stage Daily Session Showcase */}
+        <section id="method" className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
+          <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-12">
+            <div className="space-y-6 lg:col-span-6">
+              <AnimatedContent>
+                <h2 className="text-2xl font-bold text-foreground sm:text-3xl">
+                  {copy.methodTitle}
+                </h2>
+                <p className="mt-2 text-base leading-relaxed text-muted-foreground">
+                  {copy.methodSubtitle}
+                </p>
+              </AnimatedContent>
+
+              <div className="space-y-2">
+                {copy.stages.map((stage, idx) => {
+                  const selected = idx === activeMethodStep;
+                  return (
+                    <button
+                      key={stage.step}
+                      type="button"
+                      onClick={() => setActiveMethodStep(idx)}
+                      className={`relative flex w-full items-start gap-4 rounded-2xl border p-4 text-start transition-colors ${
+                        selected
+                          ? 'border-primary/40 bg-card shadow-xs'
+                          : 'border-transparent hover:bg-card/60'
+                      }`}
+                    >
+                      {selected && (
+                        <motion.span
+                          layoutId="activeMethodBar"
+                          className="absolute inset-y-3 start-0 w-1 rounded-full bg-primary"
+                          transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+                        />
+                      )}
+                      <span
+                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-bold transition-colors ${
+                          selected
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-secondary text-primary'
+                        }`}
+                      >
+                        {formatLandingNum(stage.step, lang)}
+                      </span>
+                      <div>
+                        <h3 className="text-base font-bold text-foreground">{stage.title}</h3>
+                        <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                          {stage.desc}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="lg:col-span-6 lg:sticky lg:top-24">
+              <AnimatedContent delay={0.12}>
+                <LiveSessionPreview
+                  lang={lang}
+                  copy={copy}
+                  activeStage={activeMethodStep}
+                  onStageChange={setActiveMethodStep}
+                />
+              </AnimatedContent>
+            </div>
+          </div>
+        </section>
+
+        {/* Editorial Principles & Still-Life Photography */}
+        <section id="principles" className="border-t border-border/80 bg-card/45 py-16 sm:py-20">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-12">
+              <div className="lg:col-span-5">
+                <AnimatedContent>
+                  <TiltedCard>
+                    <div className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
+                      <img
+                        src="/images/quiet-study.jpg"
+                        alt="Calm sunlit study space with olive branch shadows"
+                        className="aspect-[4/5] w-full object-cover"
+                      />
+                    </div>
+                  </TiltedCard>
+                </AnimatedContent>
+              </div>
+
+              <div className="space-y-8 lg:col-span-7">
+                <AnimatedContent>
+                  <h2 className="text-2xl font-bold text-foreground sm:text-3xl">
+                    {copy.principlesTitle}
+                  </h2>
+                  <p className="mt-2 text-base text-muted-foreground">{copy.principlesSubtitle}</p>
+                </AnimatedContent>
+
+                <div className="divide-y divide-border border-y border-border">
+                  {copy.principles.map((item, idx) => (
+                    <AnimatedContent key={item.title} delay={idx * 0.06}>
+                      <div className="py-5">
+                        <h3 className="text-lg font-bold text-foreground">{item.title}</h3>
+                        <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                          {item.desc}
+                        </p>
+                      </div>
+                    </AnimatedContent>
+                  ))}
+                </div>
+
+                {/* Quiet Numbers Strip */}
+                <div className="grid grid-cols-2 gap-6 pt-2 sm:grid-cols-4">
+                  {[
+                    { value: 114, label: copy.statsSurahs },
+                    { value: 6236, label: copy.statsVerses },
+                    { value: 604, label: copy.statsPages },
+                    { value: 8, label: copy.statsReciters },
+                  ].map((stat) => (
+                    <div key={stat.label}>
+                      <p className="text-2xl font-bold text-primary">
+                        <CountUp to={stat.value} format={(v) => formatLandingNum(v, lang)} />
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{stat.label}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Closing Invitation */}
+        <section className="mx-auto max-w-5xl px-4 py-16 sm:px-6 sm:py-20">
           <AnimatedContent>
-            <div className="rounded-3xl bg-primary p-8 text-center text-primary-foreground sm:p-12">
+            <div className="rounded-3xl bg-primary p-8 text-center text-primary-foreground sm:p-14">
               <h2 className="text-2xl font-bold sm:text-3xl">{copy.finalTitle}</h2>
               <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed opacity-90 sm:text-base">
                 {copy.finalSubtitle}
               </p>
-              <div className="mt-7">
+              <div className="mt-8">
                 <Magnet>
                   <a
                     href={APP_URL}
-                    className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-white px-7 text-base font-bold text-[#073d35] transition-colors hover:bg-secondary"
+                    className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-2xl bg-white px-8 text-base font-bold text-[#073d35] transition-colors hover:bg-secondary"
                   >
                     <span>{copy.finalCta}</span>
                     <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -235,9 +304,8 @@ export default function LandingPage() {
         </section>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-border bg-card/50 py-8">
-        <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 px-4 text-center sm:flex-row sm:px-6 sm:text-start">
+      <footer className="relative z-10 border-t border-border bg-card/50 py-8">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 text-center sm:flex-row sm:px-6 sm:text-start">
           <div className="flex items-center gap-2.5">
             <img
               src="/images/al-milla-logo.png"
