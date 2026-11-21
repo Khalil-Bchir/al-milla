@@ -11,6 +11,7 @@ import { Magnet } from '@/components/reactbits/Magnet';
 import { SurahRibbon } from '@/components/reactbits/SurahRibbon';
 import { TiltedCard } from '@/components/reactbits/TiltedCard';
 import { LiveSessionPreview } from '@/components/LiveSessionPreview';
+import { InstallGuide } from '@/components/InstallGuide';
 import { LANDING_COPY, formatLandingNum, type LandingLang } from '@/lib/landing-copy';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://al-milla.khalilbchir.pro';
@@ -47,6 +48,9 @@ export default function LandingPage() {
             </a>
             <a href="#principles" className="transition-colors hover:text-foreground">
               {copy.navPrinciples}
+            </a>
+            <a href="#install" className="transition-colors hover:text-foreground">
+              {lang === 'ar' ? 'التثبيت' : lang === 'fr' ? 'Installer' : 'Install'}
             </a>
           </nav>
 
@@ -279,6 +283,11 @@ export default function LandingPage() {
             </div>
           </div>
         </section>
+
+        {/* Install on Home Screen Guide */}
+        <AnimatedContent>
+          <InstallGuide lang={lang} appUrl={APP_URL} />
+        </AnimatedContent>
 
         {/* Closing Invitation */}
         <section className="mx-auto max-w-5xl px-4 py-16 sm:px-6 sm:py-20">

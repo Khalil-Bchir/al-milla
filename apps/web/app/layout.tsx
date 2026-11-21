@@ -3,6 +3,7 @@ import { IBM_Plex_Sans_Arabic, Inter, Amiri, Amiri_Quran, Noto_Naskh_Arabic } fr
 import './globals.css';
 import { ServiceWorkerRegister } from '@/components/milla/ServiceWorkerRegister';
 import { ThemeSync } from '@/components/milla/ThemeSync';
+import { InstallPwaBanner } from '@/components/milla/InstallPwaBanner';
 
 const ibmArabic = IBM_Plex_Sans_Arabic({
   subsets: ['arabic', 'latin'],
@@ -83,6 +84,7 @@ export default function RootLayout({
       >
         <ThemeSync />
         <ServiceWorkerRegister />
+        <InstallPwaBanner />
         {children}
       </body>
     </html>
