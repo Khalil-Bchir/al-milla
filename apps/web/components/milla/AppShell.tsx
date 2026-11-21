@@ -70,31 +70,29 @@ export function AppShell({
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Top Bar */}
-      <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-xl items-center justify-between gap-2 px-4 py-3">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/"
-              className="flex min-h-[44px] min-w-[44px] items-center gap-2 rounded-xl focus-visible:outline-2 focus-visible:outline-ring"
-              aria-label={copy.brandName}
-            >
-              <img
-                src="/images/al-milla-logo.png"
-                alt={copy.brandName}
-                className="h-10 w-10 rounded-xl border border-border object-cover"
-              />
-              <div className="leading-tight">
-                <span className="block text-base font-bold text-primary">{copy.brandName}</span>
-                <span className="block text-xs text-muted-foreground">{title}</span>
-              </div>
-            </Link>
-          </div>
+      <header className="sticky top-0 z-30 border-b border-border/80 bg-background/90 backdrop-blur-md">
+        <div className="mx-auto flex max-w-xl items-center justify-between gap-2 px-4 py-2.5">
+          <Link
+            href="/"
+            className="flex min-h-[44px] items-center gap-2.5 rounded-xl focus-visible:outline-2 focus-visible:outline-ring"
+            aria-label={copy.brandName}
+          >
+            <img
+              src="/images/al-milla-logo.png"
+              alt={copy.brandName}
+              className="h-10 w-10 rounded-xl border border-border/80 object-cover shadow-2xs"
+            />
+            <div className="leading-tight">
+              <span className="block text-base font-bold text-primary">{copy.brandName}</span>
+              <span className="block text-xs font-medium text-muted-foreground">{title}</span>
+            </div>
+          </Link>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             {isOffline && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">
-                <WifiOff className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>{copy.offlineLabel}</span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-[11px] font-semibold text-secondary-foreground">
+                <WifiOff className="h-3 w-3" aria-hidden="true" />
+                <span className="hidden sm:inline">{copy.offlineLabel}</span>
               </span>
             )}
 
@@ -102,10 +100,10 @@ export function AppShell({
               <Link
                 href="/mushaf"
                 className={cn(
-                  'inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-border px-3 text-xs font-semibold transition-colors',
+                  'inline-flex h-10 items-center gap-1.5 rounded-xl border px-3.5 text-xs font-bold transition-colors',
                   pathname.startsWith('/mushaf')
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-card text-foreground hover:bg-secondary',
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-border bg-card text-foreground hover:bg-secondary',
                 )}
                 aria-label={copy.mushafLink}
               >
@@ -118,10 +116,10 @@ export function AppShell({
               <Link
                 href="/settings"
                 className={cn(
-                  'inline-flex h-11 w-11 items-center justify-center rounded-xl border border-border transition-colors',
+                  'inline-flex h-10 w-10 items-center justify-center rounded-xl border transition-colors',
                   pathname.startsWith('/settings')
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-card text-foreground hover:bg-secondary',
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-border bg-card text-foreground hover:bg-secondary',
                 )}
                 aria-label={copy.settingsLink}
                 title={copy.settingsLink}
@@ -132,7 +130,7 @@ export function AppShell({
           </div>
         </div>
         {subtitle && (
-          <div className="mx-auto max-w-xl border-t border-border/60 px-4 py-1.5 text-xs text-muted-foreground">
+          <div className="mx-auto max-w-xl border-t border-border/50 px-4 py-1 text-[11px] text-muted-foreground">
             {subtitle}
           </div>
         )}

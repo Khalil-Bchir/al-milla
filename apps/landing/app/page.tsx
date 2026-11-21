@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { ArrowLeft, BookOpen } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, Menu, X } from 'lucide-react';
 import { AnimatedContent } from '@/components/reactbits/AnimatedContent';
 import { BlurText } from '@/components/reactbits/BlurText';
 import { CountUp } from '@/components/reactbits/CountUp';
@@ -23,7 +23,9 @@ const APP_URL =
 export default function LandingPage() {
   const [lang, setLang] = useState<LandingLang>('ar');
   const [activeMethodStep, setActiveMethodStep] = useState<number>(0);
+  const [mobileNavOpen, setMobileNavOpen] = useState<boolean>(false);
   const copy = LANDING_COPY[lang];
+  const DirArrow = lang === 'ar' ? ArrowLeft : ArrowRight;
 
   useEffect(() => {
     document.documentElement.lang = lang;
@@ -34,62 +36,109 @@ export default function LandingPage() {
     <div className="relative min-h-screen bg-background text-foreground">
       <LivingPaperBackground />
 
-      {/* Top Navigation */}
-      <header className="sticky top-0 z-40 border-b border-border/70 bg-background/85 backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <a href="#" className="flex items-center gap-2.5">
-            <img
-              src="/images/al-milla-logo.png"
-              alt={copy.brand}
-              className="h-9 w-9 rounded-xl border border-border object-cover"
-            />
-            <span className="text-lg font-bold text-primary">{copy.brand}</span>
-          </a>
+      {/* Floating Pill Navigation */}
+      <header className="sticky top-3 z-40 mx-auto max-w-6xl px-4 sm:px-6">
+        <div className="rounded-2xl border border-border/85 bg-card/85 px-4 py-2.5 shadow-sm backdrop-blur-md">
+          <div className="flex items-center justify-between gap-3">
+            <a href="#" className="flex items-center gap-2.5">
+              <img
+                src="/images/al-milla-logo.png"
+                alt={copy.brand}
+                className="h-9 w-9 rounded-xl border border-border/80 object-cover shadow-2xs"
+              />
+              <span className="text-lg font-bold tracking-tight text-primary">{copy.brand}</span>
+            </a>
 
-          <nav className="hidden items-center gap-7 text-sm font-semibold text-muted-foreground md:flex">
-            <a href="#method" className="transition-colors hover:text-foreground">
-              {copy.navMethod}
-            </a>
-            <a href="#principles" className="transition-colors hover:text-foreground">
-              {copy.navPrinciples}
-            </a>
-            <a href="#install" className="transition-colors hover:text-foreground">
-              {lang === 'ar' ? 'التثبيت' : lang === 'fr' ? 'Installer' : 'Install'}
-            </a>
-          </nav>
+            <nav className="hidden items-center gap-1 md:flex">
+              <a
+                href="#method"
+                className="rounded-xl px-3.5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-secondary/70 hover:text-foreground"
+              >
+                {copy.navMethod}
+              </a>
+              <a
+                href="#principles"
+                className="rounded-xl px-3.5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-secondary/70 hover:text-foreground"
+              >
+                {copy.navPrinciples}
+              </a>
+              <a
+                href="#install"
+                className="rounded-xl px-3.5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-secondary/70 hover:text-foreground"
+              >
+                {lang === 'ar' ? 'التثبيت' : lang === 'fr' ? 'Installer' : 'Install'}
+              </a>
+            </nav>
 
-          <div className="flex items-center gap-2">
-            <div className="flex items-center rounded-xl border border-border bg-card p-0.5 text-xs font-semibold">
-              {(
-                [
-                  { id: 'ar', label: 'ع' },
-                  { id: 'en', label: 'EN' },
-                  { id: 'fr', label: 'FR' },
-                ] as const
-              ).map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setLang(item.id)}
-                  className={`rounded-lg px-2.5 py-1.5 transition-colors ${
-                    lang === item.id
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center rounded-xl border border-border bg-background/80 p-0.5 text-xs font-semibold">
+                {(
+                  [
+                    { id: 'ar', label: 'ع' },
+                    { id: 'en', label: 'EN' },
+                    { id: 'fr', label: 'FR' },
+                  ] as const
+                ).map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setLang(item.id)}
+                    className={`rounded-lg px-2.5 py-1.5 transition-colors ${
+                      lang === item.id
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+
+              <a
+                href={APP_URL}
+                className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-primary px-4 text-xs font-bold text-primary-foreground shadow-2xs transition-opacity hover:opacity-95"
+              >
+                <span>{copy.navStart}</span>
+                <DirArrow className="h-3.5 w-3.5" aria-hidden="true" />
+              </a>
+
+              <button
+                type="button"
+                onClick={() => setMobileNavOpen((v) => !v)}
+                aria-label="Menu"
+                aria-expanded={mobileNavOpen}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-background/80 text-foreground md:hidden"
+              >
+                {mobileNavOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+              </button>
             </div>
-
-            <a
-              href={APP_URL}
-              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-primary px-4 text-xs font-bold text-primary-foreground transition-opacity hover:opacity-95"
-            >
-              <span>{copy.navStart}</span>
-              <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-            </a>
           </div>
+
+          {mobileNavOpen && (
+            <nav className="mt-2.5 flex flex-col gap-1 border-t border-border/70 pt-2.5 md:hidden">
+              <a
+                href="#method"
+                onClick={() => setMobileNavOpen(false)}
+                className="rounded-xl px-3 py-2 text-sm font-semibold text-foreground hover:bg-secondary/60"
+              >
+                {copy.navMethod}
+              </a>
+              <a
+                href="#principles"
+                onClick={() => setMobileNavOpen(false)}
+                className="rounded-xl px-3 py-2 text-sm font-semibold text-foreground hover:bg-secondary/60"
+              >
+                {copy.navPrinciples}
+              </a>
+              <a
+                href="#install"
+                onClick={() => setMobileNavOpen(false)}
+                className="rounded-xl px-3 py-2 text-sm font-semibold text-foreground hover:bg-secondary/60"
+              >
+                {lang === 'ar' ? 'التثبيت' : lang === 'fr' ? 'Installer' : 'Install'}
+              </a>
+            </nav>
+          )}
         </div>
       </header>
 
