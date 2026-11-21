@@ -12,10 +12,11 @@ import {
   Upload,
 } from 'lucide-react';
 import { AppShell } from '@/components/milla/AppShell';
+import { LanguageSwitcher } from '@/components/milla/LanguageSwitcher';
 import { MillaPicker } from '@/components/milla/MillaPicker';
 import { sendMillaNotification } from '@/components/milla/ReminderScheduler';
 import { cn } from '@/lib/utils';
-import { MILLA_COPY, formatDigitsInText, formatNum, type AppLanguage } from '@/lib/milla-i18n';
+import { MILLA_COPY, formatDigitsInText, formatNum } from '@/lib/milla-i18n';
 import { RECITERS, type ReciterId } from '@/lib/quran-data';
 import {
   useMillaStore,
@@ -28,12 +29,6 @@ export default function SettingsPage() {
   const copy = MILLA_COPY[store.language];
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-
-  const languages: { id: AppLanguage; label: string }[] = [
-    { id: 'ar', label: 'العربية' },
-    { id: 'en', label: 'English' },
-    { id: 'fr', label: 'Français' },
-  ];
 
   const speeds: PlaybackSpeed[] = [0.75, 1.0, 1.25];
 
@@ -98,23 +93,7 @@ export default function SettingsPage() {
         {/* Language */}
         <section className="rounded-2xl border border-border bg-card p-4">
           <h2 className="mb-3 text-sm font-bold text-foreground">{copy.settingsLanguageTitle}</h2>
-          <div className="grid grid-cols-3 gap-2">
-            {languages.map((lang) => (
-              <button
-                key={lang.id}
-                type="button"
-                onClick={() => store.setLanguage(lang.id)}
-                className={cn(
-                  'min-h-[48px] rounded-xl border text-xs font-bold transition-colors',
-                  store.language === lang.id
-                    ? 'border-primary bg-primary text-primary-foreground'
-                    : 'border-border bg-background text-foreground hover:bg-secondary',
-                )}
-              >
-                {lang.label}
-              </button>
-            ))}
-          </div>
+          <LanguageSwitcher variant="cards" />
         </section>
 
         {/* Narration & Audio */}

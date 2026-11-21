@@ -2,18 +2,18 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, BookOpen, Lock, Sparkles, Type, Volume2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, Lock, Sparkles, Type, Volume2 } from 'lucide-react';
 import { AppShell } from '@/components/milla/AppShell';
+import { LanguageSwitcher } from '@/components/milla/LanguageSwitcher';
 import { MillaPicker } from '@/components/milla/MillaPicker';
 import { cn } from '@/lib/utils';
-import { MILLA_COPY, formatNum, getSurahDisplayName, type AppLanguage } from '@/lib/milla-i18n';
+import { MILLA_COPY, formatNum, getSurahDisplayName } from '@/lib/milla-i18n';
 import { RECITERS, SURAHS, type ReciterId } from '@/lib/quran-data';
 import { useMillaStore } from '@/store/milla-store';
 
 export default function OnboardingPage() {
   const router = useRouter();
   const language = useMillaStore((s) => s.language);
-  const setLanguage = useMillaStore((s) => s.setLanguage);
   const reciter = useMillaStore((s) => s.reciter);
   const setReciter = useMillaStore((s) => s.setReciter);
   const currentSurahId = useMillaStore((s) => s.currentSurahId);
@@ -26,12 +26,7 @@ export default function OnboardingPage() {
 
   const [customGoalInput, setCustomGoalInput] = useState<string>(String(dailyTarget));
   const copy = MILLA_COPY[language];
-
-  const languages: { id: AppLanguage; label: string }[] = [
-    { id: 'ar', label: 'العربية' },
-    { id: 'en', label: 'English' },
-    { id: 'fr', label: 'Français' },
-  ];
+  const DirArrow = language === 'ar' ? ArrowLeft : ArrowRight;
 
   const startingSurahPresets = [1, 78, 67, 18].map((id) => {
     const s = SURAHS.find((item) => item.id === id) ?? SURAHS[0];
@@ -95,38 +90,24 @@ export default function OnboardingPage() {
     <AppShell title={copy.onboardingTitle} hideBottomNav hideTopActions>
       <div className="space-y-5 py-2">
         {/* Top Controls: Large Text & Language */}
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <button
-            type="button"
-            onClick={() => setLargeUiMode(!largeUiMode)}
-            aria-pressed={largeUiMode}
-            className={cn(
-              'inline-flex min-h-[44px] items-center gap-2 rounded-full border px-4 text-xs font-semibold transition-colors',
-              largeUiMode
-                ? 'border-primary bg-primary text-primary-foreground'
-                : 'border-border bg-card text-foreground hover:bg-secondary',
-            )}
-          >
-            <Type className="h-4 w-4" aria-hidden="true" />
-            <span>{copy.onboardingLargeText}</span>
-          </button>
+        <div className="space-y-3">
+          <LanguageSwitcher variant="cards" />
 
-          <div className="flex items-center gap-1 rounded-full border border-border bg-card p-1">
-            {languages.map((lang) => (
-              <button
-                key={lang.id}
-                type="button"
-                onClick={() => setLanguage(lang.id)}
-                className={cn(
-                  'min-h-[38px] rounded-full px-3 text-xs font-semibold transition-colors',
-                  language === lang.id
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {lang.label}
-              </button>
-            ))}
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => setLargeUiMode(!largeUiMode)}
+              aria-pressed={largeUiMode}
+              className={cn(
+                'inline-flex min-h-[40px] items-center gap-2 rounded-full border px-4 text-xs font-semibold transition-colors',
+                largeUiMode
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border bg-card text-foreground hover:bg-secondary',
+              )}
+            >
+              <Type className="h-4 w-4" aria-hidden="true" />
+              <span>{copy.onboardingLargeText}</span>
+            </button>
           </div>
         </div>
 
@@ -295,7 +276,7 @@ export default function OnboardingPage() {
             className="flex min-h-[56px] w-full items-center justify-center gap-2 rounded-2xl bg-primary px-6 text-base font-bold text-primary-foreground shadow-sm transition-opacity hover:opacity-95"
           >
             <span>{copy.onboardingStartCta}</span>
-            <ArrowLeft className="h-5 w-5" aria-hidden="true" />
+            <DirArrow className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
       </div>

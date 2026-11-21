@@ -12,7 +12,14 @@ import { SurahRibbon } from '@/components/reactbits/SurahRibbon';
 import { TiltedCard } from '@/components/reactbits/TiltedCard';
 import { LiveSessionPreview } from '@/components/LiveSessionPreview';
 import { InstallGuide } from '@/components/InstallGuide';
+import { LandingLanguageSwitcher } from '@/components/LandingLanguageSwitcher';
 import { LANDING_COPY, formatLandingNum, type LandingLang } from '@/lib/landing-copy';
+
+const LANDING_LANG_STORAGE_KEY = 'milla_landing_lang';
+
+function isLandingLang(value: string | null): value is LandingLang {
+  return value === 'ar' || value === 'en' || value === 'fr';
+}
 
 const APP_URL =
   process.env.NEXT_PUBLIC_APP_URL ??
@@ -26,6 +33,34 @@ export default function LandingPage() {
   const [mobileNavOpen, setMobileNavOpen] = useState<boolean>(false);
   const copy = LANDING_COPY[lang];
   const DirArrow = lang === 'ar' ? ArrowLeft : ArrowRight;
+  const appHref = `${APP_URL}?lang=${lang}`;
+
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlLang = params.get('lang');
+      if (isLandingLang(urlLang)) {
+        setLang(urlLang);
+        window.localStorage.setItem(LANDING_LANG_STORAGE_KEY, urlLang);
+        return;
+      }
+      const savedLang = window.localStorage.getItem(LANDING_LANG_STORAGE_KEY);
+      if (isLandingLang(savedLang)) {
+        setLang(savedLang);
+      }
+    } catch {
+      // Ignore storage/URL access errors
+    }
+  }, []);
+
+  const handleLangChange = (nextLang: LandingLang) => {
+    setLang(nextLang);
+    try {
+      window.localStorage.setItem(LANDING_LANG_STORAGE_KEY, nextLang);
+    } catch {
+      // Ignore storage write errors
+    }
+  };
 
   useEffect(() => {
     document.documentElement.lang = lang;
@@ -71,31 +106,10 @@ export default function LandingPage() {
             </nav>
 
             <div className="flex items-center gap-2">
-              <div className="flex items-center rounded-xl border border-border bg-background/80 p-0.5 text-xs font-semibold">
-                {(
-                  [
-                    { id: 'ar', label: 'ع' },
-                    { id: 'en', label: 'EN' },
-                    { id: 'fr', label: 'FR' },
-                  ] as const
-                ).map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setLang(item.id)}
-                    className={`rounded-lg px-2.5 py-1.5 transition-colors ${
-                      lang === item.id
-                        ? 'bg-primary text-primary-foreground'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
+              <LandingLanguageSwitcher lang={lang} onChange={handleLangChange} variant="dropdown" />
 
               <a
-                href={APP_URL}
+                href={appHref}
                 className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-primary px-4 text-xs font-bold text-primary-foreground shadow-2xs transition-opacity hover:opacity-95"
               >
                 <span>{copy.navStart}</span>
@@ -160,11 +174,11 @@ export default function LandingPage() {
               <div className="flex flex-wrap items-center gap-3 pt-1">
                 <Magnet>
                   <a
-                    href={APP_URL}
+                    href={appHref}
                     className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-2xl bg-primary px-7 text-base font-bold text-primary-foreground shadow-sm transition-opacity hover:opacity-95"
                   >
                     <span>{copy.heroPrimaryCta}</span>
-                    <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                    <DirArrow className="h-4 w-4" aria-hidden="true" />
                   </a>
                 </Magnet>
 
@@ -339,7 +353,7 @@ export default function LandingPage() {
 
         {/* Install on Home Screen Guide */}
         <AnimatedContent>
-          <InstallGuide lang={lang} appUrl={APP_URL} />
+          <InstallGuide lang={lang} appUrl={appHref} />
         </AnimatedContent>
 
         {/* Closing Invitation */}
@@ -353,11 +367,11 @@ export default function LandingPage() {
               <div className="mt-8">
                 <Magnet>
                   <a
-                    href={APP_URL}
+                    href={appHref}
                     className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-2xl bg-white px-8 text-base font-bold text-[#073d35] transition-colors hover:bg-secondary"
                   >
                     <span>{copy.finalCta}</span>
-                    <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                    <DirArrow className="h-4 w-4" aria-hidden="true" />
                   </a>
                 </Magnet>
               </div>
@@ -376,9 +390,12 @@ export default function LandingPage() {
             />
             <span className="text-xs text-muted-foreground">{copy.footerTagline}</span>
           </div>
-          <a href={APP_URL} className="text-xs font-bold text-primary hover:underline">
-            {copy.footerOpenApp}
-          </a>
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            <LandingLanguageSwitcher lang={lang} onChange={handleLangChange} variant="pills" />
+            <a href={appHref} className="text-xs font-bold text-primary hover:underline">
+              {copy.footerOpenApp}
+            </a>
+          </div>
         </div>
       </footer>
     </div>

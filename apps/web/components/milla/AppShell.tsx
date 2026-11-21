@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { BookOpen, Home, RotateCcw, Settings, User, WifiOff } from 'lucide-react';
+import { LanguageSwitcher } from '@/components/milla/LanguageSwitcher';
 import { MushafIcon } from '@/components/milla/MushafIcon';
 import { cn } from '@/lib/utils';
 import { MILLA_COPY } from '@/lib/milla-i18n';
@@ -88,7 +89,7 @@ export function AppShell({
             </div>
           </Link>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             {isOffline && (
               <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-[11px] font-semibold text-secondary-foreground">
                 <WifiOff className="h-3 w-3" aria-hidden="true" />
@@ -96,11 +97,13 @@ export function AppShell({
               </span>
             )}
 
+            <LanguageSwitcher variant="compact" />
+
             {!hideTopActions && (
               <Link
                 href="/mushaf"
                 className={cn(
-                  'inline-flex h-10 items-center gap-1.5 rounded-xl border px-3.5 text-xs font-bold transition-colors',
+                  'inline-flex h-10 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold transition-colors sm:px-3.5',
                   pathname.startsWith('/mushaf')
                     ? 'border-primary bg-primary text-primary-foreground'
                     : 'border-border bg-card text-foreground hover:bg-secondary',
@@ -108,7 +111,7 @@ export function AppShell({
                 aria-label={copy.mushafLink}
               >
                 <MushafIcon className="h-4 w-4" />
-                <span>{copy.mushafLink}</span>
+                <span className="hidden xs:inline sm:inline">{copy.mushafLink}</span>
               </Link>
             )}
 
@@ -144,7 +147,13 @@ export function AppShell({
       {/* Persistent 4-Destination Bottom Navigation */}
       {!hideBottomNav && (
         <nav
-          aria-label="التنقل الرئيسي"
+          aria-label={
+            language === 'en'
+              ? 'Primary navigation'
+              : language === 'fr'
+                ? 'Navigation principale'
+                : 'التنقل الرئيسي'
+          }
           className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur-md"
         >
           <div className="mx-auto grid max-w-xl grid-cols-4 gap-1 px-2 py-1.5">
