@@ -40,6 +40,15 @@ export interface LandingCopy {
   finalCta: string;
   footerTagline: string;
   footerOpenApp: string;
+  footerExploreTitle: string;
+  footerInstallLink: string;
+  footerLanguageTitle: string;
+  footerPillFree: string;
+  footerPillNoAccount: string;
+  footerPillLocal: string;
+  footerVerseRef: string;
+  footerPrivacyNote: string;
+  footerBackToTop: string;
   previewHeader: string;
   previewHideText: string;
   previewShowText: string;
@@ -117,6 +126,15 @@ export const LANDING_COPY: Record<LandingLang, LandingCopy> = {
     finalCta: 'دخول تطبيق المِلّة',
     footerTagline: 'المِلّة: رفيق هادئ لحفظ القرآن الكريم برواية حفص عن عاصم.',
     footerOpenApp: 'فتح التطبيق',
+    footerExploreTitle: 'التصفّح',
+    footerInstallLink: 'تثبيت التطبيق',
+    footerLanguageTitle: 'اللغة والتفضيل',
+    footerPillFree: 'مجاني بالكامل',
+    footerPillNoAccount: 'بدون حساب',
+    footerPillLocal: 'محفوظ على جهازك',
+    footerVerseRef: 'سورة القمر • الآية ١٧',
+    footerPrivacyNote: 'تطبيق فردي خالٍ من الإعلانات والتتبّع.',
+    footerBackToTop: 'العودة للأعلى',
     previewHeader: 'معاينة حيّة من داخل الجلسة',
     previewHideText: 'إخفاء النص للتسميع',
     previewShowText: 'إظهار النص للتحقق',
@@ -196,6 +214,15 @@ export const LANDING_COPY: Record<LandingLang, LandingCopy> = {
     finalCta: 'Launch Al-Millah App',
     footerTagline: 'Al-Millah: A calm companion for Quran memorization (Hafs an Asim).',
     footerOpenApp: 'Open App',
+    footerExploreTitle: 'Explore',
+    footerInstallLink: 'Install App',
+    footerLanguageTitle: 'Language & Direction',
+    footerPillFree: '100% Free',
+    footerPillNoAccount: 'No Account',
+    footerPillLocal: 'Local-First',
+    footerVerseRef: 'Surah Al-Qamar • 54:17',
+    footerPrivacyNote: 'Private, ad-free, and zero tracking.',
+    footerBackToTop: 'Back to top',
     previewHeader: 'Live interactive session preview',
     previewHideText: 'Hide text to recite',
     previewShowText: 'Reveal text to verify',
@@ -275,6 +302,15 @@ export const LANDING_COPY: Record<LandingLang, LandingCopy> = {
     finalCta: 'Ouvrir l’application',
     footerTagline: 'Al-Millah : Compagnon serein de mémorisation du Coran (Hafs an Asim).',
     footerOpenApp: 'Ouvrir l’app',
+    footerExploreTitle: 'Navigation',
+    footerInstallLink: 'Installer l’app',
+    footerLanguageTitle: 'Langue et lecture',
+    footerPillFree: '100 % Gratuit',
+    footerPillNoAccount: 'Sans compte',
+    footerPillLocal: 'Sur votre appareil',
+    footerVerseRef: 'Sourate Al-Qamar • 54:17',
+    footerPrivacyNote: 'Application individuelle sans publicité ni pistage.',
+    footerBackToTop: 'Haut de page',
     previewHeader: 'Aperçu interactif de la séance',
     previewHideText: 'Masquer pour réciter',
     previewShowText: 'Révéler pour vérifier',

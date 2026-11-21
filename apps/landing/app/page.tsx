@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { ArrowLeft, ArrowRight, BookOpen, Menu, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ArrowUp, BookOpen, Menu, X } from 'lucide-react';
 import { AnimatedContent } from '@/components/reactbits/AnimatedContent';
 import { BlurText } from '@/components/reactbits/BlurText';
 import { CountUp } from '@/components/reactbits/CountUp';
@@ -380,20 +380,119 @@ export default function LandingPage() {
         </section>
       </main>
 
-      <footer className="relative z-10 border-t border-border bg-card/50 py-8">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 text-center sm:flex-row sm:px-6 sm:text-start">
-          <div className="flex items-center gap-2.5">
-            <img
-              src="/images/al-milla-logo.png"
-              alt={copy.brand}
-              className="h-7 w-7 rounded-lg border border-border object-cover"
-            />
-            <span className="text-xs text-muted-foreground">{copy.footerTagline}</span>
+      <footer className="relative z-10 border-t border-border/80 bg-card/70 backdrop-blur-sm">
+        <div className="mx-auto max-w-6xl px-4 pb-8 pt-12 sm:px-6 sm:pt-14">
+          <div className="grid grid-cols-1 gap-10 lg:grid-cols-12">
+            {/* Brand & Promise */}
+            <div className="space-y-4 lg:col-span-5">
+              <div className="flex items-center gap-3">
+                <img
+                  src="/images/al-milla-logo.png"
+                  alt={copy.brand}
+                  className="h-10 w-10 rounded-xl border border-border object-cover shadow-2xs"
+                />
+                <div>
+                  <span className="block text-lg font-bold text-primary">{copy.brand}</span>
+                  <span className="block text-[11px] font-medium text-muted-foreground">
+                    {copy.heroBadge}
+                  </span>
+                </div>
+              </div>
+
+              <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
+                {copy.footerTagline}
+              </p>
+
+              <div className="flex flex-wrap gap-2 pt-1">
+                {[copy.footerPillFree, copy.footerPillNoAccount, copy.footerPillLocal].map(
+                  (pill) => (
+                    <span
+                      key={pill}
+                      className="rounded-full border border-border bg-background/80 px-3 py-1 text-[11px] font-semibold text-foreground"
+                    >
+                      {pill}
+                    </span>
+                  ),
+                )}
+              </div>
+            </div>
+
+            {/* Navigation */}
+            <div className="space-y-3 lg:col-span-3">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                {copy.footerExploreTitle}
+              </h3>
+              <ul className="space-y-2.5 text-sm font-medium">
+                <li>
+                  <a
+                    href="#method"
+                    className="text-foreground/85 transition-colors hover:text-primary"
+                  >
+                    {copy.navMethod}
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="#principles"
+                    className="text-foreground/85 transition-colors hover:text-primary"
+                  >
+                    {copy.navPrinciples}
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="#install"
+                    className="text-foreground/85 transition-colors hover:text-primary"
+                  >
+                    {copy.footerInstallLink}
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href={appHref}
+                    className="inline-flex items-center gap-1.5 font-bold text-primary hover:underline"
+                  >
+                    <span>{copy.footerOpenApp}</span>
+                    <DirArrow className="h-3.5 w-3.5" aria-hidden="true" />
+                  </a>
+                </li>
+              </ul>
+            </div>
+
+            {/* Language & Quranic Verse */}
+            <div className="space-y-4 lg:col-span-4">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                {copy.footerLanguageTitle}
+              </h3>
+              <div>
+                <LandingLanguageSwitcher lang={lang} onChange={handleLangChange} variant="pills" />
+              </div>
+
+              <div className="rounded-2xl border border-border/80 bg-background/70 px-4 py-3">
+                <p
+                  className="quran-script text-center text-lg leading-relaxed text-primary"
+                  dir="rtl"
+                  lang="ar"
+                >
+                  ﴿وَلَقَدْ يَسَّرْنَا الْقُرْآنَ لِلذِّكْرِ فَهَلْ مِن مُّدَّكِرٍ﴾
+                </p>
+                <p className="mt-1 text-center text-[11px] text-muted-foreground">
+                  {copy.footerVerseRef}
+                </p>
+              </div>
+            </div>
           </div>
-          <div className="flex flex-wrap items-center justify-center gap-4">
-            <LandingLanguageSwitcher lang={lang} onChange={handleLangChange} variant="pills" />
-            <a href={appHref} className="text-xs font-bold text-primary hover:underline">
-              {copy.footerOpenApp}
+
+          <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-border/70 pt-6 text-xs text-muted-foreground sm:flex-row">
+            <p>
+              © {formatLandingNum(2026, lang)} {copy.brand} • {copy.footerPrivacyNote}
+            </p>
+            <a
+              href="#"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-background/80 px-3 py-1.5 font-semibold text-foreground transition-colors hover:bg-secondary"
+            >
+              <span>{copy.footerBackToTop}</span>
+              <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
             </a>
           </div>
         </div>
