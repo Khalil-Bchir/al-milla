@@ -9,10 +9,13 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
+const INSTALL_INTENT_KEY = 'milla-wants-install';
+
 export function InstallPwaBanner() {
   const language = useMillaStore((s) => s.language);
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [isIosHint, setIsIosHint] = useState(false);
+  const [wantsInstall, setWantsInstall] = useState(false);
+  const [isIos, setIsIos] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
@@ -21,13 +24,25 @@ export function InstallPwaBanner() {
     if (isStandalone) return;
 
     const params = new URLSearchParams(window.location.search);
-    const wantsInstall = params.get('install') === '1';
+    if (params.get('install') === '1') {
+      try {
+        window.sessionStorage.setItem(INSTALL_INTENT_KEY, '1');
+      } catch {
+        // Ignore storage errors
+      }
+      setWantsInstall(true);
+    } else {
+      try {
+        if (window.sessionStorage.getItem(INSTALL_INTENT_KEY) === '1') {
+          setWantsInstall(true);
+        }
+      } catch {
+        // Ignore storage errors
+      }
+    }
 
     const ua = window.navigator.userAgent;
-    const isIos = /iPad|iPhone|iPod/.test(ua) && !('MSStream' in window);
-    if (isIos && wantsInstall) {
-      setIsIosHint(true);
-    }
+    setIsIos(/iPad|iPhone|iPod/.test(ua) && !('MSStream' in window));
 
     const handleBeforeInstall = (e: Event) => {
       e.preventDefault();
@@ -44,49 +59,71 @@ export function InstallPwaBanner() {
     const choice = await deferredPrompt.userChoice;
     if (choice.outcome === 'accepted') {
       setDeferredPrompt(null);
+      setWantsInstall(false);
+      try {
+        window.sessionStorage.removeItem(INSTALL_INTENT_KEY);
+      } catch {
+        // Ignore
+      }
     }
   };
 
-  if (dismissed || (!deferredPrompt && !isIosHint)) return null;
+  const handleDismiss = () => {
+    setDismissed(true);
+    try {
+      window.sessionStorage.removeItem(INSTALL_INTENT_KEY);
+    } catch {
+      // Ignore
+    }
+  };
+
+  if (dismissed || (!deferredPrompt && !wantsInstall)) return null;
 
   const copy =
     language === 'en'
       ? {
-          title: 'Add Al-Millah to Home Screen',
-          iosSub: 'Tap Share, then "Add to Home Screen"',
-          btn: 'Install App',
+          title: 'Install Al-Millah on Your Home Screen',
+          iosSub: 'Tap Share (⎙) below, then "Add to Home Screen".',
+          fallbackSub: 'Open browser menu (⋮ or address bar icon) → "Install app" or "Add to Home screen".',
+          btn: 'Install Now',
           close: 'Close',
         }
       : language === 'fr'
         ? {
-            title: 'Ajouter Al-Millah à l’écran d’accueil',
-            iosSub: 'Appuyez sur Partager puis « Sur l’écran d’accueil »',
+            title: 'Installer Al-Millah sur votre écran d’accueil',
+            iosSub: 'Appuyez sur Partager puis « Sur l’écran d’accueil ».',
+            fallbackSub: 'Ouvrez le menu du navigateur (⋮) → « Installer l’application ».',
             btn: 'Installer',
             close: 'Fermer',
           }
         : {
-            title: 'أضف المِلّة إلى شاشتك الرئيسية',
-            iosSub: 'اضغط على زر المشاركة ثم «إضافة إلى الشاشة الرئيسية»',
+            title: 'تثبيت المِلّة على شاشتك الرئيسية',
+            iosSub: 'اضغط على زر المشاركة ثم اختر «إضافة إلى الشاشة الرئيسية».',
+            fallbackSub: 'من قائمة المتصفح (⋮ أو أيقونة التثبيت في شريط العنوان) اختر «تثبيت التطبيق».',
             btn: 'تثبيت الآن',
             close: 'إغلاق',
           };
 
   return (
-    <div className="fixed inset-x-4 bottom-20 z-50 mx-auto max-w-md rounded-2xl border border-primary/30 bg-card p-3.5 shadow-lg">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          {isIosHint ? (
-            <Share className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+    <div className="fixed inset-x-4 bottom-20 z-50 mx-auto max-w-md rounded-2xl border border-primary/35 bg-card p-4 shadow-lg">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-2.5">
+          {isIos ? (
+            <Share className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
           ) : (
-            <Download className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+            <Download className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
           )}
           <div>
             <p className="text-xs font-bold text-foreground">{copy.title}</p>
-            {isIosHint && <p className="text-[11px] text-muted-foreground">{copy.iosSub}</p>}
+            {!deferredPrompt && (
+              <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                {isIos ? copy.iosSub : copy.fallbackSub}
+              </p>
+            )}
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-1.5">
           {deferredPrompt && (
             <button
               type="button"
@@ -98,7 +135,7 @@ export function InstallPwaBanner() {
           )}
           <button
             type="button"
-            onClick={() => setDismissed(true)}
+            onClick={handleDismiss}
             aria-label={copy.close}
             className="rounded-lg p-1.5 text-muted-foreground hover:bg-secondary"
           >
