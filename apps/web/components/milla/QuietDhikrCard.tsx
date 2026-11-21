@@ -61,49 +61,57 @@ export function QuietDhikrCard() {
   const progressPct = Math.min(100, Math.round((count / item.target) * 100));
 
   return (
-    <section className="rounded-2xl border border-border bg-card p-4">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-secondary text-primary">
-            <Sparkles className="h-4 w-4" aria-hidden="true" />
-          </span>
-          <h2 className="text-sm font-bold text-foreground">{labels.title}</h2>
-        </div>
+    <section className="relative overflow-hidden rounded-3xl border border-border bg-card">
+      <div className="relative h-24 w-full overflow-hidden">
+        <img
+          src="/images/quiet-study.jpg"
+          alt={labels.title}
+          className="h-full w-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-card via-card/55 to-transparent" />
+        <div className="absolute inset-x-4 bottom-2 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent/25 text-foreground">
+              <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
+            </span>
+            <h2 className="text-sm font-bold text-foreground">{labels.title}</h2>
+          </div>
 
-        <button
-          type="button"
-          onClick={handleNext}
-          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-xl border border-border bg-background px-3 text-xs font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-        >
-          <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
-          <span>{labels.next}</span>
-        </button>
+          <button
+            type="button"
+            onClick={handleNext}
+            className="inline-flex min-h-[34px] items-center gap-1.5 rounded-xl border border-border bg-card/90 px-3 text-xs font-semibold text-foreground backdrop-blur-xs transition-colors hover:bg-secondary"
+          >
+            <RefreshCw className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+            <span>{labels.next}</span>
+          </button>
+        </div>
       </div>
 
       <button
         type="button"
         onClick={() => setCount((c) => c + 1)}
-        className="w-full rounded-2xl border border-border/80 bg-secondary/40 p-4 text-center transition-colors hover:bg-secondary/70 active:scale-[0.99]"
+        className="w-full p-4 pt-2 text-center transition-colors hover:bg-secondary/30 active:scale-[0.995]"
       >
         <p className="quran-text text-xl text-foreground sm:text-2xl" dir="rtl" lang="ar">
           {item.ar}
         </p>
         {language !== 'ar' && (
-          <p className="mt-1.5 text-xs text-muted-foreground">
+          <p className="mt-1 text-xs text-muted-foreground">
             {language === 'fr' ? item.fr : item.en}
           </p>
         )}
 
         <div className="mt-3 flex items-center justify-between gap-3">
           <span className="text-[11px] font-medium text-muted-foreground">{labels.tapHint}</span>
-          <span className="rounded-full bg-primary px-3 py-1 text-xs font-bold text-primary-foreground">
+          <span className="rounded-full bg-accent px-3 py-1 text-xs font-bold text-[#242a25]">
             {formatNum(count, language)} / {formatNum(item.target, language)}
           </span>
         </div>
 
         <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
           <div
-            className="h-full rounded-full bg-primary transition-all duration-200"
+            className="h-full rounded-full bg-accent transition-all duration-200"
             style={{ width: `${progressPct}%` }}
           />
         </div>
