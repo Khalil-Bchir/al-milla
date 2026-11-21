@@ -32,7 +32,7 @@ export default function MutashabihatPage() {
             <span>{drill.secondarySurahName}</span>
           </div>
           <p className="mt-2 rounded-xl bg-accent/20 px-3 py-2 text-xs font-semibold text-foreground">
-            موضع مزلّق شائع بين السورتين — يحتاج تمييزاً ذهنياً
+            موضع متشابه شائع بين السورتين، يحتاج تمييزاً ذهنياً
           </p>
         </section>
 

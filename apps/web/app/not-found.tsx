@@ -10,7 +10,7 @@ export default function NotFoundPage() {
         </span>
         <h1 className="text-xl font-bold text-foreground">الصفحة غير موجودة</h1>
         <p className="mt-2 text-base leading-relaxed text-muted-foreground">
-          الصفحة التي تبحث عنها غير متوفرة. يمكنك العودة إلى الصفحة الرئيسية لمتابعة وردك اليومي.
+          الصفحة التي تبحث عنها غير متوفرة. يمكنك العودة إلى الصفحة الرئيسية لمتابعة حفظك اليومي.
         </p>
         <Link
           href="/"

@@ -234,7 +234,7 @@ export const MILLA_COPY: Record<AppLanguage, MillaCopy> = {
     homeContinueCta: 'متابعة التعلّم الآن',
     homeContinueSessionCta: 'بدء جلسة اليوم (المراجعة + الحفظ)',
     homeRevisionTitle: 'مراجعة اليوم',
-    homeRevisionEmpty: 'لا توجد مراجعات مستحقة بعد — ابدأ وردك الأول اليوم',
+    homeRevisionEmpty: 'لا توجد مراجعات مستحقة بعد، ابدأ حفظك الأول اليوم',
     homeNewMemTitle: 'الحفظ الجديد',
     homeOpenMushaf: 'فتح المصحف الشريف',
     homeDueSummary: 'مستحقة',
@@ -268,7 +268,7 @@ export const MILLA_COPY: Record<AppLanguage, MillaCopy> = {
     revisionPillar3Sub: 'الآيات التي احتاجت تكراراً إضافياً لتثبت بيسر.',
     revisionStartBtn: 'بدء المراجعة',
     revisionEmptyBtn: 'لا توجد آيات مستحقة في هذا القسم',
-    revisionEmptyTitle: 'ابدأ بحفظ وردك الأول اليوم',
+    revisionEmptyTitle: 'ابدأ حفظك الأول اليوم',
     revisionEmptyBody:
       'بمجرد حفظ آياتك الأولى، ستظهر هنا تلقائياً ضمن مراجعة الأمس والمراجعة السابقة ومواضع العناية.',
     revisionGoToSession: 'الانتقال إلى جلسة اليوم',

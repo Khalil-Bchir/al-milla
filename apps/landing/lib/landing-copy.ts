@@ -58,7 +58,7 @@ export const LANDING_COPY: Record<LandingLang, LandingCopy> = {
     heroBadge: 'برواية حفص عن عاصم • مجاني بالكامل',
     heroTitle: 'احفظ القرآن الكريم بهدوء وثبات، بلا ضجيج ولا استعجال',
     heroSubtitle:
-      'رفيق فردي يومي يجمع بين مراجعة الأمس والمراجعة السابقة والحفظ الجديد والتسميع وربط الآيات — دون حساب إلزامي، ودون إعلانات أو لوحات تنافس.',
+      'رفيق فردي يومي يجمع بين مراجعة الأمس والمراجعة السابقة والحفظ الجديد والتسميع وربط الآيات، دون حساب إلزامي أو إعلانات أو لوحات تنافس.',
     heroPrimaryCta: 'ابدأ رحلة الحفظ الآن',
     heroSecondaryCta: 'تعرّف على الخطوات الخمس',
     heroNoAccount: 'يعمل مباشرة من متصفحك • بدون تسجيل حساب',
@@ -83,7 +83,7 @@ export const LANDING_COPY: Record<LandingLang, LandingCopy> = {
       {
         step: 3,
         title: 'الحفظ الجديد',
-        desc: 'وردك اليومي آيةً بآية مع التكرار الصوتي وإخفاء الكلمات التدريجي.',
+        desc: 'حفظك اليومي آيةً بآية مع التكرار الصوتي وإخفاء الكلمات التدريجي.',
       },
       {
         step: 4,
@@ -113,9 +113,9 @@ export const LANDING_COPY: Record<LandingLang, LandingCopy> = {
       },
     ],
     finalTitle: 'خطوة هادئة كل يوم تكفي',
-    finalSubtitle: 'افتح المِلّة الآن واختر سورتك ووردك اليومي في أقل من دقيقة.',
+    finalSubtitle: 'افتح المِلّة الآن واختر سورتك وعدد آياتك اليومية في أقل من دقيقة.',
     finalCta: 'دخول تطبيق المِلّة',
-    footerTagline: 'المِلّة — رفيق هادئ لحفظ القرآن الكريم برواية حفص عن عاصم.',
+    footerTagline: 'المِلّة: رفيق هادئ لحفظ القرآن الكريم برواية حفص عن عاصم.',
     footerOpenApp: 'فتح التطبيق',
     previewHeader: 'معاينة حيّة من داخل الجلسة',
     previewHideText: 'إخفاء النص للتسميع',
@@ -127,7 +127,7 @@ export const LANDING_COPY: Record<LandingLang, LandingCopy> = {
       { id: 'good', label: 'جيدة', hint: 'بتأنٍّ' },
       { id: 'easy', label: 'سهلة', hint: 'ثابتة بيسر' },
     ],
-    previewEvalThanks: 'تم التقييم بهدوء — يحدّث التطبيق موعد المراجعة تلقائياً.',
+    previewEvalThanks: 'تم التقييم بهدوء، يحدّث التطبيق موعد المراجعة تلقائياً.',
   },
   en: {
     brand: 'Al-Millah',

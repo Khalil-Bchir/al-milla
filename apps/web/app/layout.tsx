@@ -48,7 +48,7 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: 'المِلّة — رفيقك لحفظ القرآن الكريم',
+    default: 'المِلّة: رفيقك لحفظ القرآن الكريم',
     template: '%s | المِلّة',
   },
   description:

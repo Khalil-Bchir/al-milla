@@ -413,7 +413,7 @@ export default function MemorizePage() {
             <div className="rounded-2xl bg-secondary/50 p-4 text-justify" dir="rtl" lang="ar">
               {reviewHidden ? (
                 <p className="py-4 text-center text-sm font-medium text-muted-foreground">
-                  [ النص مخفي — سمّع الآيات غيباً ثم أظهرها للتحقق ]
+                  [ النص مخفي: سمّع الآيات غيباً ثم أظهرها للتحقق ]
                 </p>
               ) : loadingReviewText && !reviewAyahTexts[yesterdayTarget.key] ? (
                 <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
@@ -520,7 +520,7 @@ export default function MemorizePage() {
             <div className="rounded-2xl bg-secondary/50 p-4 text-justify" dir="rtl" lang="ar">
               {reviewHidden ? (
                 <p className="py-4 text-center text-sm font-medium text-muted-foreground">
-                  [ النص مخفي — سمّع الآيات غيباً ثم أظهرها للتحقق ]
+                  [ النص مخفي: سمّع الآيات غيباً ثم أظهرها للتحقق ]
                 </p>
               ) : loadingReviewText && !reviewAyahTexts[olderTarget.key] ? (
                 <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
