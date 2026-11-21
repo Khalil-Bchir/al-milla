@@ -189,6 +189,7 @@ type MillaStoredSlice = Pick<
   | 'mandatoryRepeats'
   | 'reciter'
   | 'playbackSpeed'
+  | 'reminders'
   | 'onboardingCompleted'
   | 'currentSurahId'
   | 'currentAyah'
@@ -382,6 +383,7 @@ export const useMillaStore = create<MillaStore>()(
         mandatoryRepeats: state.mandatoryRepeats,
         reciter: state.reciter,
         playbackSpeed: state.playbackSpeed,
+        reminders: state.reminders,
         onboardingCompleted: state.onboardingCompleted,
         currentSurahId: state.currentSurahId,
         currentAyah: state.currentAyah,

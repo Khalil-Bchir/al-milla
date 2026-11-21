@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { AppShell } from '@/components/milla/AppShell';
 import { MillaPicker } from '@/components/milla/MillaPicker';
+import { sendMillaNotification } from '@/components/milla/ReminderScheduler';
 import { cn } from '@/lib/utils';
 import { MILLA_COPY, formatDigitsInText, formatNum, type AppLanguage } from '@/lib/milla-i18n';
 import { RECITERS, type ReciterId } from '@/lib/quran-data';
@@ -383,32 +384,164 @@ export default function SettingsPage() {
           </p>
         </section>
 
-        {/* Reminders */}
+        {/* Optional Quiet Reminders (Never Forced) */}
         <section className="space-y-3 rounded-2xl border border-border bg-card p-4">
-          <div className="flex items-center gap-2">
-            <Bell className="h-5 w-5 text-primary" aria-hidden="true" />
-            <h2 className="text-base font-bold text-foreground">{copy.settingsRemindersTitle}</h2>
-          </div>
-
-          <div className="flex items-center justify-between rounded-xl bg-background p-3">
-            <div>
-              <p className="text-sm font-bold text-foreground">{copy.settingsFajrReminder}</p>
-              <p className="text-xs text-muted-foreground">
-                {formatDigitsInText(store.reminders.fajrTime, store.language)}
-              </p>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Bell className="h-5 w-5 text-primary" aria-hidden="true" />
+              <h2 className="text-base font-bold text-foreground">{copy.settingsRemindersTitle}</h2>
             </div>
             <button
               type="button"
-              onClick={() => store.updateReminders({ fajrEnabled: !store.reminders.fajrEnabled })}
+              onClick={async () => {
+                if (typeof window === 'undefined' || !('Notification' in window)) {
+                  setStatusMessage(
+                    store.language === 'en'
+                      ? 'Browser notifications are not supported on this device.'
+                      : store.language === 'fr'
+                        ? 'Les notifications ne sont pas prises en charge sur cet appareil.'
+                        : 'التنبيهات غير مدعومة في هذا المتصفح.',
+                  );
+                  return;
+                }
+                let perm = Notification.permission;
+                if (perm === 'default') {
+                  perm = await Notification.requestPermission();
+                }
+                if (perm !== 'granted') {
+                  setStatusMessage(
+                    store.language === 'en'
+                      ? 'Please allow notifications in your browser settings first.'
+                      : store.language === 'fr'
+                        ? 'Veuillez autoriser les notifications dans votre navigateur.'
+                        : 'يرجى السماح بالإشعارات من إعدادات المتصفح أولاً.',
+                  );
+                  return;
+                }
+                await sendMillaNotification(
+                  copy.brandName,
+                  store.language === 'en'
+                    ? 'Quiet reminder test: everything is ready.'
+                    : store.language === 'fr'
+                      ? 'Test de rappel serein : tout est prêt.'
+                      : 'تجربة التذكير الهادئ: التنبيهات تعمل بنجاح.',
+                );
+              }}
+              className="rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-semibold text-primary hover:bg-secondary"
+            >
+              {store.language === 'en'
+                ? 'Test Notification'
+                : store.language === 'fr'
+                  ? 'Tester'
+                  : 'تجربة التنبيه'}
+            </button>
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            {store.language === 'en'
+              ? 'Optional reminders at the times you choose. Off by default.'
+              : store.language === 'fr'
+                ? 'Rappels optionnels aux heures de votre choix. Désactivés par défaut.'
+                : 'تذكير اختياري في الأوقات التي تحددها بنفسك، متوقف افتراضياً.'}
+          </p>
+
+          {/* Morning Reminder */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-background p-3">
+            <div>
+              <p className="text-sm font-bold text-foreground">
+                {store.language === 'en'
+                  ? 'Morning Reminder'
+                  : store.language === 'fr'
+                    ? 'Rappel du matin'
+                    : 'تذكير الصباح'}
+              </p>
+              <input
+                type="time"
+                aria-label={
+                  store.language === 'en'
+                    ? 'Morning reminder time'
+                    : store.language === 'fr'
+                      ? 'Heure du rappel du matin'
+                      : 'وقت تذكير الصباح'
+                }
+                value={store.reminders.fajrTime}
+                onChange={(e) => store.updateReminders({ fajrTime: e.target.value })}
+                className="mt-1 rounded-lg border border-border bg-card px-2.5 py-1 text-xs font-semibold text-foreground"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                const next = !store.reminders.fajrEnabled;
+                if (
+                  next &&
+                  typeof window !== 'undefined' &&
+                  'Notification' in window &&
+                  Notification.permission === 'default'
+                ) {
+                  await Notification.requestPermission();
+                }
+                store.updateReminders({ fajrEnabled: next });
+              }}
               aria-pressed={store.reminders.fajrEnabled}
               className={cn(
-                'min-h-[44px] rounded-xl border px-3 text-xs font-bold',
+                'min-h-[44px] rounded-xl border px-4 text-xs font-bold',
                 store.reminders.fajrEnabled
                   ? 'border-primary bg-primary text-primary-foreground'
                   : 'border-border bg-card text-muted-foreground',
               )}
             >
               {store.reminders.fajrEnabled ? copy.settingsEnabled : copy.settingsDisabled}
+            </button>
+          </div>
+
+          {/* Evening Reminder */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-background p-3">
+            <div>
+              <p className="text-sm font-bold text-foreground">
+                {store.language === 'en'
+                  ? 'Evening Reminder'
+                  : store.language === 'fr'
+                    ? 'Rappel du soir'
+                    : 'تذكير المساء'}
+              </p>
+              <input
+                type="time"
+                aria-label={
+                  store.language === 'en'
+                    ? 'Evening reminder time'
+                    : store.language === 'fr'
+                      ? 'Heure du rappel du soir'
+                      : 'وقت تذكير المساء'
+                }
+                value={store.reminders.eveningTime}
+                onChange={(e) => store.updateReminders({ eveningTime: e.target.value })}
+                className="mt-1 rounded-lg border border-border bg-card px-2.5 py-1 text-xs font-semibold text-foreground"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                const next = !store.reminders.eveningEnabled;
+                if (
+                  next &&
+                  typeof window !== 'undefined' &&
+                  'Notification' in window &&
+                  Notification.permission === 'default'
+                ) {
+                  await Notification.requestPermission();
+                }
+                store.updateReminders({ eveningEnabled: next });
+              }}
+              aria-pressed={store.reminders.eveningEnabled}
+              className={cn(
+                'min-h-[44px] rounded-xl border px-4 text-xs font-bold',
+                store.reminders.eveningEnabled
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border bg-card text-muted-foreground',
+              )}
+            >
+              {store.reminders.eveningEnabled ? copy.settingsEnabled : copy.settingsDisabled}
             </button>
           </div>
         </section>
