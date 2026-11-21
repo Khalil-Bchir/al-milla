@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BookOpen, Home, RotateCcw, Settings, User, WifiOff, BookMarked } from 'lucide-react';
+import { BookOpen, Home, RotateCcw, Settings, User, WifiOff } from 'lucide-react';
+import { MushafIcon } from '@/components/milla/MushafIcon';
 import { cn } from '@/lib/utils';
 import { MILLA_COPY } from '@/lib/milla-i18n';
 import { useMillaStore } from '@/store/milla-store';
@@ -108,7 +109,7 @@ export function AppShell({
                 )}
                 aria-label={copy.mushafLink}
               >
-                <BookMarked className="h-4 w-4" aria-hidden="true" />
+                <MushafIcon className="h-4 w-4" />
                 <span>{copy.mushafLink}</span>
               </Link>
             )}

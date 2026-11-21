@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, BookMarked, BookOpen, RotateCcw } from 'lucide-react';
+import { ArrowLeft, BookOpen, RotateCcw } from 'lucide-react';
 import { AppShell } from '@/components/milla/AppShell';
+import { MushafIcon } from '@/components/milla/MushafIcon';
 import { MILLA_COPY, formatNum, getSurahDisplayName } from '@/lib/milla-i18n';
 import { getSurahById } from '@/lib/quran-data';
 import { computeRevisionQueues, useMillaStore } from '@/store/milla-store';
@@ -125,7 +126,7 @@ export default function HomePage() {
           href="/mushaf"
           className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl border border-border bg-secondary/70 px-4 text-base font-bold text-primary transition-colors hover:bg-secondary"
         >
-          <BookMarked className="h-5 w-5" aria-hidden="true" />
+          <MushafIcon className="h-5 w-5" />
           <span>{copy.homeOpenMushaf}</span>
         </Link>
       </div>
