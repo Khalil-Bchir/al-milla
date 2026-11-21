@@ -79,7 +79,7 @@
   --color-ring: var(--ring);
 
   --font-sans: var(--font-ibm-arabic), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-quran: "KFGQPC Nastaleeq", var(--font-amiri-quran), var(--font-amiri), var(--font-noto-naskh), serif;
+  --font-quran: var(--font-amiri-quran), var(--font-amiri), var(--font-noto-naskh), serif;
   --font-latin: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -106,7 +106,7 @@
 }
 
 .mushaf-quran-text {
-  font-family: "KFGQPC Nastaleeq", var(--font-amiri-quran), var(--font-amiri), serif;
+  font-family: var(--font-amiri-quran), var(--font-amiri), var(--font-noto-naskh), serif;
   font-size: var(--quran-font-scale);
   line-height: 2.55;
   letter-spacing: 0;

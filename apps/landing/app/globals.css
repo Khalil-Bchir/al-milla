@@ -40,7 +40,7 @@
   --color-ring: var(--ring);
 
   --font-sans: var(--font-ibm-arabic), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-quran: "KFGQPC Nastaleeq", var(--font-amiri-quran), serif;
+  --font-quran: var(--font-amiri-quran), serif;
   --font-latin: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
 
