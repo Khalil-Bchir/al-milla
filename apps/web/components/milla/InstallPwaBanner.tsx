@@ -133,11 +133,18 @@ function usePwaInstall() {
         // Ignore storage errors
       }
       setWantsInstall(true);
-    } else {
+    } else if (window.location.pathname.startsWith('/onboarding')) {
       try {
         if (window.sessionStorage.getItem(INSTALL_INTENT_KEY) === '1') {
           setWantsInstall(true);
+          window.sessionStorage.removeItem(INSTALL_INTENT_KEY);
         }
+      } catch {
+        // Ignore storage errors
+      }
+    } else {
+      try {
+        window.sessionStorage.removeItem(INSTALL_INTENT_KEY);
       } catch {
         // Ignore storage errors
       }
@@ -306,7 +313,7 @@ export function InstallPwaBanner() {
   const [showGuideModal, setShowGuideModal] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 
-  if (dismissed || isStandalone || (!deferredPrompt && !wantsInstall)) return null;
+  if (dismissed || isStandalone || !wantsInstall) return null;
 
   const isOnboarding = pathname?.startsWith('/onboarding');
   const copy = getInstallCopy(language, platform);
