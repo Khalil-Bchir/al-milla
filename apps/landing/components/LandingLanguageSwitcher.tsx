@@ -8,13 +8,12 @@ interface LandingLanguageOption {
   id: LandingLang;
   nativeLabel: string;
   shortLabel: string;
-  dirLabel: 'RTL' | 'LTR';
 }
 
 const LANDING_LANGUAGES: readonly LandingLanguageOption[] = [
-  { id: 'ar', nativeLabel: 'العربية', shortLabel: 'عربي', dirLabel: 'RTL' },
-  { id: 'en', nativeLabel: 'English', shortLabel: 'EN', dirLabel: 'LTR' },
-  { id: 'fr', nativeLabel: 'Français', shortLabel: 'FR', dirLabel: 'LTR' },
+  { id: 'ar', nativeLabel: 'العربية', shortLabel: 'عربي' },
+  { id: 'en', nativeLabel: 'English', shortLabel: 'EN' },
+  { id: 'fr', nativeLabel: 'Français', shortLabel: 'FR' },
 ] as const;
 
 interface LandingLanguageSwitcherProps {
@@ -131,12 +130,7 @@ export function LandingLanguageSwitcher({
                   active ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-secondary/70'
                 }`}
               >
-                <span className="flex items-center gap-2">
-                  <span className="font-bold">{item.nativeLabel}</span>
-                  <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                    {item.dirLabel}
-                  </span>
-                </span>
+                <span className="font-bold">{item.nativeLabel}</span>
                 {active && <Check className="h-3.5 w-3.5 text-primary" aria-hidden="true" />}
               </button>
             );

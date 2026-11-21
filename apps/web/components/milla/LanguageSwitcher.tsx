@@ -10,13 +10,12 @@ export interface LanguageOption {
   id: AppLanguage;
   nativeLabel: string;
   shortLabel: string;
-  dirLabel: 'RTL' | 'LTR';
 }
 
 export const LANGUAGE_OPTIONS: readonly LanguageOption[] = [
-  { id: 'ar', nativeLabel: 'العربية', shortLabel: 'عربي', dirLabel: 'RTL' },
-  { id: 'en', nativeLabel: 'English', shortLabel: 'EN', dirLabel: 'LTR' },
-  { id: 'fr', nativeLabel: 'Français', shortLabel: 'FR', dirLabel: 'LTR' },
+  { id: 'ar', nativeLabel: 'العربية', shortLabel: 'عربي' },
+  { id: 'en', nativeLabel: 'English', shortLabel: 'EN' },
+  { id: 'fr', nativeLabel: 'Français', shortLabel: 'FR' },
 ] as const;
 
 interface LanguageSwitcherProps {
@@ -70,26 +69,14 @@ export function LanguageSwitcher({ variant = 'compact', className }: LanguageSwi
               aria-pressed={active}
               onClick={() => setLanguage(option.id)}
               className={cn(
-                'relative flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-2xl border px-3 py-2.5 text-center transition-all',
+                'relative flex min-h-[52px] items-center justify-center gap-1.5 rounded-2xl border px-3 py-2.5 text-center transition-all',
                 active
                   ? 'border-primary bg-primary text-primary-foreground shadow-xs'
                   : 'border-border bg-background text-foreground hover:border-primary/40 hover:bg-secondary/60',
               )}
             >
-              <span className="flex items-center gap-1.5 text-sm font-bold">
-                {active && <Check className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
-                <span>{option.nativeLabel}</span>
-              </span>
-              <span
-                className={cn(
-                  'rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide',
-                  active
-                    ? 'bg-primary-foreground/15 text-primary-foreground'
-                    : 'bg-secondary text-muted-foreground',
-                )}
-              >
-                {option.dirLabel}
-              </span>
+              {active && <Check className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
+              <span className="text-sm font-bold">{option.nativeLabel}</span>
             </button>
           );
         })}
@@ -147,12 +134,7 @@ export function LanguageSwitcher({ variant = 'compact', className }: LanguageSwi
                     : 'text-foreground hover:bg-secondary/70',
                 )}
               >
-                <span className="flex items-center gap-2">
-                  <span className="font-bold">{option.nativeLabel}</span>
-                  <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                    {option.dirLabel}
-                  </span>
-                </span>
+                <span className="font-bold">{option.nativeLabel}</span>
                 {active && <Check className="h-3.5 w-3.5 text-primary" aria-hidden="true" />}
               </button>
             );

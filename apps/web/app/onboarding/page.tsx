@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowRight, BookOpen, Lock, Sparkles, Type, Volume2 } from 'lucide-react';
 import { AppShell } from '@/components/milla/AppShell';
-import { LanguageSwitcher } from '@/components/milla/LanguageSwitcher';
 import { MillaPicker } from '@/components/milla/MillaPicker';
 import { cn } from '@/lib/utils';
 import { MILLA_COPY, formatNum, getSurahDisplayName } from '@/lib/milla-i18n';
@@ -89,26 +88,22 @@ export default function OnboardingPage() {
   return (
     <AppShell title={copy.onboardingTitle} hideBottomNav hideTopActions>
       <div className="space-y-5 py-2">
-        {/* Top Controls: Large Text & Language */}
-        <div className="space-y-3">
-          <LanguageSwitcher variant="cards" />
-
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={() => setLargeUiMode(!largeUiMode)}
-              aria-pressed={largeUiMode}
-              className={cn(
-                'inline-flex min-h-[40px] items-center gap-2 rounded-full border px-4 text-xs font-semibold transition-colors',
-                largeUiMode
-                  ? 'border-primary bg-primary text-primary-foreground'
-                  : 'border-border bg-card text-foreground hover:bg-secondary',
-              )}
-            >
-              <Type className="h-4 w-4" aria-hidden="true" />
-              <span>{copy.onboardingLargeText}</span>
-            </button>
-          </div>
+        {/* Top Controls: Large Text */}
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setLargeUiMode(!largeUiMode)}
+            aria-pressed={largeUiMode}
+            className={cn(
+              'inline-flex min-h-[40px] items-center gap-2 rounded-full border px-4 text-xs font-semibold transition-colors',
+              largeUiMode
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-border bg-card text-foreground hover:bg-secondary',
+            )}
+          >
+            <Type className="h-4 w-4" aria-hidden="true" />
+            <span>{copy.onboardingLargeText}</span>
+          </button>
         </div>
 
         {/* Brand Identity */}
