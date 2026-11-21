@@ -14,7 +14,11 @@ import { LiveSessionPreview } from '@/components/LiveSessionPreview';
 import { InstallGuide } from '@/components/InstallGuide';
 import { LANDING_COPY, formatLandingNum, type LandingLang } from '@/lib/landing-copy';
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://al-milla.khalilbchir.pro';
+const APP_URL =
+  process.env.NEXT_PUBLIC_APP_URL ??
+  (process.env.NODE_ENV === 'development'
+    ? 'http://localhost:3001'
+    : 'https://app.al-milla.khalilbchir.pro');
 
 export default function LandingPage() {
   const [lang, setLang] = useState<LandingLang>('ar');

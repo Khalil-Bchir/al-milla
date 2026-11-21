@@ -38,12 +38,12 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'staging']).default('development'),
   PORT: z.string().default('3000'),
   API_URL: z.string().optional().default('https://api-al-milla.khalilbchir.pro'),
-  WEB_URL: z.string().optional().default('https://al-milla.khalilbchir.pro'),
+  WEB_URL: z.string().optional().default('https://app.al-milla.khalilbchir.pro'),
   ALLOWED_ORIGINS: z
     .string()
     .optional()
     .default(
-      'https://al-milla.khalilbchir.pro,https://al-milla.vercel.app,http://localhost:3001,http://localhost:3000',
+      'https://app.al-milla.khalilbchir.pro,https://al-milla.khalilbchir.pro,https://al-milla.vercel.app,http://localhost:3002,http://localhost:3001,http://localhost:3000',
     ),
 
   // Database (Supabase via Prisma)
