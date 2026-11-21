@@ -15,9 +15,25 @@ export function ServiceWorkerRegister() {
           .catch(() => undefined);
         return;
       }
-      void navigator.serviceWorker.register('/sw.js').catch(() => {
-        // Ignore registration errors in unsupported environments
-      });
+      const hadController = Boolean(navigator.serviceWorker.controller);
+      let reloading = false;
+      const handleControllerChange = () => {
+        if (!hadController || reloading) return;
+        reloading = true;
+        window.location.reload();
+      };
+      navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
+
+      void navigator.serviceWorker
+        .register('/sw.js', { updateViaCache: 'none' })
+        .then((reg) => reg.update().catch(() => undefined))
+        .catch(() => {
+          // Ignore registration errors in unsupported environments
+        });
+
+      return () => {
+        navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
+      };
     } catch {
       // Ignore unexpected SW errors
     }
