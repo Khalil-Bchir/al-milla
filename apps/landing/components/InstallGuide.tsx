@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Download, Monitor, Smartphone } from 'lucide-react';
+import { Download, Monitor, ShieldCheck, Smartphone } from 'lucide-react';
 import { Magnet } from '@/components/reactbits/Magnet';
 import { formatLandingNum, type LandingLang } from '@/lib/landing-copy';
 
@@ -19,6 +19,8 @@ const GUIDE_TEXT: Record<
     subtitle: string;
     oneTapBtn: string;
     securityNote: string;
+    trustTitle: string;
+    trustBody: string;
     tabs: { id: DeviceTab; label: string; steps: string[] }[];
   }
 > = {
@@ -29,6 +31,9 @@ const GUIDE_TEXT: Record<
     oneTapBtn: 'فتح وتثبيت المِلّة على شاشتك',
     securityNote:
       'ملاحظة: لأمان المستخدمين، تطلب المتصفحات ضغطة تأكيد واحدة منك لإضافة الأيقونة إلى الشاشة الرئيسية.',
+    trustTitle: 'اطمئن: تطبيق مجاني لوجه الله ولا يجمع أي بيانات',
+    trustBody:
+      'نحن لا نطلب اسمك أو بريدك أو رقم هاتفك، ولا نجمع أو نبيع أي بيانات عنك أبداً. إضافة المِلّة إلى شاشتك الرئيسية لا تثبّت برنامجاً غريباً ولا تصل إلى صورك أو ملفاتك؛ هي مجرد اختصار آمن وسريع من متصفحك لفتح المصحف والورد اليومي، ويمكنك حذفه بضغطة واحدة في أي وقت.',
     tabs: [
       {
         id: 'android',
@@ -66,6 +71,9 @@ const GUIDE_TEXT: Record<
     oneTapBtn: 'Open & Install Al-Millah',
     securityNote:
       'Note: For your security, browsers always require one confirmation tap before adding an app icon to your home screen.',
+    trustTitle: 'Safe, Free & Zero Data Collection',
+    trustBody:
+      'Al-Millah is offered purely as a free service with no ads and no hidden agenda. We never ask for your name, email, or phone number, and we never collect or track your personal data. Adding it to your home screen does not install an invasive program or access your photos, contacts, or files—it is simply a safe browser shortcut that you can remove anytime with one tap.',
     tabs: [
       {
         id: 'android',
@@ -103,6 +111,9 @@ const GUIDE_TEXT: Record<
     oneTapBtn: 'Ouvrir et installer Al-Millah',
     securityNote:
       'Note : Par sécurité, les navigateurs demandent toujours une confirmation en un clic pour ajouter l’icône.',
+    trustTitle: 'Sûr, gratuit et sans aucune collecte de données',
+    trustBody:
+      'Al-Millah est entièrement gratuit, sans publicité ni contrepartie cachée. Nous ne demandons ni nom, ni e-mail, ni numéro de téléphone, et nous ne collectons aucune donnée personnelle. L’ajouter à votre écran d’accueil n’installe aucun logiciel intrusif et n’accède ni à vos photos ni à vos fichiers : c’est un simple raccourci sûr que vous pouvez supprimer à tout moment.',
     tabs: [
       {
         id: 'android',
@@ -204,6 +215,17 @@ export function InstallGuide({ lang, appUrl }: InstallGuideProps) {
         </ol>
 
         <p className="mt-5 text-xs text-muted-foreground">{content.securityNote}</p>
+
+        {/* Simple, Polite Trust & Safety Reassurance */}
+        <div className="mt-6 flex items-start gap-3 rounded-2xl border border-primary/20 bg-secondary/45 p-4">
+          <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+          <div>
+            <p className="text-sm font-bold text-foreground">{content.trustTitle}</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground sm:text-sm">
+              {content.trustBody}
+            </p>
+          </div>
+        </div>
       </div>
     </section>
   );
