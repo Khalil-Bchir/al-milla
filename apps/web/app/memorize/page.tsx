@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
+  ArrowRight,
   BookOpen,
   CheckCircle2,
   ChevronDown,
@@ -53,6 +54,7 @@ export default function MemorizePage() {
   const showTranslation = useMillaStore((s) => s.showTranslation);
 
   const copy = MILLA_COPY[language];
+  const DirArrow = language === 'ar' ? ArrowLeft : ArrowRight;
   const surah = getSurahById(currentSurahId);
 
   const [ayahs, setAyahs] = useState<AyahEntry[]>(surah.ayahs);
@@ -166,15 +168,22 @@ export default function MemorizePage() {
   const [reviewAyahTexts, setReviewAyahTexts] = useState<Record<string, string>>({});
   const [loadingReviewText, setLoadingReviewText] = useState(false);
 
-  // Sub-state for New Memorization step (within today's dailyTarget range)
+  // Sub-state for New Memorization step (0: full, 1: light hide, 2: medium hide, 3: first-word cue)
   const [memOffset, setMemOffset] = useState(0);
-  const [hideWordsMode, setHideWordsMode] = useState(false);
+  const [hideLevel, setHideLevel] = useState<0 | 1 | 2 | 3>(0);
   const [showTafsirBox, setShowTafsirBox] = useState(false);
 
-  // Sub-state for Self-Test step
+  // Sub-state for Yesterday & Older Review per-Surah evaluation
+  const [yesterdayRating, setYesterdayRating] = useState<SelfEvalRating>('good');
+  const [olderRating, setOlderRating] = useState<SelfEvalRating>('good');
+  const [doneYesterdaySurahs, setDoneYesterdaySurahs] = useState<number[]>([]);
+  const [doneOlderSurahs, setDoneOlderSurahs] = useState<number[]>([]);
+
+  // Sub-state for Self-Test & Connect steps
   const [testOffset, setTestOffset] = useState(0);
   const [testRevealed, setTestRevealed] = useState(false);
   const [testRating, setTestRating] = useState<SelfEvalRating | null>(null);
+  const [connectIdx, setConnectIdx] = useState(0);
 
   // Load current Surah ayahs
   useEffect(() => {
@@ -262,9 +271,10 @@ export default function MemorizePage() {
   const advanceStep = (completedKey: keyof DailyStagesState) => {
     setDailyStage(completedKey, true);
     setReviewHidden(false);
-    setHideWordsMode(false);
+    setHideLevel(0);
     setTestRevealed(false);
     setTestRating(null);
+    setConnectIdx(0);
 
     if (stepIndex + 1 < sessionSteps.length) {
       setStepIndex((i) => i + 1);
@@ -275,16 +285,44 @@ export default function MemorizePage() {
   };
 
   const handleCompleteYesterdayReview = () => {
-    for (const item of yesterdayQueue) {
-      setVerseStatus(item.key, 'memorized');
+    if (activeYesterdaySurahId === null) {
+      advanceStep('yesterdayReview');
+      return;
     }
+    for (const item of activeYesterdayQueue) {
+      recordEvaluation(item.key, yesterdayRating);
+    }
+    const nextDone = Array.from(new Set([...doneYesterdaySurahs, activeYesterdaySurahId]));
+    const remaining = yesterdaySurahIds.filter((id) => !nextDone.includes(id));
+    if (remaining.length > 0) {
+      setDoneYesterdaySurahs(nextDone);
+      setYesterdaySurahId(remaining[0]);
+      setYesterdayIdx(0);
+      setYesterdayRating('good');
+      return;
+    }
+    setDoneYesterdaySurahs([]);
     advanceStep('yesterdayReview');
   };
 
   const handleCompleteOlderReview = () => {
-    for (const item of olderQueue) {
-      setVerseStatus(item.key, 'memorized');
+    if (activeOlderSurahId === null) {
+      advanceStep('olderReview');
+      return;
     }
+    for (const item of activeOlderQueue) {
+      recordEvaluation(item.key, olderRating);
+    }
+    const nextDone = Array.from(new Set([...doneOlderSurahs, activeOlderSurahId]));
+    const remaining = olderSurahIds.filter((id) => !nextDone.includes(id));
+    if (remaining.length > 0) {
+      setDoneOlderSurahs(nextDone);
+      setOlderSurahId(remaining[0]);
+      setOlderIdx(0);
+      setOlderRating('good');
+      return;
+    }
+    setDoneOlderSurahs([]);
     advanceStep('olderReview');
   };
 
@@ -292,10 +330,17 @@ export default function MemorizePage() {
     setInitialQueues(computeRevisionQueues(verseRecords));
     setYesterdayIdx(0);
     setOlderIdx(0);
+    setYesterdaySurahId(null);
+    setOlderSurahId(null);
+    setDoneYesterdaySurahs([]);
+    setDoneOlderSurahs([]);
+    setYesterdayRating('good');
+    setOlderRating('good');
     setMemOffset(0);
     setTestOffset(0);
+    setConnectIdx(0);
     setReviewHidden(false);
-    setHideWordsMode(false);
+    setHideLevel(0);
     setTestRevealed(false);
     setTestRating(null);
     setStepIndex(0);
@@ -306,6 +351,7 @@ export default function MemorizePage() {
     setCurrentPosition(nextSurahId, 1);
     setMemOffset(0);
     setTestOffset(0);
+    setConnectIdx(0);
     setIsSessionDone(false);
     const memIdx = sessionSteps.findIndex((s) => s.id === 'newMemorization');
     setStepIndex(memIdx >= 0 ? memIdx : 0);
@@ -314,7 +360,7 @@ export default function MemorizePage() {
   const handleCompleteMemorizeAyah = () => {
     if (!activeMemAyah) return;
     setVerseStatus(`${surah.id}:${activeMemAyah.number}`, 'memorized');
-    setHideWordsMode(false);
+    setHideLevel(0);
     if (memOffset + 1 < portionAyahs.length) {
       setMemOffset((o) => o + 1);
     } else {
@@ -331,15 +377,21 @@ export default function MemorizePage() {
     if (testOffset + 1 < portionAyahs.length) {
       setTestOffset((o) => o + 1);
     } else {
+      setConnectIdx(0);
       advanceStep('selfTest');
     }
   };
 
   const renderMaskedText = (text: string) => {
-    if (!hideWordsMode) return text;
+    if (hideLevel === 0) return text;
     return text
       .split(' ')
-      .map((w, idx) => (idx % 2 === 1 ? '•••••' : w))
+      .map((w, idx) => {
+        if (hideLevel === 1 && idx > 0 && idx % 3 === 1) return '•••••';
+        if (hideLevel === 2 && idx > 0 && idx % 3 !== 0) return '•••••';
+        if (hideLevel === 3 && idx > 0) return '•••••';
+        return w;
+      })
       .join(' ');
   };
 
@@ -541,13 +593,51 @@ export default function MemorizePage() {
               }
             />
 
+            <div className="rounded-xl border border-border bg-background/70 p-3">
+              <p className="mb-2 text-xs font-bold text-foreground">
+                {copy.revisionEvalPrompt} ({getSurahDisplayName(yesterdaySurah, language)})
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                {(
+                  [
+                    { id: 'difficult', label: copy.evalDifficult },
+                    { id: 'good', label: copy.evalGood },
+                    { id: 'easy', label: copy.evalEasy },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setYesterdayRating(opt.id)}
+                    aria-pressed={yesterdayRating === opt.id}
+                    className={cn(
+                      'min-h-[42px] rounded-xl border text-xs font-bold transition-colors',
+                      yesterdayRating === opt.id
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-border bg-card text-foreground hover:bg-secondary',
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <button
               type="button"
               onClick={handleCompleteYesterdayReview}
               className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-base font-bold text-primary-foreground hover:opacity-95"
             >
-              <span>أتممت مراجعة الأمس • المتابعة</span>
-              <ArrowLeft className="h-5 w-5" aria-hidden="true" />
+              <span>
+                {yesterdaySurahIds.filter((id) => !doneYesterdaySurahs.includes(id)).length > 1
+                  ? `${copy.revisionCompleteBtn} (${getSurahDisplayName(yesterdaySurah, language)})`
+                  : language === 'en'
+                    ? "Finish Yesterday's Review • Continue"
+                    : language === 'fr'
+                      ? 'Terminer la révision d’hier • Continuer'
+                      : 'أتممت مراجعة الأمس • المتابعة'}
+              </span>
+              <DirArrow className="h-5 w-5" aria-hidden="true" />
             </button>
           </section>
         )}
@@ -667,13 +757,51 @@ export default function MemorizePage() {
               }
             />
 
+            <div className="rounded-xl border border-border bg-background/70 p-3">
+              <p className="mb-2 text-xs font-bold text-foreground">
+                {copy.revisionEvalPrompt} ({getSurahDisplayName(olderSurah, language)})
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                {(
+                  [
+                    { id: 'difficult', label: copy.evalDifficult },
+                    { id: 'good', label: copy.evalGood },
+                    { id: 'easy', label: copy.evalEasy },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setOlderRating(opt.id)}
+                    aria-pressed={olderRating === opt.id}
+                    className={cn(
+                      'min-h-[42px] rounded-xl border text-xs font-bold transition-colors',
+                      olderRating === opt.id
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-border bg-card text-foreground hover:bg-secondary',
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <button
               type="button"
               onClick={handleCompleteOlderReview}
               className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-base font-bold text-primary-foreground hover:opacity-95"
             >
-              <span>أتممت المراجعة السابقة • بدء الحفظ الجديد</span>
-              <ArrowLeft className="h-5 w-5" aria-hidden="true" />
+              <span>
+                {olderSurahIds.filter((id) => !doneOlderSurahs.includes(id)).length > 1
+                  ? `${copy.revisionCompleteBtn} (${getSurahDisplayName(olderSurah, language)})`
+                  : language === 'en'
+                    ? 'Finish Older Review • Start New'
+                    : language === 'fr'
+                      ? 'Terminer la révision • Mémoriser'
+                      : 'أتممت المراجعة السابقة • بدء الحفظ الجديد'}
+              </span>
+              <DirArrow className="h-5 w-5" aria-hidden="true" />
             </button>
           </section>
         )}
@@ -693,21 +821,35 @@ export default function MemorizePage() {
 
                 <button
                   type="button"
-                  onClick={() => setHideWordsMode((v) => !v)}
-                  aria-pressed={hideWordsMode}
+                  onClick={() => setHideLevel((lvl) => ((lvl + 1) % 4) as 0 | 1 | 2 | 3)}
+                  aria-pressed={hideLevel > 0}
                   className={cn(
                     'inline-flex min-h-[48px] items-center gap-1.5 rounded-xl border px-3.5 text-sm font-semibold transition-colors',
-                    hideWordsMode
+                    hideLevel > 0
                       ? 'border-primary bg-primary text-primary-foreground'
                       : 'border-border bg-background text-foreground hover:bg-secondary',
                   )}
                 >
-                  {hideWordsMode ? (
+                  {hideLevel > 0 ? (
                     <Eye className="h-4 w-4" aria-hidden="true" />
                   ) : (
                     <EyeOff className="h-4 w-4" aria-hidden="true" />
                   )}
-                  <span>{hideWordsMode ? 'إظهار الآية' : 'إخفاء كلمات'}</span>
+                  <span>
+                    {hideLevel === 0
+                      ? language === 'en'
+                        ? 'Hide words'
+                        : language === 'fr'
+                          ? 'Masquer'
+                          : 'إخفاء تدريجي'
+                      : hideLevel === 3
+                        ? language === 'en'
+                          ? 'Show all'
+                          : language === 'fr'
+                            ? 'Tout afficher'
+                            : 'إظهار الكل'
+                        : `${language === 'en' ? 'Hide' : language === 'fr' ? 'Masqué' : 'إخفاء'} ${formatNum(hideLevel, language)}/${formatNum(3, language)}`}
+                  </span>
                 </button>
               </div>
 
@@ -888,10 +1030,18 @@ export default function MemorizePage() {
             >
               <span>
                 {testOffset + 1 < portionAyahs.length
-                  ? 'تثبيت التقييم • الآية التالية'
-                  : 'أتممت التسميع • الانتقال لربط الآيات'}
+                  ? language === 'en'
+                    ? 'Save Rating • Next Verse'
+                    : language === 'fr'
+                      ? 'Valider • Verset suivant'
+                      : 'تثبيت التقييم • الآية التالية'
+                  : language === 'en'
+                    ? 'Finish Self-Test • Connect Verses'
+                    : language === 'fr'
+                      ? 'Auto-test terminé • Relier les versets'
+                      : 'أتممت التسميع • الانتقال لربط الآيات'}
               </span>
-              <ArrowLeft className="h-5 w-5" aria-hidden="true" />
+              <DirArrow className="h-5 w-5" aria-hidden="true" />
             </button>
           </section>
         )}
@@ -900,28 +1050,86 @@ export default function MemorizePage() {
         {currentStep === 'verseConnection' && (
           <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
             <div className="flex items-center justify-between">
-              <h1 className="text-lg font-bold text-foreground">ربط الآيات</h1>
+              <h1 className="text-lg font-bold text-foreground">
+                {language === 'en'
+                  ? 'Connect Verses'
+                  : language === 'fr'
+                    ? 'Relier les versets'
+                    : 'ربط الآيات'}
+              </h1>
               <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-primary">
-                المقطع الكامل
+                {language === 'en'
+                  ? 'Full Passage'
+                  : language === 'fr'
+                    ? 'Passage complet'
+                    : 'المقطع الكامل'}
               </span>
             </div>
 
             <p className="text-sm leading-relaxed text-muted-foreground">
-              اقرأ الآيات متصلة من بدايتها لتثبيت الانتقال بين نهايات الآيات وبداياتها.
+              {language === 'en'
+                ? 'Read and listen to the passage connected from its beginning to lock verse transitions.'
+                : language === 'fr'
+                  ? 'Lisez et écoutez le passage en continu pour ancrer les enchaînements entre versets.'
+                  : 'اقرأ الآيات متصلة من بدايتها لتثبيت الانتقال بين نهايات الآيات وبداياتها. اضغط على أي آية للاستماع.'}
             </p>
+
+            {surah.id !== 1 && surah.id !== 9 && connectAyahs[0]?.number === 1 && (
+              <p className="text-center font-quran text-xl text-muted-foreground" dir="rtl" lang="ar">
+                بِسْمِ اللَّهِ الرَّحْمَـٰنِ الرَّحِيمِ
+              </p>
+            )}
 
             <div className="rounded-2xl bg-secondary/50 p-4 text-justify" dir="rtl" lang="ar">
               <p className="quran-text leading-[2.3] text-foreground">
-                {connectAyahs.map((a) => (
-                  <span key={a.number}>
-                    {a.textAr}{' '}
-                    <span className="mx-1 font-quran text-primary">
-                      ﴿{toArabicDigits(a.number)}﴾
-                    </span>{' '}
-                  </span>
-                ))}
+                {connectAyahs.map((a, idx) => {
+                  const selected = idx === Math.min(connectIdx, Math.max(0, connectAyahs.length - 1));
+                  return (
+                    <span
+                      key={a.number}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setConnectIdx(idx)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setConnectIdx(idx);
+                        }
+                      }}
+                      className={cn(
+                        'cursor-pointer rounded-lg transition-colors',
+                        selected ? 'bg-primary/10 px-1' : 'hover:bg-secondary/80',
+                      )}
+                    >
+                      {a.textAr}{' '}
+                      <span className="mx-1 font-quran text-primary">
+                        ﴿{toArabicDigits(a.number)}﴾
+                      </span>{' '}
+                    </span>
+                  );
+                })}
               </p>
             </div>
+
+            {connectAyahs.length > 0 && (
+              <AudioPlayerBar
+                mode="reference"
+                surahId={surah.id}
+                surahName={getSurahDisplayName(surah, language)}
+                ayahNumber={
+                  connectAyahs[Math.min(connectIdx, connectAyahs.length - 1)]?.number ??
+                  connectAyahs[0].number
+                }
+                onPrevAyah={
+                  connectIdx > 0 ? () => setConnectIdx((i) => Math.max(0, i - 1)) : undefined
+                }
+                onNextAyah={
+                  connectIdx + 1 < connectAyahs.length
+                    ? () => setConnectIdx((i) => i + 1)
+                    : undefined
+                }
+              />
+            )}
 
             <button
               type="button"
@@ -929,7 +1137,13 @@ export default function MemorizePage() {
               className="flex min-h-[54px] w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-base font-bold text-primary-foreground hover:opacity-95"
             >
               <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
-              <span>أتممت ربط الآيات وإنهاء الجلسة</span>
+              <span>
+                {language === 'en'
+                  ? 'Finish Verse Connection & Complete Session'
+                  : language === 'fr'
+                    ? 'Terminer la liaison et la séance'
+                    : 'أتممت ربط الآيات وإنهاء الجلسة'}
+              </span>
             </button>
           </section>
         )}
@@ -940,10 +1154,19 @@ export default function MemorizePage() {
             <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-secondary text-primary">
               <CheckCircle2 className="h-8 w-8" aria-hidden="true" />
             </span>
-            <h1 className="text-2xl font-bold text-primary">أحسنت، واصل</h1>
+            <h1 className="text-2xl font-bold text-primary">
+              {language === 'en'
+                ? 'Well done, keep going'
+                : language === 'fr'
+                  ? 'Bravo, continuez ainsi'
+                  : 'أحسنت، واصل'}
+            </h1>
             <p className="text-base leading-relaxed text-muted-foreground">
-              تمّ حفظ الورد بنجاح وتحديث موضعك القادم إلى {surah.nameAr} • الآية{' '}
-              {toArabicDigits(currentAyah)}.
+              {language === 'en'
+                ? `Portion completed! Your next position is ${getSurahDisplayName(surah, language)} • Verse ${formatNum(currentAyah, language)}.`
+                : language === 'fr'
+                  ? `Séance terminée ! Prochaine position : ${getSurahDisplayName(surah, language)} • Verset ${formatNum(currentAyah, language)}.`
+                  : `تمّ حفظ الورد بنجاح وتحديث موضعك القادم إلى ${surah.nameAr} • الآية ${toArabicDigits(currentAyah)}.`}
             </p>
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               <button
@@ -951,8 +1174,14 @@ export default function MemorizePage() {
                 onClick={handleStartNextSession}
                 className="flex min-h-[50px] items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground"
               >
-                <span>بدء الورد التالي الآن</span>
-                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                <span>
+                  {language === 'en'
+                    ? 'Start Next Portion'
+                    : language === 'fr'
+                      ? 'Portion suivante'
+                      : 'بدء الورد التالي الآن'}
+                </span>
+                <DirArrow className="h-4 w-4" aria-hidden="true" />
               </button>
               <Link
                 href="/"
