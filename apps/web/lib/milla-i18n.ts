@@ -23,6 +23,7 @@ export interface MillaCopy {
   brandName: string;
   tagline: string;
   hafsBadge: string;
+  scriptBadge: string;
   navHome: string;
   navMemorize: string;
   navRevision: string;
@@ -206,7 +207,8 @@ export const MILLA_COPY: Record<AppLanguage, MillaCopy> = {
   ar: {
     brandName: 'المِلّة',
     tagline: 'رحلتك مع حفظ القرآن الكريم',
-    hafsBadge: 'حفص عن عاصم',
+    hafsBadge: 'رواية: حفص عن عاصم',
+    scriptBadge: 'الرسم: العثماني',
     navHome: 'الرئيسية',
     navMemorize: 'الحفظ',
     navRevision: 'المراجعة',
@@ -229,7 +231,7 @@ export const MILLA_COPY: Record<AppLanguage, MillaCopy> = {
     juzLabel: 'الجزء',
     homeGreeting: 'السلام عليكم ورحمة الله',
     homeSubgreeting: 'خطوة هادئة كل يوم تثبّت حفظك دون عجلة.',
-    homeSubtitle: 'منهج المِلّة • المصحف العثماني (حفص عن عاصم)',
+    homeSubtitle: 'منهج المِلّة • الرواية: حفص عن عاصم • الرسم: العثماني',
     homeTodayWird: 'ورد اليوم',
     homeContinueCta: 'متابعة التعلّم الآن',
     homeContinueSessionCta: 'بدء جلسة اليوم (المراجعة + الحفظ)',
@@ -355,7 +357,7 @@ export const MILLA_COPY: Record<AppLanguage, MillaCopy> = {
     settingsExportDone: 'تم تنزيل نسخة احتياطية على جهازك.',
     settingsImportDone: 'تم استرجاع النسخة الاحتياطية بنجاح.',
     mushafTitle: 'المصحف الشريف',
-    mushafSubtitle: 'قراءة وتلاوة بالرسم العثماني (حفص عن عاصم)',
+    mushafSubtitle: 'الرواية: حفص عن عاصم • الخط: الرسم العثماني',
     mushafCachedText: 'جاهز دون اتصال',
     mushafTapHint: 'اضغط على أي آية لعرض خيارات التلاوة والترجمة والعلامة المرجعية',
     mushafPrevPage: 'الصفحة السابقة',
@@ -383,7 +385,8 @@ export const MILLA_COPY: Record<AppLanguage, MillaCopy> = {
   en: {
     brandName: 'Al-Millah',
     tagline: 'Your calm Quran memorization companion',
-    hafsBadge: 'Hafs an Asim',
+    hafsBadge: 'Riwayah: Hafs an Asim',
+    scriptBadge: 'Script: Uthmani',
     navHome: 'Home',
     navMemorize: 'Memorize',
     navRevision: 'Revision',
@@ -406,7 +409,7 @@ export const MILLA_COPY: Record<AppLanguage, MillaCopy> = {
     juzLabel: 'Juz',
     homeGreeting: 'Peace and blessings be upon you',
     homeSubgreeting: 'A calm daily step strengthens your memorization without rush.',
-    homeSubtitle: 'Al-Millah • Uthmani Mushaf (Hafs an Asim)',
+    homeSubtitle: 'Al-Millah • Riwayah: Hafs an Asim • Script: Uthmani',
     homeTodayWird: "Today's Portion",
     homeContinueCta: 'Continue Learning Now',
     homeContinueSessionCta: "Start Today's Session (Revision + New)",
@@ -532,7 +535,7 @@ export const MILLA_COPY: Record<AppLanguage, MillaCopy> = {
     settingsExportDone: 'Backup file downloaded to your device.',
     settingsImportDone: 'Backup restored successfully.',
     mushafTitle: 'Noble Mushaf',
-    mushafSubtitle: 'Uthmani Script (Hafs an Asim)',
+    mushafSubtitle: 'Riwayah: Hafs an Asim • Script: Uthmani',
     mushafCachedText: 'Available offline',
     mushafTapHint: 'Tap any verse for audio, translation, and bookmark options',
     mushafPrevPage: 'Previous Page',
@@ -560,7 +563,8 @@ export const MILLA_COPY: Record<AppLanguage, MillaCopy> = {
   fr: {
     brandName: 'Al-Millah',
     tagline: 'Votre compagnon serein pour mémoriser le Coran',
-    hafsBadge: 'Hafs an Asim',
+    hafsBadge: 'Riwayah : Hafs an Asim',
+    scriptBadge: 'Écriture : Uthmani',
     navHome: 'Accueil',
     navMemorize: 'Mémoriser',
     navRevision: 'Révision',
@@ -583,7 +587,7 @@ export const MILLA_COPY: Record<AppLanguage, MillaCopy> = {
     juzLabel: 'Juz',
     homeGreeting: 'Que la paix et la bénédiction soient sur vous',
     homeSubgreeting: 'Un pas serein chaque jour consolide votre mémorisation sans hâte.',
-    homeSubtitle: 'Al-Millah • Mushaf Uthmani (Hafs an Asim)',
+    homeSubtitle: 'Al-Millah • Riwayah : Hafs an Asim • Écriture : Uthmani',
     homeTodayWird: 'Portion du jour',
     homeContinueCta: 'Continuer la séance',
     homeContinueSessionCta: 'Démarrer la séance du jour (Révision + Nouveau)',
@@ -709,7 +713,7 @@ export const MILLA_COPY: Record<AppLanguage, MillaCopy> = {
     settingsExportDone: 'Sauvegarde téléchargée sur votre appareil.',
     settingsImportDone: 'Sauvegarde restaurée avec succès.',
     mushafTitle: 'Noble Mushaf',
-    mushafSubtitle: 'Écriture Uthmani (Hafs an Asim)',
+    mushafSubtitle: 'Riwayah : Hafs an Asim • Écriture : Uthmani',
     mushafCachedText: 'Disponible hors ligne',
     mushafTapHint: 'Appuyez sur un verset pour l’audio, la traduction et le signet',
     mushafPrevPage: 'Page précédente',

@@ -27,12 +27,22 @@ export default function OnboardingPage() {
   const copy = MILLA_COPY[language];
   const DirArrow = language === 'ar' ? ArrowLeft : ArrowRight;
 
+  const presetNotes: Record<number, { ar: string; en: string; fr: string }> = {
+    1: { ar: 'فاتحة الكتاب', en: 'Opening Surah', fr: 'Ouverture du Coran' },
+    78: { ar: 'بداية جزء عمّ', en: "Start of Juz 'Amma", fr: "Début du Juz 'Amma" },
+    67: { ar: 'ورد كل ليلة', en: 'Nightly Surah', fr: 'Sourate du soir' },
+    18: { ar: 'ورد يوم الجمعة', en: 'Friday Surah', fr: 'Sourate du vendredi' },
+  };
+
   const startingSurahPresets = [1, 78, 67, 18].map((id) => {
     const s = SURAHS.find((item) => item.id === id) ?? SURAHS[0];
+    const note = presetNotes[s.id]?.[language];
     return {
       id: s.id,
       label: getSurahDisplayName(s, language),
-      hint: `${formatNum(s.totalAyahs, language)} ${copy.versesUnit}`,
+      hint: note
+        ? `${formatNum(s.totalAyahs, language)} ${copy.versesUnit} • ${note}`
+        : `${formatNum(s.totalAyahs, language)} ${copy.versesUnit}`,
     };
   });
 

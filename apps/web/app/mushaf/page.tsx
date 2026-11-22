@@ -390,6 +390,9 @@ export default function MushafPage() {
                     <span className="rounded-full bg-secondary px-2.5 py-1 text-[11px] font-semibold text-secondary-foreground">
                       {copy.hafsBadge}
                     </span>
+                    <span className="rounded-full bg-secondary px-2.5 py-1 text-[11px] font-semibold text-secondary-foreground">
+                      {copy.scriptBadge}
+                    </span>
                   </div>
                   <p className="text-[11px] leading-relaxed text-muted-foreground">
                     {copy.mushafTapHint}

@@ -442,9 +442,14 @@ export default function MemorizePage() {
               keywords: `${s.nameEn} ${s.nameFr}`,
             }))}
           />
-          <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">
-            حفص عن عاصم
-          </span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">
+              {copy.hafsBadge}
+            </span>
+            <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">
+              {copy.scriptBadge}
+            </span>
+          </div>
         </div>
 
         {/* Read-Only Guided Session Progress Bar */}

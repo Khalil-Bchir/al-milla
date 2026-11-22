@@ -103,9 +103,14 @@ export default function SettingsPage() {
               <BookOpen className="h-5 w-5 text-primary" aria-hidden="true" />
               <h2 className="text-base font-bold text-foreground">{copy.settingsWirdTitle}</h2>
             </div>
-            <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">
-              {copy.hafsBadge}
-            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">
+                {copy.hafsBadge}
+              </span>
+              <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">
+                {copy.scriptBadge}
+              </span>
+            </div>
           </div>
 
           <div className="flex flex-col gap-1.5">
