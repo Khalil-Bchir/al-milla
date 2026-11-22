@@ -5,6 +5,7 @@ import { ServiceWorkerRegister } from '@/components/milla/ServiceWorkerRegister'
 import { ThemeSync } from '@/components/milla/ThemeSync';
 import { InstallPwaBanner } from '@/components/milla/InstallPwaBanner';
 import { ReminderScheduler } from '@/components/milla/ReminderScheduler';
+import { SplashScreen } from '@/components/milla/SplashScreen';
 
 const ibmArabic = IBM_Plex_Sans_Arabic({
   subsets: ['arabic', 'latin'],
@@ -154,6 +155,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(APP_JSON_LD) }}
         />
         <ThemeSync />
+        <SplashScreen />
         <ServiceWorkerRegister />
         <InstallPwaBanner />
         <ReminderScheduler />
