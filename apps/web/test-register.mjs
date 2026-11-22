@@ -5,19 +5,23 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const rootDir = dirname(fileURLToPath(import.meta.url));
 
-if (typeof globalThis.localStorage === 'undefined') {
-  const store = new Map();
-  globalThis.localStorage = {
-    getItem: (key) => store.get(key) ?? null,
-    setItem: (key, val) => store.set(key, String(val)),
-    removeItem: (key) => store.delete(key),
-    clear: () => store.clear(),
-    key: (idx) => Array.from(store.keys())[idx] ?? null,
-    get length() {
-      return store.size;
-    },
-  };
-}
+const memoryStore = new Map();
+const mockStorage = {
+  getItem: (key) => memoryStore.get(key) ?? null,
+  setItem: (key, val) => memoryStore.set(key, String(val)),
+  removeItem: (key) => memoryStore.delete(key),
+  clear: () => memoryStore.clear(),
+  key: (idx) => Array.from(memoryStore.keys())[idx] ?? null,
+  get length() {
+    return memoryStore.size;
+  },
+};
+
+Object.defineProperty(globalThis, 'localStorage', {
+  value: mockStorage,
+  configurable: true,
+  writable: true,
+});
 
 function resolveWithExtension(basePath) {
   const candidates = [basePath, `${basePath}.ts`, `${basePath}.tsx`, `${basePath}.js`];

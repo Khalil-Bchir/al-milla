@@ -9,7 +9,7 @@
     "start": "next start",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "node --import ./test-register.mjs --test lib/*.test.ts store/*.test.ts",
+    "test": "node --no-experimental-webstorage --import ./test-register.mjs --test lib/*.test.ts store/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
