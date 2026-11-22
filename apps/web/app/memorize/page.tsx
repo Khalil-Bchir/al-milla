@@ -20,6 +20,7 @@ import { AudioPlayerBar } from '@/components/milla/AudioPlayerBar';
 import { MillaPicker } from '@/components/milla/MillaPicker';
 import { cn } from '@/lib/utils';
 import { MILLA_COPY, formatNum, getSurahDisplayName } from '@/lib/milla-i18n';
+import { maskVerseByLevel, type ProgressiveHideLevel } from '@/lib/verse-masking';
 import {
   SURAHS,
   getSurahById,
@@ -177,7 +178,7 @@ export default function MemorizePage() {
 
   // Sub-state for New Memorization step (0: full, 1: light hide, 2: medium hide, 3: first-word cue)
   const [memOffset, setMemOffset] = useState(0);
-  const [hideLevel, setHideLevel] = useState<0 | 1 | 2 | 3>(0);
+  const [hideLevel, setHideLevel] = useState<ProgressiveHideLevel>(0);
   const [showTafsirBox, setShowTafsirBox] = useState(false);
 
   // Sub-state for Yesterday & Older Review per-Surah evaluation
@@ -405,18 +406,7 @@ export default function MemorizePage() {
     }
   };
 
-  const renderMaskedText = (text: string) => {
-    if (hideLevel === 0) return text;
-    return text
-      .split(' ')
-      .map((w, idx) => {
-        if (hideLevel === 1 && idx > 0 && idx % 3 === 1) return '•••••';
-        if (hideLevel === 2 && idx > 0 && idx % 3 !== 0) return '•••••';
-        if (hideLevel === 3 && idx > 0) return '•••••';
-        return w;
-      })
-      .join(' ');
-  };
+  const renderMaskedText = (text: string) => maskVerseByLevel(text, hideLevel);
 
   return (
     <AppShell

@@ -22,6 +22,7 @@ import { AudioPlayerBar } from '@/components/milla/AudioPlayerBar';
 import { cn } from '@/lib/utils';
 import { MILLA_COPY, formatNum, getSurahDisplayName } from '@/lib/milla-i18n';
 import { getSurahById, loadVerifiedSurahAyahs, toArabicDigits } from '@/lib/quran-data';
+import { formatCueText } from '@/lib/verse-masking';
 import {
   computeRevisionQueues,
   useMillaStore,
@@ -78,12 +79,6 @@ function groupItemsBySurah(items: RevisionTargetItem[]): SurahRevisionBucket[] {
       surahId,
       items: surahItems,
     }));
-}
-
-function formatCueText(textAr: string): string {
-  const words = textAr.trim().split(/\s+/);
-  if (words.length <= 2) return textAr;
-  return `${words.slice(0, 2).join(' ')} ...`;
 }
 
 export default function RevisionPage() {
