@@ -190,7 +190,13 @@ export default function HomePage() {
                 <p className="text-xs text-muted-foreground sm:text-sm">
                   {queues.totalDueCount > 0
                     ? `${formatNum(queues.totalDueCount, language)} ${copy.homeDueSummary} (${formatNum(queues.yesterdayItems.length, language)} ${copy.homeYesterdayShort} • ${formatNum(queues.olderDueItems.length, language)} ${copy.homeOlderShort} • ${formatNum(queues.weakItems.length, language)} ${copy.homeWeakShort})`
-                    : copy.homeRevisionEmpty}
+                    : metrics.totalMemorizedVerses > 0
+                      ? language === 'en'
+                        ? 'All due revisions are caught up for now'
+                        : language === 'fr'
+                          ? 'Toutes vos révisions dues sont à jour'
+                          : 'أتممت مراجعاتك المستحقة حالياً • محفوظك ثابت بإذن الله'
+                      : copy.homeRevisionEmpty}
                 </p>
               </div>
             </div>
