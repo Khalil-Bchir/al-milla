@@ -116,14 +116,51 @@ export default function MemorizePage() {
   const [stepIndex, setStepIndex] = useState(0);
   const [isSessionDone, setIsSessionDone] = useState(false);
 
-  // Per-verse indices inside Yesterday Review & Older Review queues
+  // Per-surah isolation + per-verse indices inside Yesterday Review & Older Review queues
+  const [yesterdaySurahId, setYesterdaySurahId] = useState<number | null>(null);
+  const [olderSurahId, setOlderSurahId] = useState<number | null>(null);
   const [yesterdayIdx, setYesterdayIdx] = useState(0);
   const [olderIdx, setOlderIdx] = useState(0);
   const [reviewHidden, setReviewHidden] = useState(false);
 
-  const yesterdayTarget = yesterdayQueue[yesterdayIdx];
+  const yesterdaySurahIds = useMemo(
+    () => Array.from(new Set(yesterdayQueue.map((item) => item.surahId))).sort((a, b) => a - b),
+    [yesterdayQueue],
+  );
+  const activeYesterdaySurahId =
+    yesterdaySurahId !== null && yesterdaySurahIds.includes(yesterdaySurahId)
+      ? yesterdaySurahId
+      : (yesterdaySurahIds[0] ?? null);
+  const activeYesterdayQueue = useMemo(
+    () =>
+      activeYesterdaySurahId === null
+        ? []
+        : yesterdayQueue.filter((item) => item.surahId === activeYesterdaySurahId),
+    [yesterdayQueue, activeYesterdaySurahId],
+  );
+
+  const olderSurahIds = useMemo(
+    () => Array.from(new Set(olderQueue.map((item) => item.surahId))).sort((a, b) => a - b),
+    [olderQueue],
+  );
+  const activeOlderSurahId =
+    olderSurahId !== null && olderSurahIds.includes(olderSurahId)
+      ? olderSurahId
+      : (olderSurahIds[0] ?? null);
+  const activeOlderQueue = useMemo(
+    () =>
+      activeOlderSurahId === null
+        ? []
+        : olderQueue.filter((item) => item.surahId === activeOlderSurahId),
+    [olderQueue, activeOlderSurahId],
+  );
+
+  const safeYesterdayIdx = yesterdayIdx < activeYesterdayQueue.length ? yesterdayIdx : 0;
+  const safeOlderIdx = olderIdx < activeOlderQueue.length ? olderIdx : 0;
+
+  const yesterdayTarget = activeYesterdayQueue[safeYesterdayIdx];
   const yesterdaySurah = yesterdayTarget ? getSurahById(yesterdayTarget.surahId) : null;
-  const olderTarget = olderQueue[olderIdx];
+  const olderTarget = activeOlderQueue[safeOlderIdx];
   const olderSurah = olderTarget ? getSurahById(olderTarget.surahId) : null;
 
   const [reviewAyahTexts, setReviewAyahTexts] = useState<Record<string, string>>({});
@@ -386,24 +423,52 @@ export default function MemorizePage() {
           </ol>
         </section>
 
-        {/* STEP 1: Yesterday's Review (Shows all yesterdayQueue verses together) */}
+        {/* STEP 1: Yesterday's Review (Single Surah at a time) */}
         {currentStep === 'yesterdayReview' && yesterdayTarget && yesterdaySurah && (
           <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h1 className="text-lg font-bold text-foreground">مراجعة الأمس</h1>
                 <p className="text-xs text-muted-foreground">
-                  مراجعة {toArabicDigits(yesterdayQueue.length)}{' '}
-                  {yesterdayQueue.length === 1 ? 'آية' : 'آيات'} من ورد الأمس معاً
+                  مراجعة {toArabicDigits(activeYesterdayQueue.length)}{' '}
+                  {activeYesterdayQueue.length === 1 ? 'آية' : 'آيات'} من {yesterdaySurah.nameAr}
                 </p>
               </div>
               <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-primary">
                 {yesterdaySurah.nameAr} •{' '}
-                {yesterdayQueue.length > 1
-                  ? `الآيات ${toArabicDigits(yesterdayQueue[0].ayahNumber)}–${toArabicDigits(yesterdayQueue[yesterdayQueue.length - 1].ayahNumber)}`
+                {activeYesterdayQueue.length > 1
+                  ? `الآيات ${toArabicDigits(activeYesterdayQueue[0].ayahNumber)}–${toArabicDigits(activeYesterdayQueue[activeYesterdayQueue.length - 1].ayahNumber)}`
                   : `الآية ${toArabicDigits(yesterdayTarget.ayahNumber)}`}
               </span>
             </div>
+
+            {yesterdaySurahIds.length > 1 && (
+              <div className="flex flex-wrap gap-1.5">
+                {yesterdaySurahIds.map((sid) => {
+                  const s = getSurahById(sid);
+                  const selected = sid === activeYesterdaySurahId;
+                  return (
+                    <button
+                      key={sid}
+                      type="button"
+                      onClick={() => {
+                        setYesterdaySurahId(sid);
+                        setYesterdayIdx(0);
+                      }}
+                      aria-pressed={selected}
+                      className={cn(
+                        'rounded-xl border px-3 py-1.5 text-xs font-bold transition-colors',
+                        selected
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-border bg-background text-foreground hover:bg-secondary',
+                      )}
+                    >
+                      {s.nameAr}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             <p className="text-sm text-muted-foreground">
               راجع آيات الأمس متصلةً قراءةً أو استماعاً مرجعياً قبل البدء بالآيات الجديدة. اضغط على
@@ -422,37 +487,28 @@ export default function MemorizePage() {
                 </div>
               ) : (
                 <p className="quran-text leading-[2.3] text-foreground">
-                  {yesterdayQueue.map((item, idx) => {
-                    const prevItem = idx > 0 ? yesterdayQueue[idx - 1] : null;
-                    const showSurahTag = prevItem && prevItem.surahId !== item.surahId;
-                    const itemSurah = showSurahTag ? getSurahById(item.surahId) : null;
-                    const isSelected = idx === yesterdayIdx;
+                  {activeYesterdayQueue.map((item, idx) => {
+                    const isSelected = idx === safeYesterdayIdx;
                     return (
-                      <span key={item.key}>
-                        {itemSurah && (
-                          <span className="mx-1.5 inline-block rounded-md bg-secondary px-2 py-0.5 font-sans text-xs font-semibold text-primary">
-                            {itemSurah.nameAr}
-                          </span>
+                      <span
+                        key={item.key}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setYesterdayIdx(idx)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setYesterdayIdx(idx);
+                          }
+                        }}
+                        className={cn(
+                          'cursor-pointer rounded-lg transition-colors',
+                          isSelected ? 'bg-primary/10 px-1' : 'hover:bg-secondary/80',
                         )}
-                        <span
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => setYesterdayIdx(idx)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              setYesterdayIdx(idx);
-                            }
-                          }}
-                          className={cn(
-                            'cursor-pointer rounded-lg transition-colors',
-                            isSelected ? 'bg-primary/10 px-1' : 'hover:bg-secondary/80',
-                          )}
-                        >
-                          {reviewAyahTexts[item.key] ?? 'تعذّر تحميل نص الآية'}{' '}
-                          <span className="mx-1 font-quran text-primary">
-                            ﴿{toArabicDigits(item.ayahNumber)}﴾
-                          </span>
+                      >
+                        {reviewAyahTexts[item.key] ?? 'تعذّر تحميل نص الآية'}{' '}
+                        <span className="mx-1 font-quran text-primary">
+                          ﴿{toArabicDigits(item.ayahNumber)}﴾
                         </span>{' '}
                       </span>
                     );
@@ -476,10 +532,10 @@ export default function MemorizePage() {
               surahName={yesterdaySurah.nameAr}
               ayahNumber={yesterdayTarget.ayahNumber}
               onPrevAyah={
-                yesterdayIdx > 0 ? () => setYesterdayIdx((i) => i - 1) : undefined
+                safeYesterdayIdx > 0 ? () => setYesterdayIdx((i) => Math.max(0, i - 1)) : undefined
               }
               onNextAyah={
-                yesterdayIdx + 1 < yesterdayQueue.length
+                safeYesterdayIdx + 1 < activeYesterdayQueue.length
                   ? () => setYesterdayIdx((i) => i + 1)
                   : undefined
               }
@@ -496,21 +552,49 @@ export default function MemorizePage() {
           </section>
         )}
 
-        {/* STEP 2: Older / Weak Material Review (Shows all olderQueue verses together) */}
+        {/* STEP 2: Older / Weak Material Review (Single Surah at a time) */}
         {currentStep === 'olderReview' && olderTarget && olderSurah && (
           <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h1 className="text-lg font-bold text-foreground">المراجعة السابقة</h1>
                 <p className="text-xs text-muted-foreground">
-                  مراجعة {toArabicDigits(olderQueue.length)}{' '}
-                  {olderQueue.length === 1 ? 'آية' : 'آيات'} مستحقة للمراجعة معاً
+                  مراجعة {toArabicDigits(activeOlderQueue.length)}{' '}
+                  {activeOlderQueue.length === 1 ? 'آية' : 'آيات'} من {olderSurah.nameAr}
                 </p>
               </div>
               <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-primary">
                 {olderSurah.nameAr} • الآية {toArabicDigits(olderTarget.ayahNumber)}
               </span>
             </div>
+
+            {olderSurahIds.length > 1 && (
+              <div className="flex flex-wrap gap-1.5">
+                {olderSurahIds.map((sid) => {
+                  const s = getSurahById(sid);
+                  const selected = sid === activeOlderSurahId;
+                  return (
+                    <button
+                      key={sid}
+                      type="button"
+                      onClick={() => {
+                        setOlderSurahId(sid);
+                        setOlderIdx(0);
+                      }}
+                      aria-pressed={selected}
+                      className={cn(
+                        'rounded-xl border px-3 py-1.5 text-xs font-bold transition-colors',
+                        selected
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-border bg-background text-foreground hover:bg-secondary',
+                      )}
+                    >
+                      {s.nameAr}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             <p className="text-sm text-muted-foreground">
               تدوير المحفوظ القديم ومواضع العناية يحفظ القرآن غضّاً في الصدر. اضغط على أي آية
@@ -529,37 +613,28 @@ export default function MemorizePage() {
                 </div>
               ) : (
                 <p className="quran-text leading-[2.3] text-foreground">
-                  {olderQueue.map((item, idx) => {
-                    const prevItem = idx > 0 ? olderQueue[idx - 1] : null;
-                    const showSurahTag = idx === 0 || (prevItem && prevItem.surahId !== item.surahId);
-                    const itemSurah = showSurahTag ? getSurahById(item.surahId) : null;
-                    const isSelected = idx === olderIdx;
+                  {activeOlderQueue.map((item, idx) => {
+                    const isSelected = idx === safeOlderIdx;
                     return (
-                      <span key={item.key}>
-                        {itemSurah && idx > 0 && (
-                          <span className="mx-1.5 inline-block rounded-md bg-secondary px-2 py-0.5 font-sans text-xs font-semibold text-primary">
-                            {itemSurah.nameAr}
-                          </span>
+                      <span
+                        key={item.key}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setOlderIdx(idx)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setOlderIdx(idx);
+                          }
+                        }}
+                        className={cn(
+                          'cursor-pointer rounded-lg transition-colors',
+                          isSelected ? 'bg-primary/10 px-1' : 'hover:bg-secondary/80',
                         )}
-                        <span
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => setOlderIdx(idx)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              setOlderIdx(idx);
-                            }
-                          }}
-                          className={cn(
-                            'cursor-pointer rounded-lg transition-colors',
-                            isSelected ? 'bg-primary/10 px-1' : 'hover:bg-secondary/80',
-                          )}
-                        >
-                          {reviewAyahTexts[item.key] ?? 'تعذّر تحميل نص الآية'}{' '}
-                          <span className="mx-1 font-quran text-primary">
-                            ﴿{toArabicDigits(item.ayahNumber)}﴾
-                          </span>
+                      >
+                        {reviewAyahTexts[item.key] ?? 'تعذّر تحميل نص الآية'}{' '}
+                        <span className="mx-1 font-quran text-primary">
+                          ﴿{toArabicDigits(item.ayahNumber)}﴾
                         </span>{' '}
                       </span>
                     );
@@ -582,9 +657,13 @@ export default function MemorizePage() {
               surahId={olderTarget.surahId}
               surahName={olderSurah.nameAr}
               ayahNumber={olderTarget.ayahNumber}
-              onPrevAyah={olderIdx > 0 ? () => setOlderIdx((i) => i - 1) : undefined}
+              onPrevAyah={
+                safeOlderIdx > 0 ? () => setOlderIdx((i) => Math.max(0, i - 1)) : undefined
+              }
               onNextAyah={
-                olderIdx + 1 < olderQueue.length ? () => setOlderIdx((i) => i + 1) : undefined
+                safeOlderIdx + 1 < activeOlderQueue.length
+                  ? () => setOlderIdx((i) => i + 1)
+                  : undefined
               }
             />
 

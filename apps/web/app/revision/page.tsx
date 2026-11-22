@@ -38,12 +38,18 @@ interface RevisionTargetItem {
   ayahNumber: number;
 }
 
+interface SurahRevisionBucket {
+  surahId: number;
+  items: RevisionTargetItem[];
+}
+
 interface RevisionGroupMeta {
   id: RevisionGroupId;
   title: string;
   subtitle: string;
   icon: typeof Clock;
   items: RevisionTargetItem[];
+  surahBuckets: SurahRevisionBucket[];
 }
 
 function toTargetItems(records: MemorizedVerseRecord[]): RevisionTargetItem[] {
@@ -53,6 +59,24 @@ function toTargetItems(records: MemorizedVerseRecord[]): RevisionTargetItem[] {
       key: r.key,
       surahId: r.surahId,
       ayahNumber: r.ayahNumber,
+    }));
+}
+
+function groupItemsBySurah(items: RevisionTargetItem[]): SurahRevisionBucket[] {
+  const bySurah = new Map<number, RevisionTargetItem[]>();
+  for (const item of items) {
+    const existing = bySurah.get(item.surahId);
+    if (existing) {
+      existing.push(item);
+    } else {
+      bySurah.set(item.surahId, [item]);
+    }
+  }
+  return Array.from(bySurah.entries())
+    .sort(([a], [b]) => a - b)
+    .map(([surahId, surahItems]) => ({
+      surahId,
+      items: surahItems,
     }));
 }
 
@@ -69,106 +93,143 @@ export default function RevisionPage() {
   const setDailyStage = useMillaStore((s) => s.setDailyStage);
 
   const copy = MILLA_COPY[language];
+  const BackArrow = language === 'ar' ? ArrowRight : ArrowLeft;
+  const ForwardArrow = language === 'ar' ? ArrowLeft : ArrowRight;
+
   const queues = useMemo(() => computeRevisionQueues(verseRecords), [verseRecords]);
   const totalMemorizedCount = Object.keys(verseRecords).length;
 
   const [activeGroupId, setActiveGroupId] = useState<RevisionGroupId | null>(null);
+  const [selectedSurahId, setSelectedSurahId] = useState<number | null>(null);
   const [activeAudioIdx, setActiveAudioIdx] = useState<number>(0);
   const [recallMode, setRecallMode] = useState<RecallViewMode>('full');
   const [groupRating, setGroupRating] = useState<SelfEvalRating>('good');
   const [completedTitle, setCompletedTitle] = useState<string | null>(null);
+  const [completedSurahNotice, setCompletedSurahNotice] = useState<string | null>(null);
 
   const [ayahTextMap, setAyahTextMap] = useState<Record<string, string>>({});
   const [loadingTexts, setLoadingTexts] = useState<boolean>(false);
 
-  const groups = useMemo<RevisionGroupMeta[]>(
-    () => [
+  const groups = useMemo<RevisionGroupMeta[]>(() => {
+    const yesterdayItems = toTargetItems(queues.yesterdayItems);
+    const olderItems = toTargetItems(queues.olderDueItems);
+    const weakItems = toTargetItems(queues.weakItems);
+
+    return [
       {
         id: 'yesterday',
         title: copy.revisionPillar1Title,
         subtitle: copy.revisionPillar1Sub,
         icon: Clock,
-        items: toTargetItems(queues.yesterdayItems),
+        items: yesterdayItems,
+        surahBuckets: groupItemsBySurah(yesterdayItems),
       },
       {
         id: 'older',
         title: copy.revisionPillar2Title,
         subtitle: copy.revisionPillar2Sub,
         icon: History,
-        items: toTargetItems(queues.olderDueItems),
+        items: olderItems,
+        surahBuckets: groupItemsBySurah(olderItems),
       },
       {
         id: 'weak',
         title: copy.revisionPillar3Title,
         subtitle: copy.revisionPillar3Sub,
         icon: AlertCircle,
-        items: toTargetItems(queues.weakItems),
+        items: weakItems,
+        surahBuckets: groupItemsBySurah(weakItems),
       },
-    ],
-    [queues, copy],
-  );
+    ];
+  }, [queues, copy]);
 
   const activeGroup = useMemo(
     () => groups.find((g) => g.id === activeGroupId) ?? null,
     [groups, activeGroupId],
   );
 
+  // Always resolve to a single Surah bucket so verses from different Surahs never mix
+  const activeBucket = useMemo(() => {
+    if (!activeGroup || activeGroup.surahBuckets.length === 0) return null;
+    return (
+      activeGroup.surahBuckets.find((b) => b.surahId === selectedSurahId) ??
+      activeGroup.surahBuckets[0]
+    );
+  }, [activeGroup, selectedSurahId]);
+
+  // Load verified Arabic text for the currently selected Surah only
   useEffect(() => {
-    if (!activeGroup || activeGroup.items.length === 0) return;
+    if (!activeBucket || activeBucket.items.length === 0) return;
 
-    const uniqueSurahIds = Array.from(new Set(activeGroup.items.map((item) => item.surahId)));
-    const missingSurahs = uniqueSurahIds.filter((sid) => {
-      const firstOfSurah = activeGroup.items.find((i) => i.surahId === sid);
-      return firstOfSurah ? !ayahTextMap[firstOfSurah.key] : false;
-    });
-
-    if (missingSurahs.length === 0) return;
+    const firstKey = activeBucket.items[0].key;
+    if (ayahTextMap[firstKey]) return;
 
     let cancelled = false;
     setLoadingTexts(true);
 
-    void Promise.all(
-      missingSurahs.map(async (sid) => {
-        const res = await loadVerifiedSurahAyahs(sid);
-        return { sid, ayahs: res.ayahs };
-      }),
-    ).then((results) => {
+    void loadVerifiedSurahAyahs(activeBucket.surahId).then((res) => {
       if (cancelled) return;
-      setAyahTextMap((prev) => {
-        const next = { ...prev };
-        for (const { sid, ayahs } of results) {
-          for (const a of ayahs) {
-            next[`${sid}:${a.number}`] = a.textAr;
+      if (res.ayahs.length > 0) {
+        setAyahTextMap((prev) => {
+          const next = { ...prev };
+          for (const a of res.ayahs) {
+            next[`${activeBucket.surahId}:${a.number}`] = a.textAr;
           }
-        }
-        return next;
-      });
+          return next;
+        });
+      }
       setLoadingTexts(false);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [activeGroup, ayahTextMap]);
+  }, [activeBucket, ayahTextMap]);
 
-  const startGroup = (groupId: RevisionGroupId) => {
+  const startGroup = (groupId: RevisionGroupId, initialSurahId?: number) => {
+    const group = groups.find((g) => g.id === groupId);
+    const firstSurahId = initialSurahId ?? group?.surahBuckets[0]?.surahId ?? null;
     setActiveGroupId(groupId);
+    setSelectedSurahId(firstSurahId);
     setActiveAudioIdx(0);
     setRecallMode('full');
     setGroupRating('good');
     setCompletedTitle(null);
+    setCompletedSurahNotice(null);
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
-  const handleCompleteGroup = () => {
-    if (!activeGroup) return;
+  const handleSelectSurah = (surahId: number) => {
+    setSelectedSurahId(surahId);
+    setActiveAudioIdx(0);
+    setCompletedSurahNotice(null);
+  };
 
-    for (const item of activeGroup.items) {
+  const handleCompleteSurah = () => {
+    if (!activeGroup || !activeBucket) return;
+
+    const completedSurah = getSurahById(activeBucket.surahId);
+    const remainingBuckets = activeGroup.surahBuckets.filter(
+      (b) => b.surahId !== activeBucket.surahId,
+    );
+
+    for (const item of activeBucket.items) {
       if (verseRecords[item.key]) {
         recordEvaluation(item.key, groupRating);
       }
+    }
+
+    if (remainingBuckets.length > 0) {
+      setSelectedSurahId(remainingBuckets[0].surahId);
+      setActiveAudioIdx(0);
+      setGroupRating('good');
+      setCompletedSurahNotice(getSurahDisplayName(completedSurah, language));
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      return;
     }
 
     if (activeGroup.id === 'yesterday') {
@@ -179,6 +240,7 @@ export default function RevisionPage() {
 
     setCompletedTitle(activeGroup.title);
     setActiveGroupId(null);
+    setSelectedSurahId(null);
   };
 
   const evalOptions: { id: SelfEvalRating; label: string; hint: string }[] = [
@@ -187,28 +249,104 @@ export default function RevisionPage() {
     { id: 'easy', label: copy.evalEasy, hint: copy.evalEasyHint },
   ];
 
-  const activeTarget = activeGroup?.items[activeAudioIdx] ?? activeGroup?.items[0] ?? null;
-  const activeSurah = activeTarget ? getSurahById(activeTarget.surahId) : null;
+  const safeAudioIdx =
+    activeBucket && activeAudioIdx < activeBucket.items.length ? activeAudioIdx : 0;
+  const activeTarget = activeBucket?.items[safeAudioIdx] ?? activeBucket?.items[0] ?? null;
+  const activeSurah = activeBucket ? getSurahById(activeBucket.surahId) : null;
 
-  if (activeGroup && activeTarget && activeSurah) {
+  if (activeGroup && activeBucket && activeTarget && activeSurah) {
+    const surahDisplayName = getSurahDisplayName(activeSurah, language);
+    const chooseSurahHeading =
+      language === 'en'
+        ? 'Choose Surah to revise'
+        : language === 'fr'
+          ? 'Choisir la sourate à réviser'
+          : 'اختر السورة للمراجعة';
+
     return (
-      <AppShell title={activeGroup.title} subtitle={copy.revisionSubtitle}>
+      <AppShell title={activeGroup.title} subtitle={surahDisplayName}>
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <button
               type="button"
-              onClick={() => setActiveGroupId(null)}
+              onClick={() => {
+                setActiveGroupId(null);
+                setSelectedSurahId(null);
+              }}
               className="inline-flex min-h-[42px] items-center gap-1.5 rounded-xl border border-border bg-card px-3.5 text-xs font-bold text-foreground hover:bg-secondary"
             >
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              <BackArrow className="h-4 w-4" aria-hidden="true" />
               <span>{copy.revisionBackBtn}</span>
             </button>
 
             <span className="rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold text-primary">
-              {copy.ayahLabel} {formatNum(activeAudioIdx + 1, language)} /{' '}
-              {formatNum(activeGroup.items.length, language)}
+              {copy.ayahLabel} {formatNum(safeAudioIdx + 1, language)} /{' '}
+              {formatNum(activeBucket.items.length, language)}
             </span>
           </div>
+
+          {/* Dedicated Surah Selector when multiple Surahs are due */}
+          {activeGroup.surahBuckets.length > 1 && (
+            <section className="rounded-2xl border border-border bg-card p-3">
+              <p className="mb-2 text-[11px] font-bold text-muted-foreground">
+                {chooseSurahHeading}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {activeGroup.surahBuckets.map((bucket) => {
+                  const bucketSurah = getSurahById(bucket.surahId);
+                  const selected = bucket.surahId === activeBucket.surahId;
+                  return (
+                    <button
+                      key={bucket.surahId}
+                      type="button"
+                      onClick={() => handleSelectSurah(bucket.surahId)}
+                      aria-pressed={selected}
+                      className={cn(
+                        'inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border px-3 text-xs font-bold transition-colors',
+                        selected
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-border bg-background text-foreground hover:bg-secondary',
+                      )}
+                    >
+                      <span>{getSurahDisplayName(bucketSurah, language)}</span>
+                      <span
+                        className={cn(
+                          'rounded-full px-1.5 py-0.5 text-[10px]',
+                          selected
+                            ? 'bg-primary-foreground/20 text-primary-foreground'
+                            : 'bg-secondary text-primary',
+                        )}
+                      >
+                        {formatNum(bucket.items.length, language)}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {completedSurahNotice && (
+            <div
+              role="status"
+              className="flex items-center justify-between gap-2 rounded-xl border border-primary/30 bg-secondary/70 px-3.5 py-2.5 text-xs font-semibold text-primary"
+            >
+              <span className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>
+                  {copy.revisionCompletedBanner}: {completedSurahNotice}
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setCompletedSurahNotice(null)}
+                aria-label={copy.mushafClose}
+                className="rounded p-1 hover:bg-secondary"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
 
           <div
             role="group"
@@ -244,11 +382,11 @@ export default function RevisionPage() {
             })}
           </div>
 
+          {/* Single-Surah Dedicated Reading Surface */}
           <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-            <div className="mb-3 flex items-center justify-between border-b border-border/70 pb-2.5 text-xs text-muted-foreground">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-border/70 pb-2.5 text-xs text-muted-foreground">
               <span className="font-bold text-foreground">
-                {getSurahDisplayName(activeSurah, language)} • {copy.ayahLabel}{' '}
-                {formatNum(activeTarget.ayahNumber, language)}
+                {surahDisplayName} • {copy.ayahLabel} {formatNum(activeTarget.ayahNumber, language)}
               </span>
               <span>{copy.revisionTapAyahHint}</span>
             </div>
@@ -259,7 +397,10 @@ export default function RevisionPage() {
               lang="ar"
             >
               {recallMode === 'hidden' ? (
-                <div className="flex flex-col items-center justify-center gap-2 py-10 text-center" dir={language === 'ar' ? 'rtl' : 'ltr'}>
+                <div
+                  className="flex flex-col items-center justify-center gap-2 py-10 text-center"
+                  dir={language === 'ar' ? 'rtl' : 'ltr'}
+                >
                   <EyeOff className="h-7 w-7 text-primary/60" aria-hidden="true" />
                   <p className="text-sm font-semibold text-foreground">{copy.revisionHiddenTitle}</p>
                   <p className="text-xs text-muted-foreground">{copy.revisionHiddenBody}</p>
@@ -271,44 +412,34 @@ export default function RevisionPage() {
                 </div>
               ) : (
                 <p className="quran-text leading-[2.35] text-foreground">
-                  {activeGroup.items.map((item, idx) => {
-                    const prev = idx > 0 ? activeGroup.items[idx - 1] : null;
-                    const showSurahTag =
-                      idx === 0 || (prev !== null && prev.surahId !== item.surahId);
-                    const itemSurah = showSurahTag ? getSurahById(item.surahId) : null;
-                    const isSelected = idx === activeAudioIdx;
+                  {activeBucket.items.map((item, idx) => {
+                    const isSelected = idx === safeAudioIdx;
                     const rawText = ayahTextMap[item.key] ?? '';
                     const displayedText =
                       recallMode === 'cue' && rawText ? formatCueText(rawText) : rawText;
 
                     return (
-                      <span key={item.key}>
-                        {itemSurah && (
-                          <span className="mx-1.5 inline-block rounded-md bg-secondary px-2 py-0.5 font-sans text-xs font-semibold text-primary">
-                            {itemSurah.nameAr}
-                          </span>
+                      <span
+                        key={item.key}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setActiveAudioIdx(idx)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setActiveAudioIdx(idx);
+                          }
+                        }}
+                        className={cn(
+                          'cursor-pointer rounded-lg transition-colors',
+                          isSelected
+                            ? 'bg-primary/15 px-1.5 ring-1 ring-primary/30'
+                            : 'hover:bg-secondary/80',
                         )}
-                        <span
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => setActiveAudioIdx(idx)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              setActiveAudioIdx(idx);
-                            }
-                          }}
-                          className={cn(
-                            'cursor-pointer rounded-lg transition-colors',
-                            isSelected
-                              ? 'bg-primary/15 px-1.5 ring-1 ring-primary/30'
-                              : 'hover:bg-secondary/80',
-                          )}
-                        >
-                          {displayedText || copy.loadingLabel}{' '}
-                          <span className="mx-1 font-quran text-primary">
-                            ﴿{toArabicDigits(item.ayahNumber)}﴾
-                          </span>
+                      >
+                        {displayedText || copy.loadingLabel}{' '}
+                        <span className="mx-1 font-quran text-primary">
+                          ﴿{toArabicDigits(item.ayahNumber)}﴾
                         </span>{' '}
                       </span>
                     );
@@ -321,20 +452,22 @@ export default function RevisionPage() {
           <AudioPlayerBar
             mode="reference"
             surahId={activeTarget.surahId}
-            surahName={getSurahDisplayName(activeSurah, language)}
+            surahName={surahDisplayName}
             ayahNumber={activeTarget.ayahNumber}
             onPrevAyah={
-              activeAudioIdx > 0 ? () => setActiveAudioIdx((i) => i - 1) : undefined
+              safeAudioIdx > 0 ? () => setActiveAudioIdx((i) => Math.max(0, i - 1)) : undefined
             }
             onNextAyah={
-              activeAudioIdx + 1 < activeGroup.items.length
+              safeAudioIdx + 1 < activeBucket.items.length
                 ? () => setActiveAudioIdx((i) => i + 1)
                 : undefined
             }
           />
 
           <section className="space-y-3 rounded-2xl border border-border bg-card p-4">
-            <p className="text-xs font-bold text-foreground">{copy.revisionEvalPrompt}</p>
+            <p className="text-xs font-bold text-foreground">
+              {copy.revisionEvalPrompt} ({surahDisplayName})
+            </p>
             <div className="grid grid-cols-3 gap-2">
               {evalOptions.map((opt) => {
                 const selected = groupRating === opt.id;
@@ -360,11 +493,15 @@ export default function RevisionPage() {
 
             <button
               type="button"
-              onClick={handleCompleteGroup}
+              onClick={handleCompleteSurah}
               className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-base font-bold text-primary-foreground hover:opacity-95"
             >
               <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
-              <span>{copy.revisionCompleteBtn}</span>
+              <span>
+                {activeGroup.surahBuckets.length > 1
+                  ? `${copy.revisionCompleteBtn} (${surahDisplayName})`
+                  : copy.revisionCompleteBtn}
+              </span>
             </button>
           </section>
         </div>
@@ -445,7 +582,7 @@ export default function RevisionPage() {
               className="mt-5 flex min-h-[50px] w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-base font-bold text-primary-foreground"
             >
               <span>{copy.revisionGoToSession}</span>
-              <ArrowLeft className="h-5 w-5" aria-hidden="true" />
+              <ForwardArrow className="h-5 w-5" aria-hidden="true" />
             </Link>
           </section>
         ) : (
@@ -470,6 +607,28 @@ export default function RevisionPage() {
                       {group.items.length === 1 ? copy.verseSingular : copy.versesUnit}
                     </span>
                   </div>
+
+                  {/* Direct Surah Picker Pills inside each Revision Card */}
+                  {group.surahBuckets.length > 0 && (
+                    <div className="mb-3 flex flex-wrap gap-1.5">
+                      {group.surahBuckets.map((bucket) => {
+                        const bucketSurah = getSurahById(bucket.surahId);
+                        return (
+                          <button
+                            key={bucket.surahId}
+                            type="button"
+                            onClick={() => startGroup(group.id, bucket.surahId)}
+                            className="inline-flex min-h-[34px] items-center gap-1.5 rounded-xl border border-border bg-background px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:border-primary/40 hover:bg-secondary"
+                          >
+                            <span>{getSurahDisplayName(bucketSurah, language)}</span>
+                            <span className="rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                              {formatNum(bucket.items.length, language)}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
 
                   <button
                     type="button"
