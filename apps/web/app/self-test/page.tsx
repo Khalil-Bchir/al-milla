@@ -72,7 +72,7 @@ export default function SelfTestPage() {
 
   const handleSubmitAndNext = () => {
     if (rating && ayah) {
-      recordEvaluation(`${surah.id}:${ayah.number}`, rating);
+      recordEvaluation(`${surah.id}:${ayah.number}`, rating, true);
     }
     setRevealed(false);
     setRating(null);

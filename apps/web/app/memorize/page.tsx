@@ -44,12 +44,16 @@ interface GuidedStepDef {
 export default function MemorizePage() {
   const currentSurahId = useMillaStore((s) => s.currentSurahId);
   const currentAyah = useMillaStore((s) => s.currentAyah);
+  const surahCursors = useMillaStore((s) => s.surahCursors);
   const dailyTarget = useMillaStore((s) => s.dailyTarget);
   const setCurrentPosition = useMillaStore((s) => s.setCurrentPosition);
+  const setLastCompletedSession = useMillaStore((s) => s.setLastCompletedSession);
   const setVerseStatus = useMillaStore((s) => s.setVerseStatus);
   const recordEvaluation = useMillaStore((s) => s.recordEvaluation);
   const setDailyStage = useMillaStore((s) => s.setDailyStage);
   const verseRecords = useMillaStore((s) => s.verseRecords);
+  const lastSessionKeys = useMillaStore((s) => s.lastSessionKeys);
+  const lastSessionCompletedAt = useMillaStore((s) => s.lastSessionCompletedAt);
   const language = useMillaStore((s) => s.language);
   const showTranslation = useMillaStore((s) => s.showTranslation);
 
@@ -63,7 +67,10 @@ export default function MemorizePage() {
 
   // Snapshot initial revision queues once per session
   const [initialQueues, setInitialQueues] = useState(() =>
-    computeRevisionQueues(verseRecords),
+    computeRevisionQueues(verseRecords, {
+      lastSessionKeys,
+      lastSessionCompletedAt,
+    }),
   );
 
   const yesterdayQueue = useMemo(
@@ -249,22 +256,29 @@ export default function MemorizePage() {
   const activeMemAyah = portionAyahs[memOffset] ?? portionAyahs[0];
   const activeTestAyah = portionAyahs[testOffset] ?? portionAyahs[0];
 
-  // Connected range (includes preceding verse if available)
-  const connectStartIdx = Math.max(0, startIdx - 1);
+  // Connected range (includes preceding verse only if it is actually memorized/weak)
+  const prevAyahEntry = startIdx > 0 ? ayahs[startIdx - 1] : null;
+  const prevAyahRecord = prevAyahEntry
+    ? verseRecords[`${surah.id}:${prevAyahEntry.number}`]
+    : undefined;
+  const hasMemorizedPrevAyah =
+    prevAyahRecord?.status === 'memorized' || prevAyahRecord?.status === 'weak';
+  const connectStartIdx = hasMemorizedPrevAyah ? startIdx - 1 : startIdx;
   const connectAyahs = ayahs.slice(connectStartIdx, startIdx + dailyTarget);
 
   const currentStep: SessionStepId = isSessionDone
     ? 'completed'
     : (sessionSteps[stepIndex]?.id ?? 'newMemorization');
 
+  const [justFinishedSurah, setJustFinishedSurah] = useState(false);
+
   const advanceNextWirdPosition = () => {
     const lastCompletedAyah = portionAyahs[portionAyahs.length - 1]?.number ?? currentAyah;
     if (lastCompletedAyah < surah.totalAyahs) {
+      setJustFinishedSurah(false);
       setCurrentPosition(surah.id, lastCompletedAyah + 1);
-    } else if (surah.id < 114) {
-      setCurrentPosition(surah.id + 1, 1);
     } else {
-      setCurrentPosition(1, 1);
+      setJustFinishedSurah(true);
     }
   };
 
@@ -279,6 +293,7 @@ export default function MemorizePage() {
     if (stepIndex + 1 < sessionSteps.length) {
       setStepIndex((i) => i + 1);
     } else {
+      setLastCompletedSession(portionAyahs.map((a) => `${surah.id}:${a.number}`));
       advanceNextWirdPosition();
       setIsSessionDone(true);
     }
@@ -327,7 +342,12 @@ export default function MemorizePage() {
   };
 
   const handleStartNextSession = () => {
-    setInitialQueues(computeRevisionQueues(verseRecords));
+    setInitialQueues(
+      computeRevisionQueues(verseRecords, {
+        lastSessionKeys,
+        lastSessionCompletedAt,
+      }),
+    );
     setYesterdayIdx(0);
     setOlderIdx(0);
     setYesterdaySurahId(null);
@@ -343,15 +363,18 @@ export default function MemorizePage() {
     setHideLevel(0);
     setTestRevealed(false);
     setTestRating(null);
+    setJustFinishedSurah(false);
     setStepIndex(0);
     setIsSessionDone(false);
   };
 
   const handleSurahChange = (nextSurahId: number) => {
-    setCurrentPosition(nextSurahId, 1);
+    const savedAyah = surahCursors[nextSurahId] ?? 1;
+    setCurrentPosition(nextSurahId, savedAyah);
     setMemOffset(0);
     setTestOffset(0);
     setConnectIdx(0);
+    setJustFinishedSurah(false);
     setIsSessionDone(false);
     const memIdx = sessionSteps.findIndex((s) => s.id === 'newMemorization');
     setStepIndex(memIdx >= 0 ? memIdx : 0);
@@ -359,7 +382,7 @@ export default function MemorizePage() {
 
   const handleCompleteMemorizeAyah = () => {
     if (!activeMemAyah) return;
-    setVerseStatus(`${surah.id}:${activeMemAyah.number}`, 'memorized');
+    setVerseStatus(`${surah.id}:${activeMemAyah.number}`, 'in_progress');
     setHideLevel(0);
     if (memOffset + 1 < portionAyahs.length) {
       setMemOffset((o) => o + 1);
@@ -371,7 +394,7 @@ export default function MemorizePage() {
 
   const handleCompleteTestAyah = () => {
     if (!activeTestAyah || !testRating) return;
-    recordEvaluation(`${surah.id}:${activeTestAyah.number}`, testRating);
+    recordEvaluation(`${surah.id}:${activeTestAyah.number}`, testRating, true);
     setTestRevealed(false);
     setTestRating(null);
     if (testOffset + 1 < portionAyahs.length) {
@@ -1162,12 +1185,52 @@ export default function MemorizePage() {
                   : 'أحسنت، واصل'}
             </h1>
             <p className="text-base leading-relaxed text-muted-foreground">
-              {language === 'en'
-                ? `Portion completed! Your next position is ${getSurahDisplayName(surah, language)} • Verse ${formatNum(currentAyah, language)}.`
-                : language === 'fr'
-                  ? `Séance terminée ! Prochaine position : ${getSurahDisplayName(surah, language)} • Verset ${formatNum(currentAyah, language)}.`
-                  : `تمّ حفظ الورد بنجاح وتحديث موضعك القادم إلى ${surah.nameAr} • الآية ${toArabicDigits(currentAyah)}.`}
+              {justFinishedSurah
+                ? language === 'en'
+                  ? `You have reached the end of ${getSurahDisplayName(surah, language)}. Choose your next Surah below whenever you are ready.`
+                  : language === 'fr'
+                    ? `Vous avez terminé ${getSurahDisplayName(surah, language)}. Choisissez votre prochaine sourate ci-dessous.`
+                    : `أتممت بفضل الله ${surah.nameAr}. اختر السورة التالية التي تودّ البدء بها.`
+                : language === 'en'
+                  ? `Portion completed! Your next position is ${getSurahDisplayName(surah, language)} • Verse ${formatNum(currentAyah, language)}.`
+                  : language === 'fr'
+                    ? `Séance terminée ! Prochaine position : ${getSurahDisplayName(surah, language)} • Verset ${formatNum(currentAyah, language)}.`
+                    : `تمّ حفظ الورد بنجاح وتحديث موضعك القادم إلى ${surah.nameAr} • الآية ${toArabicDigits(currentAyah)}.`}
             </p>
+            {justFinishedSurah && (
+              <div className="mx-auto max-w-xs pt-1">
+                <MillaPicker
+                  searchable
+                  value={String(surah.id)}
+                  onChange={(val) => {
+                    const nextId = Number(val);
+                    setCurrentPosition(nextId, surahCursors[nextId] ?? 1);
+                    handleStartNextSession();
+                  }}
+                  title={
+                    language === 'en'
+                      ? 'Choose next Surah'
+                      : language === 'fr'
+                        ? 'Choisir la prochaine sourate'
+                        : 'اختر السورة التالية'
+                  }
+                  ariaLabel={
+                    language === 'en'
+                      ? 'Choose next Surah'
+                      : language === 'fr'
+                        ? 'Choisir la prochaine sourate'
+                        : 'اختر السورة التالية'
+                  }
+                  icon={<BookOpen className="h-4 w-4" aria-hidden="true" />}
+                  options={SURAHS.map((s) => ({
+                    value: String(s.id),
+                    label: `${toArabicDigits(s.id)}. ${getSurahDisplayName(s, language)}`,
+                    description: `${formatNum(s.totalAyahs, language)} ${copy.versesUnit}`,
+                    keywords: `${s.nameEn} ${s.nameFr} ${s.nameAr}`,
+                  }))}
+                />
+              </div>
+            )}
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               <button
                 type="button"

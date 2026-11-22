@@ -35,6 +35,8 @@ export default function HomePage() {
   const currentSurahId = useMillaStore((s) => s.currentSurahId);
   const currentAyah = useMillaStore((s) => s.currentAyah);
   const verseRecords = useMillaStore((s) => s.verseRecords);
+  const lastSessionKeys = useMillaStore((s) => s.lastSessionKeys);
+  const lastSessionCompletedAt = useMillaStore((s) => s.lastSessionCompletedAt);
   const activityDates = useMillaStore((s) => s.activityDates);
 
   useEffect(() => {
@@ -60,7 +62,10 @@ export default function HomePage() {
     Math.round((memorizedInCurrentSurah / Math.max(1, surah.totalAyahs)) * 100),
   );
 
-  const queues = computeRevisionQueues(verseRecords);
+  const queues = computeRevisionQueues(verseRecords, {
+    lastSessionKeys,
+    lastSessionCompletedAt,
+  });
   const metrics = computeProgressMetrics(verseRecords, activityDates, currentSurahId);
 
   if (hydrated && !onboardingCompleted) {

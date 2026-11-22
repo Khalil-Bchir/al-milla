@@ -89,6 +89,8 @@ function formatCueText(textAr: string): string {
 export default function RevisionPage() {
   const language = useMillaStore((s) => s.language);
   const verseRecords = useMillaStore((s) => s.verseRecords);
+  const lastSessionKeys = useMillaStore((s) => s.lastSessionKeys);
+  const lastSessionCompletedAt = useMillaStore((s) => s.lastSessionCompletedAt);
   const recordEvaluation = useMillaStore((s) => s.recordEvaluation);
   const setDailyStage = useMillaStore((s) => s.setDailyStage);
 
@@ -96,7 +98,14 @@ export default function RevisionPage() {
   const BackArrow = language === 'ar' ? ArrowRight : ArrowLeft;
   const ForwardArrow = language === 'ar' ? ArrowLeft : ArrowRight;
 
-  const queues = useMemo(() => computeRevisionQueues(verseRecords), [verseRecords]);
+  const queues = useMemo(
+    () =>
+      computeRevisionQueues(verseRecords, {
+        lastSessionKeys,
+        lastSessionCompletedAt,
+      }),
+    [verseRecords, lastSessionKeys, lastSessionCompletedAt],
+  );
   const totalMemorizedCount = Object.keys(verseRecords).length;
 
   const [activeGroupId, setActiveGroupId] = useState<RevisionGroupId | null>(null);

@@ -2,27 +2,30 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { AppLanguage } from '@/lib/milla-i18n';
 import { SURAHS, type NarrationId, type ReciterId } from '@/lib/quran-data';
+import {
+  computeRevisionQueues,
+  type ComputeRevisionQueuesOptions,
+  type MemorizedVerseRecord,
+  type RevisionIntervalDays,
+  type RevisionQueuesSummary,
+  type SelfEvalRating,
+  type VerseStatus,
+} from '@/lib/revision-queues';
 
-export type VerseStatus = 'memorized' | 'in_progress' | 'weak';
-export type SelfEvalRating = 'difficult' | 'good' | 'easy';
+export {
+  computeRevisionQueues,
+  type ComputeRevisionQueuesOptions,
+  type MemorizedVerseRecord,
+  type RevisionIntervalDays,
+  type RevisionQueuesSummary,
+  type SelfEvalRating,
+  type VerseStatus,
+};
+
 export type PlaybackSpeed = 0.75 | 1.0 | 1.25;
-export type RevisionIntervalDays = 1 | 3 | 7 | 14 | 30;
 export type MushafViewMode = 'verses' | 'page';
 
 const INTERVAL_LADDER: RevisionIntervalDays[] = [1, 3, 7, 14, 30];
-
-export interface MemorizedVerseRecord {
-  key: string;
-  surahId: number;
-  ayahNumber: number;
-  status: VerseStatus;
-  firstMemorizedAt: string;
-  lastReviewedAt: string;
-  nextReviewAt: string;
-  intervalDays: RevisionIntervalDays;
-  lastEvaluation?: SelfEvalRating;
-  reviewCount: number;
-}
 
 export interface DailyStagesState {
   yesterdayReview: boolean;
@@ -57,6 +60,9 @@ export interface MillaPersistedState {
   onboardingCompleted: boolean;
   currentSurahId: number;
   currentAyah: number;
+  surahCursors: Record<number, number>;
+  lastSessionKeys: string[];
+  lastSessionCompletedAt: string | null;
   mushafViewMode: MushafViewMode;
   currentMushafPage: number;
   memorizedAyahs: Record<string, VerseStatus>;
@@ -100,10 +106,11 @@ export interface MillaStoreActions {
   updateReminders: (patch: Partial<ReminderSettings>) => void;
   completeOnboarding: () => void;
   setCurrentPosition: (surahId: number, ayah: number) => void;
+  setLastCompletedSession: (keys: string[]) => void;
   setMushafViewMode: (mode: MushafViewMode) => void;
   setCurrentMushafPage: (page: number) => void;
   setVerseStatus: (key: string, status: VerseStatus) => void;
-  recordEvaluation: (key: string, rating: SelfEvalRating) => void;
+  recordEvaluation: (key: string, rating: SelfEvalRating, markSelfTest?: boolean) => void;
   toggleBookmark: (key: string) => void;
   setDailyStage: (stage: keyof DailyStagesState, done: boolean) => void;
   toggleDailyStage: (stage: keyof DailyStagesState) => void;
@@ -156,6 +163,9 @@ const INITIAL_STATE: MillaPersistedState = {
   onboardingCompleted: false,
   currentSurahId: 1,
   currentAyah: 1,
+  surahCursors: {},
+  lastSessionKeys: [],
+  lastSessionCompletedAt: null,
   mushafViewMode: 'verses',
   currentMushafPage: 1,
   memorizedAyahs: {},
@@ -193,6 +203,9 @@ type MillaStoredSlice = Pick<
   | 'onboardingCompleted'
   | 'currentSurahId'
   | 'currentAyah'
+  | 'surahCursors'
+  | 'lastSessionKeys'
+  | 'lastSessionCompletedAt'
   | 'mushafViewMode'
   | 'currentMushafPage'
   | 'verseRecords'
@@ -243,12 +256,21 @@ export const useMillaStore = create<MillaStore>()(
       completeOnboarding: () => set({ onboardingCompleted: true }),
       setCurrentPosition: (currentSurahId, currentAyah) => {
         const surah = SURAHS.find((s) => s.id === currentSurahId);
-        set({
+        set((state) => ({
           currentSurahId,
           currentAyah,
           currentMushafPage: surah?.pageStart ?? 1,
-        });
+          surahCursors: {
+            ...state.surahCursors,
+            [currentSurahId]: currentAyah,
+          },
+        }));
       },
+      setLastCompletedSession: (keys) =>
+        set({
+          lastSessionKeys: keys,
+          lastSessionCompletedAt: new Date().toISOString(),
+        }),
       setMushafViewMode: (mushafViewMode) => set({ mushafViewMode }),
       setCurrentMushafPage: (page) =>
         set({ currentMushafPage: Math.max(1, Math.min(604, page)) }),
@@ -279,7 +301,7 @@ export const useMillaStore = create<MillaStore>()(
                 : state.dailyStages,
           };
         }),
-      recordEvaluation: (key, rating) =>
+      recordEvaluation: (key, rating, markSelfTest = false) =>
         set((state) => {
           const { surahId, ayahNumber } = parseVerseKey(key);
           const nowIso = new Date().toISOString();
@@ -303,7 +325,9 @@ export const useMillaStore = create<MillaStore>()(
             memorizedAyahs: { ...state.memorizedAyahs, [key]: status },
             verseRecords: { ...state.verseRecords, [key]: updatedRecord },
             activityDates: appendTodayActivity(state.activityDates),
-            dailyStages: { ...state.dailyStages, selfTest: true },
+            dailyStages: markSelfTest
+              ? { ...state.dailyStages, selfTest: true }
+              : state.dailyStages,
           };
         }),
       toggleBookmark: (key) =>
@@ -387,6 +411,9 @@ export const useMillaStore = create<MillaStore>()(
         onboardingCompleted: state.onboardingCompleted,
         currentSurahId: state.currentSurahId,
         currentAyah: state.currentAyah,
+        surahCursors: state.surahCursors,
+        lastSessionKeys: state.lastSessionKeys,
+        lastSessionCompletedAt: state.lastSessionCompletedAt,
         mushafViewMode: state.mushafViewMode,
         currentMushafPage: state.currentMushafPage,
         verseRecords: state.verseRecords,
@@ -408,45 +435,6 @@ export const useMillaStore = create<MillaStore>()(
     },
   ),
 );
-
-export interface RevisionQueuesSummary {
-  yesterdayItems: MemorizedVerseRecord[];
-  olderDueItems: MemorizedVerseRecord[];
-  weakItems: MemorizedVerseRecord[];
-  totalDueCount: number;
-}
-
-export function computeRevisionQueues(
-  verseRecords: Record<string, MemorizedVerseRecord>,
-): RevisionQueuesSummary {
-  const nowMs = Date.now();
-  const twoDaysAgoMs = nowMs - 2 * 86_400_000;
-  const all = Object.values(verseRecords);
-
-  const yesterdayItems = all.filter((r) => {
-    const firstMs = Date.parse(r.firstMemorizedAt);
-    return Number.isFinite(firstMs) && firstMs >= twoDaysAgoMs && r.status !== 'weak';
-  });
-
-  const olderDueItems = all.filter((r) => {
-    const firstMs = Date.parse(r.firstMemorizedAt);
-    const nextMs = Date.parse(r.nextReviewAt);
-    return (
-      r.status === 'memorized' &&
-      (!Number.isFinite(firstMs) || firstMs < twoDaysAgoMs) &&
-      (!Number.isFinite(nextMs) || nextMs <= nowMs + 86_400_000)
-    );
-  });
-
-  const weakItems = all.filter((r) => r.status === 'weak' || r.lastEvaluation === 'difficult');
-
-  return {
-    yesterdayItems,
-    olderDueItems,
-    weakItems,
-    totalDueCount: yesterdayItems.length + olderDueItems.length + weakItems.length,
-  };
-}
 
 export interface SurahMasteryDynamicItem {
   surahId: number;
