@@ -1,0 +1,9 @@
+{
+  "extends": "@al-milla/typescript-config/node.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["dist", "build", "node_modules"]
+}

@@ -11,7 +11,11 @@
     "clean": "rm -rf node_modules pnpm-lock.yaml .turbo",
     "prepare": "husky || echo \"husky skipped\"",
     "commitlint": "commitlint --edit",
-    "commit": "git-cz"
+    "commit": "git-cz",
+    "env:sync": "node scripts/sync-env.mjs --env=all",
+    "env:sync:dev": "node scripts/sync-env.mjs --env=development",
+    "env:sync:staging": "node scripts/sync-env.mjs --env=staging",
+    "env:sync:prod": "node scripts/sync-env.mjs --env=production"
   },
   "dependencies": {
     "@commitlint/cli": "^20.1.0",

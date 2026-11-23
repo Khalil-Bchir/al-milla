@@ -24,12 +24,15 @@ export const portfolioSyncPayloadSchema = z.object({
   bookmarks: z.array(z.string()).max(200).default([]),
   activityDates: z.array(z.string()).max(365).default([]),
   verses: z.array(syncedVerseSchema).max(6236).default([]),
+  version: z.number().int().min(0).optional(),
+  clientUpdatedAt: z.string().optional(),
 });
 
 export type PortfolioSyncPayload = z.infer<typeof portfolioSyncPayloadSchema>;
 
 const syncResponseSchema = z.object({
   data: portfolioSyncPayloadSchema.extend({
+    version: z.number().int().min(1),
     updatedAt: z.string(),
   }),
 });

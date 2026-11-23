@@ -1,4 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "pnpm --filter @al-milla/database db:generate && pnpm --filter @al-milla/database build && pnpm --filter @al-milla/types build && pnpm --filter @al-milla/core build",
   "ignoreCommand": "git diff --quiet HEAD^ HEAD -- . ../../packages"
 }

@@ -64,3 +64,6 @@ upload/
 pdf/
 ./agents/*
 .env*
+!.env.example
+!.env.unified.example
+!apps/*/.env.example
