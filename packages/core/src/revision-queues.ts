@@ -1,3 +1,5 @@
+import { SURAHS } from './quran-metadata.js';
+
 export type VerseStatus = 'memorized' | 'in_progress' | 'weak';
 export type SelfEvalRating = 'difficult' | 'good' | 'easy';
 export type RevisionIntervalDays = 1 | 3 | 7 | 14 | 30;
@@ -136,5 +138,109 @@ export function computeRevisionQueues(
     olderDueItems,
     weakItems,
     totalDueCount: yesterdayItems.length + olderDueItems.length + weakItems.length,
+  };
+}
+
+export interface SurahMasteryDynamicItem {
+  surahId: number;
+  nameAr: string;
+  totalAyahs: number;
+  memorizedCount: number;
+  hizb: number;
+  percent: number;
+  statusLabelAr: string;
+  lastActivityAr: string;
+  needsCare: boolean;
+}
+
+export interface ProgressMetrics {
+  totalMemorizedVerses: number;
+  completedSurahsCount: number;
+  practicedDaysCount: number;
+  retentionPercent: number;
+  surahMasteryList: SurahMasteryDynamicItem[];
+  last7Days: { date: string; dayLabelAr: string; active: boolean }[];
+}
+
+const ARABIC_WEEKDAYS = ['أحد', 'إثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'] as const;
+
+export function computeProgressMetrics(
+  verseRecords: Record<string, MemorizedVerseRecord>,
+  activityDates: string[],
+  currentSurahId: number,
+): ProgressMetrics {
+  const all = Object.values(verseRecords);
+  const memorizedOrWeak = all.filter((r) => r.status === 'memorized' || r.status === 'weak');
+  const totalMemorizedVerses = memorizedOrWeak.length;
+  const weakCount = all.filter((r) => r.status === 'weak').length;
+  const retentionPercent =
+    totalMemorizedVerses > 0
+      ? Math.max(70, Math.round(((totalMemorizedVerses - weakCount) / totalMemorizedVerses) * 100))
+      : 0;
+
+  const bySurah = new Map<number, MemorizedVerseRecord[]>();
+  for (const rec of memorizedOrWeak) {
+    const list = bySurah.get(rec.surahId) ?? [];
+    list.push(rec);
+    bySurah.set(rec.surahId, list);
+  }
+  if (totalMemorizedVerses > 0 && !bySurah.has(currentSurahId)) {
+    bySurah.set(currentSurahId, []);
+  }
+
+  const surahMasteryList: SurahMasteryDynamicItem[] = [];
+  let completedSurahsCount = 0;
+
+  for (const [surahId, recs] of bySurah.entries()) {
+    const surah = SURAHS.find((s) => s.id === surahId);
+    if (!surah) continue;
+    const memorizedCount = recs.length;
+    const percent = Math.min(100, Math.round((memorizedCount / surah.totalAyahs) * 100));
+    const isComplete = memorizedCount >= surah.totalAyahs;
+    if (isComplete) completedSurahsCount += 1;
+    const hasWeak = recs.some((r) => r.status === 'weak');
+
+    surahMasteryList.push({
+      surahId,
+      nameAr: surah.nameAr,
+      totalAyahs: surah.totalAyahs,
+      memorizedCount,
+      hizb: surah.hizb,
+      percent,
+      statusLabelAr: isComplete
+        ? 'مكتملة'
+        : hasWeak
+          ? `${percent}٪ يحتاج عناية`
+          : `${percent}٪ الحفظ الجاري`,
+      lastActivityAr: isComplete
+        ? 'سورة مكتملة في محفظتك المحلية'
+        : hasWeak
+          ? 'يوجد موضع يحتاج لتكرار في المراجعة'
+          : `تم حفظ ${memorizedCount} من ${surah.totalAyahs} آية`,
+      needsCare: hasWeak,
+    });
+  }
+
+  surahMasteryList.sort((a, b) => b.percent - a.percent);
+
+  const last7Days: { date: string; dayLabelAr: string; active: boolean }[] = [];
+  for (let i = 6; i >= 0; i -= 1) {
+    const d = new Date(Date.now() - i * 86_400_000);
+    const isoDate = d.toISOString().slice(0, 10);
+    const dayLabelAr = ARABIC_WEEKDAYS[d.getDay()] ?? 'أحد';
+    last7Days.push({
+      date: isoDate,
+      dayLabelAr,
+      active: activityDates.includes(isoDate),
+    });
+  }
+
+  return {
+    totalMemorizedVerses,
+    completedSurahsCount,
+    practicedDaysCount: activityDates.length,
+    retentionPercent,
+    surahMasteryList,
+    last7Days,
   };
 }

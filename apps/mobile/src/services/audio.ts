@@ -1,4 +1,9 @@
-import { Audio } from 'expo-av';
+import {
+  createAudioPlayer,
+  setAudioModeAsync,
+  type AudioPlayer,
+  type AudioStatus,
+} from 'expo-audio';
 import { getEveryAyahAudioUrl, type ReciterId } from '@al-milla/core';
 import type { PlaybackSpeed } from '../db/database';
 
@@ -15,64 +20,85 @@ export interface AyahAudioController {
   stop: () => Promise<void>;
 }
 
+interface EventSubscription {
+  remove: () => void;
+}
+
 export function createAyahAudioController(): AyahAudioController {
-  let activeSound: Audio.Sound | null = null;
+  let activePlayer: AudioPlayer | null = null;
+  let activeSubscription: EventSubscription | null = null;
   let cancelled = false;
 
-  async function unloadActive(): Promise<void> {
-    if (!activeSound) return;
-    try {
-      await activeSound.stopAsync();
-    } catch {
-      // Ignore stop error if already stopped
+  function disposeActive(): void {
+    if (activeSubscription) {
+      try {
+        activeSubscription.remove();
+      } catch {
+        // Ignore listener removal errors
+      }
+      activeSubscription = null;
     }
-    try {
-      await activeSound.unloadAsync();
-    } catch {
-      // Ignore unload error
+    if (activePlayer) {
+      try {
+        activePlayer.pause();
+      } catch {
+        // Ignore pause errors
+      }
+      try {
+        activePlayer.remove();
+      } catch {
+        // Ignore player disposal errors
+      }
+      activePlayer = null;
     }
-    activeSound = null;
   }
 
   return {
     async playAyah({ reciter, surahId, ayahNumber, speed, repeats, onFinish, onError }) {
       cancelled = false;
-      await unloadActive();
+      disposeActive();
 
       try {
-        await Audio.setAudioModeAsync({
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: false,
+        await setAudioModeAsync({
+          playsInSilentMode: true,
+          shouldPlayInBackground: false,
         });
 
         const url = getEveryAyahAudioUrl(reciter, surahId, ayahNumber);
         let remaining = Math.max(1, repeats);
 
-        const playOnce = async (): Promise<void> => {
-          if (cancelled) return;
-          await unloadActive();
-          const { sound } = await Audio.Sound.createAsync(
-            { uri: url },
-            { shouldPlay: true, rate: speed, shouldCorrectPitch: true },
-          );
-          activeSound = sound;
+        const player = createAudioPlayer({ uri: url });
+        player.shouldCorrectPitch = true;
+        player.setPlaybackRate(speed, 'high');
+        activePlayer = player;
 
-          sound.setOnPlaybackStatusUpdate((status) => {
-            if (!status.isLoaded) return;
-            if (status.didJustFinish) {
-              remaining -= 1;
-              if (remaining > 0 && !cancelled) {
-                void playOnce();
-              } else {
-                void unloadActive();
-                onFinish();
-              }
+        activeSubscription = player.addListener(
+          'playbackStatusUpdate',
+          (status: AudioStatus) => {
+            if (cancelled || !status.didJustFinish) return;
+            remaining -= 1;
+            if (remaining > 0) {
+              void player
+                .seekTo(0)
+                .then(() => {
+                  if (!cancelled) {
+                    player.play();
+                  }
+                })
+                .catch((err: Error) => {
+                  disposeActive();
+                  onError(err.message || 'تعذّر إعادة تشغيل التلاوة');
+                });
+            } else {
+              disposeActive();
+              onFinish();
             }
-          });
-        };
+          },
+        );
 
-        await playOnce();
+        player.play();
       } catch (err) {
+        disposeActive();
         const message = err instanceof Error ? err.message : 'تعذّر تشغيل التلاوة';
         onError(message);
       }
@@ -80,7 +106,7 @@ export function createAyahAudioController(): AyahAudioController {
 
     async stop() {
       cancelled = true;
-      await unloadActive();
+      disposeActive();
     },
   };
 }

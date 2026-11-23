@@ -1,8 +1,10 @@
 import * as SQLite from 'expo-sqlite';
 import { z } from 'zod';
 import type {
+  AppLanguage,
   AyahEntry,
   MemorizedVerseRecord,
+  MushafPageAyah,
   NarrationId,
   PortfolioSyncState,
   ReciterId,
@@ -12,6 +14,7 @@ import type {
 } from '@al-milla/core';
 
 export type PlaybackSpeed = 0.75 | 1.0 | 1.25;
+export type MushafViewMode = 'verses' | 'page';
 
 export type DailyStageKey =
   | 'yesterdayReview'
@@ -26,6 +29,15 @@ export interface MobileAppState {
   syncKey: string;
   syncVersion: number;
   lastSyncedAt: string | null;
+  language: AppLanguage;
+  onboardingCompleted: boolean;
+  nightMode: boolean;
+  largeUiMode: boolean;
+  showTranslation: boolean;
+  showTransliteration: boolean;
+  mandatoryRepeats: number;
+  mushafViewMode: MushafViewMode;
+  currentMushafPage: number;
   narration: NarrationId;
   dailyTarget: number;
   quranFontSize: number;
@@ -33,6 +45,8 @@ export interface MobileAppState {
   playbackSpeed: PlaybackSpeed;
   currentSurahId: number;
   currentAyah: number;
+  surahCursors: Record<number, number>;
+  mutashabihatMastered: Record<string, boolean>;
   lastSessionKeys: string[];
   lastSessionCompletedAt: string | null;
   dailyStages: DailyStagesMap;
@@ -50,6 +64,17 @@ const ayahEntrySchema = z.object({
 });
 
 const cachedAyahsSchema = z.array(ayahEntrySchema);
+
+const mushafPageAyahSchema = z.object({
+  surahId: z.number().int().min(1).max(114),
+  surahNameAr: z.string(),
+  ayahNumber: z.number().int().min(1),
+  textAr: z.string(),
+  juz: z.number().int().min(1).max(30),
+  page: z.number().int().min(1).max(604),
+});
+
+const cachedPageAyahsSchema = z.array(mushafPageAyahSchema);
 
 interface SettingRow {
   key: string;
@@ -77,7 +102,7 @@ interface ActivityRow {
   date_iso: string;
 }
 
-interface CachedSurahRow {
+interface CachedJsonRow {
   payload_json: string;
 }
 
@@ -97,9 +122,14 @@ function generateSyncKey(): string {
   return `milla-${rand}-${stamp}`;
 }
 
+function toLanguage(val: string | undefined): AppLanguage {
+  if (val === 'en' || val === 'fr') return val;
+  return 'ar';
+}
+
 function toNarrationId(val: string | undefined): NarrationId {
   if (val === 'warsh' || val === 'hafs') return val;
-  return 'qalun';
+  return 'hafs';
 }
 
 function toReciterId(val: string | undefined): ReciterId {
@@ -121,6 +151,16 @@ function toPlaybackSpeed(val: string | undefined): PlaybackSpeed {
   if (val === '0.75') return 0.75;
   if (val === '1.25') return 1.25;
   return 1.0;
+}
+
+function toMushafViewMode(val: string | undefined): MushafViewMode {
+  return val === 'page' ? 'page' : 'verses';
+}
+
+function toBoolean(val: string | undefined, fallback: boolean): boolean {
+  if (val === 'true') return true;
+  if (val === 'false') return false;
+  return fallback;
 }
 
 function toVerseStatus(val: string): VerseStatus {
@@ -181,6 +221,12 @@ async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
           cached_at TEXT NOT NULL,
           source TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS cached_pages (
+          page_number INTEGER PRIMARY KEY NOT NULL,
+          payload_json TEXT NOT NULL,
+          cached_at TEXT NOT NULL,
+          source TEXT NOT NULL
+        );
       `);
       return db;
     })();
@@ -228,8 +274,8 @@ export async function loadAppStateFromDb(): Promise<MobileAppState> {
     'SELECT date_iso FROM activity_dates ORDER BY date_iso ASC',
   );
 
-  const rawStages = settingsMap.get('dailyStages');
   let dailyStages: DailyStagesMap = { ...DEFAULT_DAILY_STAGES };
+  const rawStages = settingsMap.get('dailyStages');
   if (rawStages) {
     try {
       const parsed = z
@@ -241,9 +287,7 @@ export async function loadAppStateFromDb(): Promise<MobileAppState> {
           verseConnection: z.boolean().default(false),
         })
         .safeParse(JSON.parse(rawStages));
-      if (parsed.success) {
-        dailyStages = parsed.data;
-      }
+      if (parsed.success) dailyStages = parsed.data;
     } catch {
       dailyStages = { ...DEFAULT_DAILY_STAGES };
     }
@@ -260,17 +304,57 @@ export async function loadAppStateFromDb(): Promise<MobileAppState> {
     }
   }
 
+  let surahCursors: Record<number, number> = {};
+  const rawCursors = settingsMap.get('surahCursors');
+  if (rawCursors) {
+    try {
+      const parsed = z.record(z.string(), z.number()).safeParse(JSON.parse(rawCursors));
+      if (parsed.success) {
+        const mapped: Record<number, number> = {};
+        for (const [k, v] of Object.entries(parsed.data)) {
+          const numKey = Number.parseInt(k, 10);
+          if (Number.isFinite(numKey)) mapped[numKey] = v;
+        }
+        surahCursors = mapped;
+      }
+    } catch {
+      surahCursors = {};
+    }
+  }
+
+  let mutashabihatMastered: Record<string, boolean> = {};
+  const rawMutashabihat = settingsMap.get('mutashabihatMastered');
+  if (rawMutashabihat) {
+    try {
+      const parsed = z.record(z.string(), z.boolean()).safeParse(JSON.parse(rawMutashabihat));
+      if (parsed.success) mutashabihatMastered = parsed.data;
+    } catch {
+      mutashabihatMastered = {};
+    }
+  }
+
   return {
     syncKey,
     syncVersion: parseInteger(settingsMap.get('syncVersion'), 0, 0, 1_000_000),
     lastSyncedAt: settingsMap.get('lastSyncedAt') ?? null,
+    language: toLanguage(settingsMap.get('language')),
+    onboardingCompleted: toBoolean(settingsMap.get('onboardingCompleted'), false),
+    nightMode: toBoolean(settingsMap.get('nightMode'), false),
+    largeUiMode: toBoolean(settingsMap.get('largeUiMode'), false),
+    showTranslation: toBoolean(settingsMap.get('showTranslation'), false),
+    showTransliteration: toBoolean(settingsMap.get('showTransliteration'), false),
+    mandatoryRepeats: parseInteger(settingsMap.get('mandatoryRepeats'), 5, 1, 20),
+    mushafViewMode: toMushafViewMode(settingsMap.get('mushafViewMode')),
+    currentMushafPage: parseInteger(settingsMap.get('currentMushafPage'), 1, 1, 604),
     narration: toNarrationId(settingsMap.get('narration')),
     dailyTarget: parseInteger(settingsMap.get('dailyTarget'), 4, 1, 20),
-    quranFontSize: parseInteger(settingsMap.get('quranFontSize'), 28, 20, 44),
+    quranFontSize: parseInteger(settingsMap.get('quranFontSize'), 26, 18, 36),
     reciter: toReciterId(settingsMap.get('reciter')),
     playbackSpeed: toPlaybackSpeed(settingsMap.get('playbackSpeed')),
     currentSurahId: parseInteger(settingsMap.get('currentSurahId'), 18, 1, 114),
     currentAyah: parseInteger(settingsMap.get('currentAyah'), 1, 1, 286),
+    surahCursors,
+    mutashabihatMastered,
     lastSessionKeys,
     lastSessionCompletedAt: settingsMap.get('lastSessionCompletedAt') ?? null,
     dailyStages,
@@ -394,10 +478,36 @@ export async function applyMergedPortfolioToDb(merged: PortfolioSyncState): Prom
   });
 }
 
+export async function resetLocalProgressInDb(): Promise<void> {
+  const db = await getDatabase();
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('DELETE FROM verse_records');
+    await db.runAsync('DELETE FROM bookmarks');
+    await db.runAsync('DELETE FROM activity_dates');
+    await db.runAsync('DELETE FROM settings WHERE key IN (?, ?, ?, ?, ?, ?, ?)', [
+      'dailyStages',
+      'lastSessionKeys',
+      'lastSessionCompletedAt',
+      'surahCursors',
+      'mutashabihatMastered',
+      'lastSyncedAt',
+      'syncVersion',
+    ]);
+    await db.runAsync('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [
+      'currentSurahId',
+      '1',
+    ]);
+    await db.runAsync('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [
+      'currentAyah',
+      '1',
+    ]);
+  });
+}
+
 export async function getCachedSurahFromDb(surahId: number): Promise<AyahEntry[] | null> {
   try {
     const db = await getDatabase();
-    const row = await db.getFirstAsync<CachedSurahRow>(
+    const row = await db.getFirstAsync<CachedJsonRow>(
       'SELECT payload_json FROM cached_surahs WHERE surah_id = ?',
       [surahId],
     );
@@ -419,5 +529,35 @@ export async function saveCachedSurahToDb(
   await db.runAsync(
     'INSERT OR REPLACE INTO cached_surahs (surah_id, payload_json, cached_at, source) VALUES (?, ?, ?, ?)',
     [surahId, JSON.stringify(ayahs), new Date().toISOString(), source],
+  );
+}
+
+export async function getCachedMushafPageFromDb(
+  pageNumber: number,
+): Promise<MushafPageAyah[] | null> {
+  try {
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<CachedJsonRow>(
+      'SELECT payload_json FROM cached_pages WHERE page_number = ?',
+      [pageNumber],
+    );
+    if (!row) return null;
+    const parsed = cachedPageAyahsSchema.safeParse(JSON.parse(row.payload_json));
+    if (!parsed.success || parsed.data.length === 0) return null;
+    return parsed.data;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveCachedMushafPageToDb(
+  pageNumber: number,
+  ayahs: MushafPageAyah[],
+  source: string,
+): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    'INSERT OR REPLACE INTO cached_pages (page_number, payload_json, cached_at, source) VALUES (?, ?, ?, ?)',
+    [pageNumber, JSON.stringify(ayahs), new Date().toISOString(), source],
   );
 }

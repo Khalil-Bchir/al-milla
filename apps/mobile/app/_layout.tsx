@@ -2,17 +2,29 @@ import React from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { MillaProvider } from '../src/context/MillaContext';
-import { COLORS } from '../src/theme/tokens';
+import { MillaProvider, useMilla } from '../src/context/MillaContext';
+
+function RootNavigator() {
+  const { theme } = useMilla();
+  return (
+    <>
+      <StatusBar style={theme.isDark ? 'light' : 'dark'} />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          animation: 'none',
+          contentStyle: { backgroundColor: theme.background },
+        }}
+      />
+    </>
+  );
+}
 
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <MillaProvider>
-        <StatusBar style="dark" backgroundColor={COLORS.warmIvory} />
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: COLORS.warmIvory } }}>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        </Stack>
+        <RootNavigator />
       </MillaProvider>
     </SafeAreaProvider>
   );

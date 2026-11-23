@@ -3,8 +3,14 @@ import {
   getSurahById,
   stripLeadingBasmalah,
   type AyahEntry,
+  type MushafPageAyah,
 } from '@al-milla/core';
-import { getCachedSurahFromDb, saveCachedSurahToDb } from '../db/database';
+import {
+  getCachedMushafPageFromDb,
+  getCachedSurahFromDb,
+  saveCachedMushafPageToDb,
+  saveCachedSurahToDb,
+} from '../db/database';
 
 const alQuranCloudResponseSchema = z.object({
   code: z.number(),
@@ -22,8 +28,35 @@ const alQuranCloudResponseSchema = z.object({
     .optional(),
 });
 
+const alQuranCloudPageResponseSchema = z.object({
+  code: z.number(),
+  data: z
+    .object({
+      number: z.number().int(),
+      ayahs: z.array(
+        z.object({
+          numberInSurah: z.number().int().min(1),
+          text: z.string(),
+          juz: z.number().int().min(1),
+          page: z.number().int().min(1),
+          surah: z.object({
+            number: z.number().int().min(1).max(114),
+            name: z.string(),
+          }),
+        }),
+      ),
+    })
+    .optional(),
+});
+
 export interface SurahLoadResult {
   ayahs: AyahEntry[];
+  fromCache: boolean;
+  error: string | null;
+}
+
+export interface MushafPageLoadResult {
+  ayahs: MushafPageAyah[];
   fromCache: boolean;
   error: string | null;
 }
@@ -102,5 +135,59 @@ export async function loadVerifiedSurahAyahs(surahId: number): Promise<SurahLoad
       fromCache: surah.ayahs.length > 0,
       error: message,
     };
+  }
+}
+
+export async function loadMushafPage(pageNumber: number): Promise<MushafPageLoadResult> {
+  const clampedPage = Math.max(1, Math.min(604, pageNumber));
+
+  try {
+    const cached = await getCachedMushafPageFromDb(clampedPage);
+    if (cached && cached.length > 0) {
+      return {
+        ayahs: cached.map((a) => ({
+          ...a,
+          textAr: stripLeadingBasmalah(a.surahId, a.ayahNumber, a.textAr),
+        })),
+        fromCache: true,
+        error: null,
+      };
+    }
+  } catch {
+    // Fall through to network
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.alquran.cloud/v1/page/${clampedPage}/quran-uthmani`,
+    );
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const rawText = await response.text();
+    const parsed = alQuranCloudPageResponseSchema.safeParse(JSON.parse(rawText));
+    if (!parsed.success || parsed.data.code !== 200 || !parsed.data.data) {
+      throw new Error('تعذّر قراءة بيانات صفحة المصحف');
+    }
+
+    const ayahs: MushafPageAyah[] = parsed.data.data.ayahs.map((a) => ({
+      surahId: a.surah.number,
+      surahNameAr: a.surah.name,
+      ayahNumber: a.numberInSurah,
+      textAr: stripLeadingBasmalah(a.surah.number, a.numberInSurah, a.text),
+      juz: a.juz,
+      page: a.page,
+    }));
+
+    await saveCachedMushafPageToDb(
+      clampedPage,
+      ayahs,
+      'api.alquran.cloud (Madinah Mushaf 1-604 Uthmani)',
+    );
+
+    return { ayahs, fromCache: false, error: null };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'تعذّر تحميل صفحة المصحف';
+    return { ayahs: [], fromCache: false, error: message };
   }
 }

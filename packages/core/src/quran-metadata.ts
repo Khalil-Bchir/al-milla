@@ -98,6 +98,40 @@ export interface SurahInfo {
   ayahs: AyahEntry[];
 }
 
+export interface TafsirWordNote {
+  word: string;
+  meaningAr: string;
+  meaningEn: string;
+  meaningFr: string;
+}
+
+export interface MutashabihatDrill {
+  id: string;
+  primarySurahId: number;
+  primarySurahName: string;
+  primaryAyahRange: string;
+  primaryHizb: number;
+  primaryText: string;
+  primaryHighlight: string;
+  primaryNote: string;
+  secondarySurahId: number;
+  secondarySurahName: string;
+  secondaryAyahRange: string;
+  secondaryHizb: number;
+  secondaryText: string;
+  secondaryHighlight: string;
+  divergenceNote: string;
+  mnemonicTitle: string;
+  mnemonicBody: string;
+  quizPrompt: string;
+  quizOptions: {
+    id: string;
+    label: string;
+    isCorrect: boolean;
+  }[];
+  quizExplanation: string;
+}
+
 export interface MushafPageAyah {
   surahId: number;
   surahNameAr: string;
@@ -373,6 +407,65 @@ export const BUNDLED_VERIFIED_AYAHS: Record<number, AyahEntry[]> = {
         'Iḏ awā al-fityatu ilā al-kahfi fa-qālū rabbanā ātinā min ladunka raḥmatan wa-hayyiʾ lanā min amrinā rašadā',
     },
   ],
+  56: [
+    {
+      number: 75,
+      textAr: 'فَلَا أُقْسِمُ بِمَوَاقِعِ النُّجُومِ',
+      translationEn: 'Then I swear by the setting of the stars,',
+      translationFr: 'Non ! Je jure par les positions des étoiles (dans le firmament).',
+      transliteration: 'Fa-lā uqsimu bi-mawāqiʿi an-nujūm',
+    },
+    {
+      number: 76,
+      textAr: 'وَإِنَّهُ لَقَسَمٌ لَّوْ تَعْلَمُونَ عَظِيمٌ',
+      translationEn: 'And indeed, it is an oath - if you could know - [most] great.',
+      translationFr: 'Et c’est vraiment un serment solennel, si vous saviez.',
+      transliteration: 'Wa-innahu la-qasamun law taʿlamūna ʿaẓīm',
+    },
+  ],
+  67: [
+    {
+      number: 1,
+      textAr: 'تَبَارَكَ الَّذِي بِيَدِهِ الْمُلْكُ وَهُوَ عَلَىٰ كُلِّ شَيْءٍ قَدِيرٌ',
+      translationEn: 'Blessed is He in whose hand is dominion, and He is over all things competent -',
+      translationFr: 'Béni soit Celui dans la main de qui est la royauté, et Il est Omnipotent.',
+      transliteration: 'Tabāraka allaḏī bi-yadihi al-mulku wa-huwa ʿalā kulli šayʾin qadīr',
+    },
+    {
+      number: 2,
+      textAr:
+        'الَّذِي خَلَقَ الْمَوْتَ وَالْحَيَاةَ لِيَبْلُوَكُمْ أَيُّكُمْ أَحْسَنُ عَمَلًا ۚ وَهُوَ الْعَزِيزُ الْغَفُورُ',
+      translationEn:
+        '[He] who created death and life to test you [as to] which of you is best in deed - and He is the Exalted in Might, the Forgiving -',
+      translationFr:
+        'Celui qui a créé la mort et la vie afin de vous éprouver (et de savoir) qui de vous est le meilleur en œuvre, et c’est Lui le Puissant, le Pardonneur.',
+      transliteration:
+        'Allaḏī ḫalaqa al-mawta wa-al-ḥayāta li-yabluwakum ayyukum aḥsanu ʿamalan wa-huwa al-ʿazīzu al-ġafūr',
+    },
+  ],
+  69: [
+    {
+      number: 38,
+      textAr: 'فَلَا أُقْسِمُ بِمَا تُبْصِرُونَ',
+      translationEn: 'So I swear by what you see',
+      translationFr: 'Mais non ! Je jure par ce que vous voyez,',
+      transliteration: 'Fa-lā uqsimu bimā tubṣirūn',
+    },
+    {
+      number: 39,
+      textAr: 'وَمَا لَا تُبْصِرُونَ',
+      translationEn: 'And what you do not see',
+      translationFr: 'ainsi que par ce que vous ne voyez pas,',
+      transliteration: 'Wa-mā lā tubṣirūn',
+    },
+    {
+      number: 40,
+      textAr: 'إِنَّهُ لَقَوْلُ رَسُولٍ كَرِيمٍ',
+      translationEn: '[That] indeed, the Qur’an is the word of a noble Messenger.',
+      translationFr: 'que ceci [le Coran] est la parole d’un noble Messager,',
+      transliteration: 'Innahu la-qawlu rasūlin karīm',
+    },
+  ],
   112: [
     {
       number: 1,
@@ -500,6 +593,50 @@ export const SURAHS: SurahInfo[] = SURAH_CATALOG_TUPLES.map(
     ayahs: BUNDLED_VERIFIED_AYAHS[id] ?? [],
   }),
 );
+
+export const KAHF_TAFSIR_WORDS: TafsirWordNote[] = [
+  {
+    word: 'عِوَجًا',
+    meaningAr: 'الميل والانحراف والتناقض واللبس؛ فنفى الله عن كتابه أي اختلاف شكلاً أو مضموناً.',
+    meaningEn: 'Crookedness, deviation, or contradiction. Allah negated any flaw from His Book.',
+    meaningFr: 'Tortuosité, contradiction ou ambiguïté. Allah a écarté tout défaut de Son Livre.',
+  },
+  {
+    word: 'قَيِّمًا',
+    meaningAr: 'مستقيماً معتدلاً في ذاته، وقيّماً ومهيمناً على مصالح العباد وسائر الكتب السماوية السابقة.',
+    meaningEn: 'Straight and balanced in itself, guarding the welfare of servants and previous scriptures.',
+    meaningFr: 'Droit et équilibré en soi, veillant sur l’intérêt des serviteurs et des Écritures antérieures.',
+  },
+];
+
+export const MUTASHABIHAT_DRILLS: MutashabihatDrill[] = [
+  {
+    id: 'waqiah-haqqah',
+    primarySurahId: 56,
+    primarySurahName: 'سورة الواقعة',
+    primaryAyahRange: 'الآية ٧٥ - ٧٦',
+    primaryHizb: 54,
+    primaryText: 'فَلَا أُقْسِمُ بِمَوَاقِعِ النُّجُومِ ﴿٧٥﴾ وَإِنَّهُ لَقَسَمٌ لَّوْ تَعْلَمُونَ عَظِيمٌ ﴿٧٦﴾',
+    primaryHighlight: 'بِمَوَاقِعِ',
+    primaryNote: 'رواية حفص عن عاصم: «بِمَوَاقِعِ النُّجُومِ».',
+    secondarySurahId: 69,
+    secondarySurahName: 'سورة الحاقة',
+    secondaryAyahRange: 'الآية ٣٨ - ٤٠',
+    secondaryHizb: 57,
+    secondaryText: 'فَلَا أُقْسِمُ بِمَا تُبْصِرُونَ ﴿٣٨﴾ وَمَا لَا تُبْصِرُونَ ﴿٣٩﴾ إِنَّهُ لَقَوْلُ رَسُولٍ كَرِيمٍ ﴿٤٠﴾',
+    secondaryHighlight: 'بِمَا تُبْصِرُونَ',
+    divergenceNote: 'الافتراق يبدأ بعد: «فَلَا أُقْسِمُ»، في الحاقة: «بِمَا تُبْصِرُونَ».',
+    mnemonicTitle: 'ربط لفظي للتمييز',
+    mnemonicBody:
+      'سورة «الْوَاقِعَة» تبتدئ بحرف الواو، فاقترن قسمها بلفظ «بِمَوَاقِعِ» المشتمل على حرف الواو، بينما في «الْحَاقَّة» جاء القسم بلفظ «بِمَا تُبْصِرُونَ».',
+    quizPrompt: 'أكمل قول الحق تعالى في سورة «الواقعة»: ( فَلَا أُقْسِمُ .......... )',
+    quizOptions: [
+      { id: 'a', label: 'بِمَوَاقِعِ النُّجُومِ', isCorrect: true },
+      { id: 'b', label: 'بِمَا تُبْصِرُونَ', isCorrect: false },
+    ],
+    quizExplanation: 'أحسنت! تذكّر دائماً: واو الواقعة مقترنة بمواقع النجوم.',
+  },
+];
 
 export function getSurahById(id: number): SurahInfo {
   return SURAHS.find((s) => s.id === id) ?? SURAHS[17] ?? SURAHS[0]!;

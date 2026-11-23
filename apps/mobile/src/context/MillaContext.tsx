@@ -2,18 +2,23 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import {
   applyVerseEvaluation,
   formatVerseKey,
+  getSurahById,
+  type AppLanguage,
   type MemorizedVerseRecord,
   type ReciterId,
   type SelfEvalRating,
+  type VerseStatus,
 } from '@al-milla/core';
 import {
   loadAppStateFromDb,
   recordActivityDateInDb,
+  resetLocalProgressInDb,
   saveSettingToDb,
   setBookmarkInDb,
   upsertVerseRecordToDb,
   type DailyStageKey,
   type MobileAppState,
+  type MushafViewMode,
   type PlaybackSpeed,
 } from '../db/database';
 import {
@@ -21,20 +26,33 @@ import {
   syncPortfolioWithCloud,
   type SyncOutcome,
 } from '../services/sync';
+import { getTheme, type MillaTheme } from '../theme/tokens';
 
 interface MillaContextValue {
   state: MobileAppState | null;
+  theme: MillaTheme;
   isLoading: boolean;
   isSyncing: boolean;
   syncError: string | null;
+  setLanguage: (language: AppLanguage) => Promise<void>;
+  completeOnboarding: () => Promise<void>;
+  setNightMode: (enabled: boolean) => Promise<void>;
+  setLargeUiMode: (enabled: boolean) => Promise<void>;
+  setShowTranslation: (enabled: boolean) => Promise<void>;
+  setShowTransliteration: (enabled: boolean) => Promise<void>;
+  setMandatoryRepeats: (repeats: number) => Promise<void>;
+  setMushafViewMode: (mode: MushafViewMode) => Promise<void>;
+  setCurrentMushafPage: (page: number) => Promise<void>;
+  setMutashabihatMastered: (id: string, mastered: boolean) => Promise<void>;
   setCursor: (surahId: number, ayahNumber: number) => Promise<void>;
-  markVerseInProgress: (surahId: number, ayahNumber: number) => Promise<void>;
+  setVerseStatus: (surahId: number, ayahNumber: number, status: VerseStatus) => Promise<void>;
   evaluateVerse: (
     surahId: number,
     ayahNumber: number,
     rating: SelfEvalRating,
     markSelfTest?: boolean,
   ) => Promise<void>;
+  setDailyStage: (stage: DailyStageKey, done: boolean) => Promise<void>;
   toggleDailyStage: (stage: DailyStageKey) => Promise<void>;
   completeSession: (keys: string[]) => Promise<void>;
   toggleBookmark: (surahId: number, ayahNumber: number) => Promise<void>;
@@ -44,6 +62,7 @@ interface MillaContextValue {
   setPlaybackSpeed: (speed: PlaybackSpeed) => Promise<void>;
   syncNow: () => Promise<SyncOutcome>;
   restoreBySyncKey: (syncKey: string) => Promise<SyncOutcome>;
+  resetLocalProgress: () => Promise<void>;
 }
 
 const MillaContext = createContext<MillaContextValue | null>(null);
@@ -82,33 +101,105 @@ export function MillaProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const setCursor = useCallback(async (surahId: number, ayahNumber: number) => {
-    await saveSettingToDb('currentSurahId', String(surahId));
-    await saveSettingToDb('currentAyah', String(ayahNumber));
-    setState((prev) =>
-      prev ? { ...prev, currentSurahId: surahId, currentAyah: ayahNumber } : prev,
-    );
+  const setLanguage = useCallback(async (language: AppLanguage) => {
+    await saveSettingToDb('language', language);
+    setState((prev) => (prev ? { ...prev, language } : prev));
   }, []);
 
-  const markVerseInProgress = useCallback(
+  const completeOnboarding = useCallback(async () => {
+    await saveSettingToDb('onboardingCompleted', 'true');
+    setState((prev) => (prev ? { ...prev, onboardingCompleted: true } : prev));
+  }, []);
+
+  const setNightMode = useCallback(async (enabled: boolean) => {
+    await saveSettingToDb('nightMode', String(enabled));
+    setState((prev) => (prev ? { ...prev, nightMode: enabled } : prev));
+  }, []);
+
+  const setLargeUiMode = useCallback(async (enabled: boolean) => {
+    await saveSettingToDb('largeUiMode', String(enabled));
+    setState((prev) => (prev ? { ...prev, largeUiMode: enabled } : prev));
+  }, []);
+
+  const setShowTranslation = useCallback(async (enabled: boolean) => {
+    await saveSettingToDb('showTranslation', String(enabled));
+    setState((prev) => (prev ? { ...prev, showTranslation: enabled } : prev));
+  }, []);
+
+  const setShowTransliteration = useCallback(async (enabled: boolean) => {
+    await saveSettingToDb('showTransliteration', String(enabled));
+    setState((prev) => (prev ? { ...prev, showTransliteration: enabled } : prev));
+  }, []);
+
+  const setMandatoryRepeats = useCallback(async (repeats: number) => {
+    const clamped = Math.max(1, Math.min(20, repeats));
+    await saveSettingToDb('mandatoryRepeats', String(clamped));
+    setState((prev) => (prev ? { ...prev, mandatoryRepeats: clamped } : prev));
+  }, []);
+
+  const setMushafViewMode = useCallback(async (mode: MushafViewMode) => {
+    await saveSettingToDb('mushafViewMode', mode);
+    setState((prev) => (prev ? { ...prev, mushafViewMode: mode } : prev));
+  }, []);
+
+  const setCurrentMushafPage = useCallback(async (page: number) => {
+    const clamped = Math.max(1, Math.min(604, page));
+    await saveSettingToDb('currentMushafPage', String(clamped));
+    setState((prev) => (prev ? { ...prev, currentMushafPage: clamped } : prev));
+  }, []);
+
+  const setMutashabihatMastered = useCallback(
+    async (id: string, mastered: boolean) => {
+      if (!state) return;
+      const nextMap = { ...state.mutashabihatMastered, [id]: mastered };
+      await saveSettingToDb('mutashabihatMastered', JSON.stringify(nextMap));
+      await recordTodayActivity();
+      setState((prev) => (prev ? { ...prev, mutashabihatMastered: nextMap } : prev));
+    },
+    [state, recordTodayActivity],
+  );
+
+  const setCursor = useCallback(
     async (surahId: number, ayahNumber: number) => {
+      const surah = getSurahById(surahId);
+      const clampedAyah = Math.max(1, Math.min(surah.totalAyahs, ayahNumber));
+      const nextCursors = { ...(state?.surahCursors ?? {}), [surahId]: clampedAyah };
+      await saveSettingToDb('currentSurahId', String(surahId));
+      await saveSettingToDb('currentAyah', String(clampedAyah));
+      await saveSettingToDb('currentMushafPage', String(surah.pageStart));
+      await saveSettingToDb('surahCursors', JSON.stringify(nextCursors));
+      setState((prev) =>
+        prev
+          ? {
+              ...prev,
+              currentSurahId: surahId,
+              currentAyah: clampedAyah,
+              currentMushafPage: surah.pageStart,
+              surahCursors: nextCursors,
+            }
+          : prev,
+      );
+    },
+    [state?.surahCursors],
+  );
+
+  const setVerseStatus = useCallback(
+    async (surahId: number, ayahNumber: number, status: VerseStatus) => {
       if (!state) return;
       const key = formatVerseKey(surahId, ayahNumber);
       const existing = state.verseRecords[key];
-      if (existing && existing.status === 'memorized') return;
-
       const nowIso = new Date().toISOString();
       const nextRecord: MemorizedVerseRecord = {
         key,
         surahId,
         ayahNumber,
-        status: 'in_progress',
+        status,
         firstMemorizedAt: existing?.firstMemorizedAt ?? nowIso,
         lastReviewedAt: nowIso,
         nextReviewAt: existing?.nextReviewAt ?? new Date(Date.now() + 86_400_000).toISOString(),
         intervalDays: existing?.intervalDays ?? 1,
         lastEvaluation: existing?.lastEvaluation,
-        reviewCount: existing?.reviewCount ?? 0,
+        reviewCount: (existing?.reviewCount ?? 0) + 1,
       };
       await upsertVerseRecordToDb(nextRecord, 1);
       await recordTodayActivity();
@@ -169,15 +260,23 @@ export function MillaProvider({ children }: { children: React.ReactNode }) {
     [state, recordTodayActivity],
   );
 
-  const toggleDailyStage = useCallback(
-    async (stage: DailyStageKey) => {
+  const setDailyStage = useCallback(
+    async (stage: DailyStageKey, done: boolean) => {
       if (!state) return;
-      const nextStages = { ...state.dailyStages, [stage]: !state.dailyStages[stage] };
+      const nextStages = { ...state.dailyStages, [stage]: done };
       await saveSettingToDb('dailyStages', JSON.stringify(nextStages));
-      await recordTodayActivity();
+      if (done) await recordTodayActivity();
       setState((prev) => (prev ? { ...prev, dailyStages: nextStages } : prev));
     },
     [state, recordTodayActivity],
+  );
+
+  const toggleDailyStage = useCallback(
+    async (stage: DailyStageKey) => {
+      if (!state) return;
+      await setDailyStage(stage, !state.dailyStages[stage]);
+    },
+    [state, setDailyStage],
   );
 
   const syncNow = useCallback(async (): Promise<SyncOutcome> => {
@@ -217,11 +316,8 @@ export function MillaProvider({ children }: { children: React.ReactNode }) {
       };
       setState(updatedState);
 
-      // Best-effort background sync after session completion (never blocks offline usage)
       void syncPortfolioWithCloud(updatedState).then((outcome) => {
-        if (outcome.ok) {
-          void reloadFromDb();
-        }
+        if (outcome.ok) void reloadFromDb();
       });
     },
     [state, recordTodayActivity, reloadFromDb],
@@ -253,7 +349,7 @@ export function MillaProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const setQuranFontSize = useCallback(async (size: number) => {
-    const clamped = Math.max(20, Math.min(44, size));
+    const clamped = Math.max(18, Math.min(36, size));
     await saveSettingToDb('quranFontSize', String(clamped));
     setState((prev) => (prev ? { ...prev, quranFontSize: clamped } : prev));
   }, []);
@@ -290,16 +386,35 @@ export function MillaProvider({ children }: { children: React.ReactNode }) {
     [state, reloadFromDb],
   );
 
+  const resetLocalProgress = useCallback(async () => {
+    await resetLocalProgressInDb();
+    await reloadFromDb();
+  }, [reloadFromDb]);
+
+  const theme = getTheme(state?.nightMode ?? false);
+
   return (
     <MillaContext.Provider
       value={{
         state,
+        theme,
         isLoading,
         isSyncing,
         syncError,
+        setLanguage,
+        completeOnboarding,
+        setNightMode,
+        setLargeUiMode,
+        setShowTranslation,
+        setShowTransliteration,
+        setMandatoryRepeats,
+        setMushafViewMode,
+        setCurrentMushafPage,
+        setMutashabihatMastered,
         setCursor,
-        markVerseInProgress,
+        setVerseStatus,
         evaluateVerse,
+        setDailyStage,
         toggleDailyStage,
         completeSession,
         toggleBookmark,
@@ -309,6 +424,7 @@ export function MillaProvider({ children }: { children: React.ReactNode }) {
         setPlaybackSpeed,
         syncNow,
         restoreBySyncKey,
+        resetLocalProgress,
       }}
     >
       {children}
