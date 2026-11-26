@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import {
   Stack,
@@ -9,6 +9,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { Asset } from 'expo-asset';
 import { useFonts } from 'expo-font';
+import * as Updates from 'expo-updates';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { FloatingBottomNav } from '../src/components/milla/FloatingBottomNav';
 import { SplashOverlay } from '../src/components/milla/SplashOverlay';
@@ -28,6 +29,38 @@ function RootNavigator() {
   const [initialRouteReady, setInitialRouteReady] = useState<boolean>(false);
   const [assetsReady, setAssetsReady] = useState<boolean>(false);
   const didInitRef = useRef<boolean>(false);
+  const handleSplashFinish = useCallback(() => {
+    setSplashVisible(false);
+  }, []);
+
+  useEffect(() => {
+    const safetyTimer = setTimeout(() => {
+      setAssetsReady(true);
+      setInitialRouteReady(true);
+    }, 3000);
+    return () => clearTimeout(safetyTimer);
+  }, []);
+
+  useEffect(() => {
+    if (!Updates.isEnabled) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const result = await Updates.checkForUpdateAsync();
+        if (!cancelled && result.isAvailable) {
+          const fetched = await Updates.fetchUpdateAsync();
+          if (!cancelled && fetched.isNew) {
+            await Updates.reloadAsync();
+          }
+        }
+      } catch {
+        // Silent fallback when offline or in embedded-only mode
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -96,7 +129,7 @@ function RootNavigator() {
       {splashVisible ? (
         <SplashOverlay
           ready={!isLoading && initialRouteReady && fontsReady && assetsReady}
-          onFinish={() => setSplashVisible(false)}
+          onFinish={handleSplashFinish}
         />
       ) : null}
     </View>

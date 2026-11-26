@@ -31,6 +31,9 @@ export function SplashOverlay({ ready, onFinish }: SplashOverlayProps) {
   const [isExiting, setIsExiting] = useState<boolean>(false);
 
   const hasTriggeredExitRef = useRef<boolean>(false);
+  const onFinishRef = useRef<() => void>(onFinish);
+  onFinishRef.current = onFinish;
+  const [forceReady, setForceReady] = useState<boolean>(false);
   const overlayOpacity = useRef<Animated.Value>(new Animated.Value(1)).current;
   const contentTranslateY = useRef<Animated.Value>(new Animated.Value(0)).current;
   const contentScale = useRef<Animated.Value>(new Animated.Value(1)).current;
@@ -213,11 +216,27 @@ export function SplashOverlay({ ready, onFinish }: SplashOverlayProps) {
   ]);
 
   useEffect(() => {
-    if (!ready || !minHoldElapsed || hasTriggeredExitRef.current) return;
+    const maxHoldTimer = setTimeout(() => {
+      setForceReady(true);
+      setMinHoldElapsed(true);
+    }, 3800);
+    return () => clearTimeout(maxHoldTimer);
+  }, []);
+
+  useEffect(() => {
+    if ((!ready && !forceReady) || !minHoldElapsed || hasTriggeredExitRef.current) return;
     hasTriggeredExitRef.current = true;
     setIsExiting(true);
 
     const exitDuration = reduceMotion ? 160 : 340;
+    let finished = false;
+    const finishOnce = () => {
+      if (finished) return;
+      finished = true;
+      onFinishRef.current();
+    };
+
+    const fallbackTimer = setTimeout(finishOnce, exitDuration + 180);
     const exitAnim = Animated.parallel([
       Animated.timing(overlayOpacity, {
         toValue: 0,
@@ -240,20 +259,22 @@ export function SplashOverlay({ ready, onFinish }: SplashOverlayProps) {
     ]);
 
     exitAnim.start(() => {
-      onFinish();
+      clearTimeout(fallbackTimer);
+      finishOnce();
     });
 
     return () => {
+      clearTimeout(fallbackTimer);
       exitAnim.stop();
     };
   }, [
     ready,
+    forceReady,
     minHoldElapsed,
     reduceMotion,
     overlayOpacity,
     contentTranslateY,
     contentScale,
-    onFinish,
   ]);
 
   const outerHaloBorder = theme.isDark

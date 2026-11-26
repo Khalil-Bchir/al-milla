@@ -8,6 +8,7 @@ export type RouteModuleLoader = () => Promise<{
 
 export const routeModuleLoaders: RouteModuleLoader[] = [
   () => import('./v1/authentication/actions.js'),
+  () => import('./v1/feedback/actions.js'),
   () => import('./v1/health/actions.js'),
   () => import('./v1/reviews/actions.js'),
   () => import('./v1/sync/actions.js'),

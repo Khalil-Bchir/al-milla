@@ -120,6 +120,15 @@ function main() {
   console.log(`Wrote apps/landing/.env.local (${Object.keys(landingEnv).length} keys, env=${activeLocalEnv})`);
 
   const mobileKeys = ['EXPO_PUBLIC_API_URL'];
+  for (const envName of targetEnvs) {
+    const merged = { ...parsed.common, ...parsed[envName] };
+    const envMobile = pickKeys(merged, mobileKeys);
+    fs.writeFileSync(
+      path.join(repoRoot, `apps/mobile/.env.${envName}`),
+      serializeEnv(envMobile, `apps/mobile ${envName}`),
+      'utf8',
+    );
+  }
   const mobileEnv = pickKeys(activeMerged, mobileKeys);
   fs.writeFileSync(
     path.join(repoRoot, 'apps/mobile/.env.local'),

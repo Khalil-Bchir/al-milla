@@ -64,3 +64,24 @@ model HafizPortfolio {
   @@index([syncKey])
   @@map("hafiz_portfolios")
 }
+
+enum FeedbackType {
+  BUG
+  FEEDBACK
+}
+
+model FeedbackReport {
+  id         String       @id @default(uuid())
+  type       FeedbackType @default(FEEDBACK)
+  area       String?
+  message    String
+  contact    String?
+  deviceInfo String?
+  appVersion String?
+  syncKey    String?
+  createdAt  DateTime     @default(now())
+
+  @@index([createdAt])
+  @@index([type])
+  @@map("feedback_reports")
+}

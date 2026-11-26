@@ -6,13 +6,15 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
+import * as Updates from 'expo-updates';
 import {
   MILLA_COPY,
   RECITERS,
@@ -30,22 +32,23 @@ import { QuranText } from '../src/components/milla/QuranText';
 import { useMilla } from '../src/context/MillaContext';
 import type { PlaybackSpeed } from '../src/db/database';
 import { createAyahAudioController } from '../src/services/audio';
+import { submitFeedbackToApi, type MobileFeedbackType } from '../src/services/feedback';
 import { MIN_TOUCH_TARGET, RADII, SPACING } from '../src/theme/tokens';
 
 const HERO_SPACE_IMG = require('../assets/images/hero-space.jpg');
 const TOTAL_QURAN_AYAHS = 6236;
 const SPEEDS: PlaybackSpeed[] = [0.75, 1.0, 1.25];
 const DAILY_TARGET_PRESETS = [3, 4, 5] as const;
+const FEEDBACK_AREAS = ['الحفظ', 'المراجعة', 'الصوت', 'التصميم', 'أخرى'] as const;
 const DIFFICULTY_PRESETS = [
   { value: 3, labelAr: 'سريع', labelEn: 'Fast', labelFr: 'Rapide' },
   { value: 5, labelAr: 'متوازن', labelEn: 'Balanced', labelFr: 'Équilibré' },
   { value: 7, labelAr: 'تدريجي', labelEn: 'Gradual', labelFr: 'Progressif' },
 ] as const;
 
-type SettingsSheetKind = 'memorize' | 'display' | 'backup';
+type SettingsSheetKind = 'memorize' | 'display' | 'backup' | 'feedback';
 
 export default function MySpaceScreen() {
-  const router = useRouter();
   const {
     state,
     theme,
@@ -69,6 +72,14 @@ export default function MySpaceScreen() {
   const [activeSheet, setActiveSheet] = useState<SettingsSheetKind | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [keyInput, setKeyInput] = useState('');
+  const [feedbackType, setFeedbackType] = useState<MobileFeedbackType>('feedback');
+  const [feedbackArea, setFeedbackArea] = useState<string>('الحفظ');
+  const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [feedbackContact, setFeedbackContact] = useState('');
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
+  const [feedbackSent, setFeedbackSent] = useState(false);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
 
   const [draftReciter, setDraftReciter] = useState<ReciterId>(state?.reciter ?? 'hudhaify');
   const [draftSpeed, setDraftSpeed] = useState<PlaybackSpeed>(state?.playbackSpeed ?? 1.0);
@@ -218,9 +229,7 @@ export default function MySpaceScreen() {
     setStatusMessage(null);
     const res = await syncNow();
     if (res.ok) {
-      setStatusMessage(
-        `تمت المزامنة والدمج بنجاح (الإصدار ${toArabicDigits(res.mergedState?.version ?? 1)})`,
-      );
+      setStatusMessage('تم حفظ النسخة الاحتياطية على السحابة بنجاح');
     }
   };
 
@@ -230,7 +239,76 @@ export default function MySpaceScreen() {
     const res = await restoreBySyncKey(targetKey);
     if (res.ok) {
       setKeyInput('');
-      setStatusMessage('تم استرجاع ودمج المحفظة السحابية بنجاح');
+      setStatusMessage('تم استرجاع تقدمك بنجاح');
+    }
+  };
+
+  const handleShareSyncKey = async () => {
+    try {
+      await Share.share({ message: state.syncKey });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'تعذر مشاركة المفتاح';
+      setStatusMessage(msg);
+    }
+  };
+
+  const handleSubmitFeedback = async () => {
+    if (feedbackSubmitting) return;
+    setFeedbackError(null);
+    setFeedbackSubmitting(true);
+    try {
+      const res = await submitFeedbackToApi({
+        type: feedbackType,
+        area: feedbackArea,
+        message: feedbackMessage,
+        contact: feedbackContact,
+        syncKey: state.syncKey,
+      });
+      if (!res.ok) {
+        setFeedbackError(res.error ?? 'تعذر إرسال الرسالة.');
+        return;
+      }
+      setFeedbackSent(true);
+      setFeedbackMessage('');
+      setFeedbackContact('');
+      setStatusMessage('شكراً لك! تم استلام رسالتك بنجاح.');
+    } finally {
+      setFeedbackSubmitting(false);
+    }
+  };
+
+  const handleOpenFeedbackSheet = () => {
+    setFeedbackError(null);
+    setFeedbackSent(false);
+    setActiveSheet('feedback');
+  };
+
+  const handleCheckUpdates = async () => {
+    if (checkingUpdate) return;
+    if (!Updates.isEnabled) {
+      setStatusMessage('التحديثات التلقائية غير مفعّلة في هذا البناء.');
+      return;
+    }
+    setCheckingUpdate(true);
+    setStatusMessage(null);
+    try {
+      const check = await Updates.checkForUpdateAsync();
+      if (!check.isAvailable) {
+        setStatusMessage('التطبيق محدث لآخر إصدار.');
+        return;
+      }
+      setStatusMessage('جارٍ تحميل التحديث الجديد...');
+      const fetched = await Updates.fetchUpdateAsync();
+      if (fetched.isNew) {
+        await Updates.reloadAsync();
+      } else {
+        setStatusMessage('التطبيق محدث لآخر إصدار.');
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'تعذر التحقق من التحديثات';
+      setStatusMessage(`تعذر التحقق من التحديثات: ${msg}`);
+    } finally {
+      setCheckingUpdate(false);
     }
   };
 
@@ -521,7 +599,8 @@ export default function MySpaceScreen() {
           </Pressable>
 
           <Pressable
-            onPress={() => router.push('/onboarding')}
+            onPress={() => void handleCheckUpdates()}
+            disabled={checkingUpdate}
             style={[
               styles.menuRow,
               {
@@ -534,17 +613,53 @@ export default function MySpaceScreen() {
           >
             <View style={[styles.menuIconBox, { backgroundColor: theme.secondary }]}>
               <Ionicons
-                name="compass-outline"
+                name="cloud-download-outline"
                 size={18}
                 color={theme.isDark ? theme.foreground : theme.primary}
               />
             </View>
             <View style={{ flex: 1, alignItems: isRtl ? 'flex-end' : 'flex-start', gap: 2 }}>
               <Text style={[styles.settingTitle, { color: theme.foreground }]}>
-                {copy.onboardingLink}
+                التحقق من التحديثات
+              </Text>
+              <Text style={[styles.settingSub, { color: theme.mutedForeground }]} numberOfLines={1}>
+                {checkingUpdate
+                  ? 'جارٍ البحث عن تحديث...'
+                  : `الإصدار ${formatDigitsInText(Constants.expoConfig?.version ?? '1.0.0', 'ar')}`}
+              </Text>
+            </View>
+            {checkingUpdate ? (
+              <ActivityIndicator size="small" color={theme.primary} />
+            ) : (
+              <Ionicons name={dirChevron} size={18} color={theme.mutedForeground} />
+            )}
+          </Pressable>
+
+          <Pressable
+            onPress={handleOpenFeedbackSheet}
+            style={[
+              styles.menuRow,
+              {
+                flexDirection: isRtl ? 'row-reverse' : 'row',
+                borderBottomColor: theme.border,
+                borderBottomWidth: 1,
+              },
+            ]}
+            accessibilityRole="button"
+          >
+            <View style={[styles.menuIconBox, { backgroundColor: theme.secondary }]}>
+              <Ionicons
+                name="chatbubble-ellipses-outline"
+                size={18}
+                color={theme.isDark ? theme.foreground : theme.primary}
+              />
+            </View>
+            <View style={{ flex: 1, alignItems: isRtl ? 'flex-end' : 'flex-start', gap: 2 }}>
+              <Text style={[styles.settingTitle, { color: theme.foreground }]}>
+                ملاحظاتك والإبلاغ عن خطأ
               </Text>
               <Text style={[styles.settingSub, { color: theme.mutedForeground }]}>
-                إعادة ضبط السورة الأولى وتجربة البدء
+                شاركنا رأيك أو أبلغ عن أي مشكلة واجهتك
               </Text>
             </View>
             <Ionicons name={dirChevron} size={18} color={theme.mutedForeground} />
@@ -1040,18 +1155,42 @@ export default function MySpaceScreen() {
                   { borderColor: theme.border, backgroundColor: theme.background },
                 ]}
               >
-                <Text style={[styles.keyLbl, { color: theme.mutedForeground }]}>
-                  مفتاح المزامنة (Hono + Supabase):
-                </Text>
+                <View style={[styles.rowBetween, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
+                  <Text style={[styles.keyLbl, { color: theme.mutedForeground }]}>
+                    مفتاح النسخ الاحتياطي الخاص بك
+                  </Text>
+                  <Pressable
+                    onPress={() => void handleShareSyncKey()}
+                    style={[
+                      styles.chipBtn,
+                      { borderColor: theme.border, backgroundColor: theme.secondary },
+                    ]}
+                    accessibilityRole="button"
+                  >
+                    <Text style={[styles.chipText, { color: theme.foreground }]}>حفظ / مشاركة</Text>
+                  </Pressable>
+                </View>
                 <Text
                   selectable
-                  style={[styles.keyVal, { color: theme.isDark ? theme.foreground : theme.primary }]}
+                  style={[
+                    styles.keyVal,
+                    {
+                      color: theme.isDark ? theme.foreground : theme.primary,
+                      textAlign: isRtl ? 'right' : 'left',
+                    },
+                  ]}
                 >
                   {state.syncKey}
                 </Text>
-                <Text style={[styles.keyLbl, { color: theme.mutedForeground }]}>
-                  الإصدار: {toArabicDigits(state.syncVersion)} • آخر مزامنة:{' '}
-                  {state.lastSyncedAt ? state.lastSyncedAt.slice(0, 16).replace('T', ' ') : 'محلي فقط'}
+                <Text
+                  style={[
+                    styles.keyLbl,
+                    { color: theme.mutedForeground, textAlign: isRtl ? 'right' : 'left' },
+                  ]}
+                >
+                  {state.lastSyncedAt
+                    ? `آخر نسخة محفوظة: ${state.lastSyncedAt.slice(0, 10)}`
+                    : 'محلي فقط — لم تُحفظ نسخة سحابية بعد'}
                 </Text>
               </View>
 
@@ -1061,40 +1200,55 @@ export default function MySpaceScreen() {
                 style={[styles.primaryBtn, { backgroundColor: theme.primary }]}
               >
                 <Text style={[styles.primaryBtnText, { color: theme.primaryForeground }]}>
-                  {isSyncing ? 'جارٍ المزامنة...' : 'مزامنة وحفظ نسخة سحابية الآن'}
+                  {isSyncing ? 'جارٍ الحفظ...' : 'حفظ نسخة احتياطية الآن'}
                 </Text>
               </Pressable>
 
-              <TextInput
-                value={keyInput}
-                onChangeText={setKeyInput}
-                placeholder="أدخل مفتاح جهاز آخر للاسترجاع والدمج"
-                placeholderTextColor={theme.mutedForeground}
-                autoCapitalize="none"
-                autoCorrect={false}
+              <View
                 style={[
-                  styles.input,
-                  {
-                    borderColor: theme.border,
-                    backgroundColor: theme.background,
-                    color: theme.foreground,
-                    textAlign: isRtl ? 'right' : 'left',
-                  },
-                ]}
-              />
-
-              <Pressable
-                onPress={() => void handleRestore()}
-                disabled={isSyncing}
-                style={[
-                  styles.secondaryBtn,
-                  { borderColor: theme.border, backgroundColor: theme.secondary },
+                  styles.keyBox,
+                  { borderColor: theme.border, backgroundColor: theme.background, gap: 10 },
                 ]}
               >
-                <Text style={[styles.secondaryBtnText, { color: theme.foreground }]}>
-                  استرجاع ودمج من المفتاح
+                <Text
+                  style={[
+                    styles.fieldLabel,
+                    { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' },
+                  ]}
+                >
+                  استرجاع من جهاز آخر
                 </Text>
-              </Pressable>
+                <TextInput
+                  value={keyInput}
+                  onChangeText={setKeyInput}
+                  placeholder="أدخل مفتاح النسخ الاحتياطي"
+                  placeholderTextColor={theme.mutedForeground}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  style={[
+                    styles.input,
+                    {
+                      borderColor: theme.border,
+                      backgroundColor: theme.card,
+                      color: theme.foreground,
+                      textAlign: isRtl ? 'right' : 'left',
+                    },
+                  ]}
+                />
+
+                <Pressable
+                  onPress={() => void handleRestore()}
+                  disabled={isSyncing}
+                  style={[
+                    styles.secondaryBtn,
+                    { borderColor: theme.border, backgroundColor: theme.secondary },
+                  ]}
+                >
+                  <Text style={[styles.secondaryBtnText, { color: theme.foreground }]}>
+                    استرجاع التقدم
+                  </Text>
+                </Pressable>
+              </View>
 
               {syncError ? (
                 <Text style={[styles.errorText, { color: theme.destructive }]}>{syncError}</Text>
@@ -1110,6 +1264,225 @@ export default function MySpaceScreen() {
                   {copy.settingsOfflineNote}
                 </Text>
               </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Sheet: Feedback & Bug Report */}
+      <Modal
+        visible={activeSheet === 'feedback'}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setActiveSheet(null)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View
+            style={[
+              styles.modalSheet,
+              { backgroundColor: theme.card, borderColor: theme.border },
+            ]}
+          >
+            <View style={[styles.rowBetween, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
+              <Text style={[styles.modalTitle, { color: theme.foreground }]}>
+                ملاحظاتك والإبلاغ عن خطأ
+              </Text>
+              <Pressable
+                onPress={() => setActiveSheet(null)}
+                style={styles.modalCloseBtn}
+                accessibilityRole="button"
+                accessibilityLabel="إغلاق"
+              >
+                <Ionicons name="close" size={22} color={theme.foreground} />
+              </Pressable>
+            </View>
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.sheetScroll}
+              keyboardShouldPersistTaps="handled"
+            >
+              {feedbackSent ? (
+                <View style={[styles.keyBox, { borderColor: theme.border, backgroundColor: theme.background, gap: 10, alignItems: 'center' }]}>
+                  <Ionicons name="checkmark-circle" size={38} color={theme.primary} />
+                  <Text style={[styles.modalTitle, { color: theme.foreground, textAlign: 'center' }]}>
+                    تم إرسال رسالتك بنجاح
+                  </Text>
+                  <Text style={[styles.settingSub, { color: theme.mutedForeground, textAlign: 'center' }]}>
+                    شكراً لمساهمتك في تحسين المِلّة، سنراجع رسالتك بعناية.
+                  </Text>
+                  <Pressable
+                    onPress={() => setActiveSheet(null)}
+                    style={[styles.primaryBtn, { backgroundColor: theme.primary, width: '100%', marginTop: 4 }]}
+                  >
+                    <Text style={[styles.primaryBtnText, { color: theme.primaryForeground }]}>
+                      حسناً
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <>
+                  <View style={styles.fieldGap}>
+                    <Text style={[styles.fieldLabel, { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' }]}>
+                      نوع الرسالة
+                    </Text>
+                    <View style={[styles.chipsRow, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
+                      {(
+                        [
+                          { id: 'bug', label: 'الإبلاغ عن خطأ', icon: 'bug-outline' },
+                          { id: 'feedback', label: 'ملاحظة أو اقتراح', icon: 'sparkles-outline' },
+                        ] as const
+                      ).map((opt) => {
+                        const active = feedbackType === opt.id;
+                        return (
+                          <Pressable
+                            key={opt.id}
+                            onPress={() => setFeedbackType(opt.id)}
+                            style={[
+                              styles.chipBtn,
+                              {
+                                flex: 1,
+                                flexDirection: isRtl ? 'row-reverse' : 'row',
+                                gap: 6,
+                                borderColor: active ? theme.primary : theme.border,
+                                backgroundColor: active ? theme.primary : theme.background,
+                              },
+                            ]}
+                          >
+                            <Ionicons
+                              name={opt.icon}
+                              size={15}
+                              color={active ? theme.primaryForeground : theme.foreground}
+                            />
+                            <Text
+                              style={[
+                                styles.chipText,
+                                { color: active ? theme.primaryForeground : theme.foreground },
+                              ]}
+                            >
+                              {opt.label}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+
+                  <View style={styles.fieldGap}>
+                    <Text style={[styles.fieldLabel, { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' }]}>
+                      القسم المتعلق (اختياري)
+                    </Text>
+                    <View style={[styles.chipsRow, { flexDirection: isRtl ? 'row-reverse' : 'row', flexWrap: 'wrap' }]}>
+                      {FEEDBACK_AREAS.map((area) => {
+                        const active = feedbackArea === area;
+                        return (
+                          <Pressable
+                            key={area}
+                            onPress={() => setFeedbackArea(area)}
+                            style={[
+                              styles.chipBtn,
+                              {
+                                borderColor: active ? theme.primary : theme.border,
+                                backgroundColor: active ? theme.primary : theme.background,
+                              },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.chipText,
+                                { color: active ? theme.primaryForeground : theme.foreground },
+                              ]}
+                            >
+                              {area}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+
+                  <View style={styles.fieldGap}>
+                    <Text style={[styles.fieldLabel, { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' }]}>
+                      التفاصيل
+                    </Text>
+                    <TextInput
+                      value={feedbackMessage}
+                      onChangeText={setFeedbackMessage}
+                      placeholder={
+                        feedbackType === 'bug'
+                          ? 'صف المشكلة التي واجهتك باختصار...'
+                          : 'اكتب ملاحظتك أو اقتراحك هنا...'
+                      }
+                      placeholderTextColor={theme.mutedForeground}
+                      multiline
+                      numberOfLines={4}
+                      textAlignVertical="top"
+                      style={[
+                        styles.input,
+                        {
+                          minHeight: 100,
+                          paddingTop: 10,
+                          paddingBottom: 10,
+                          borderColor: theme.border,
+                          backgroundColor: theme.background,
+                          color: theme.foreground,
+                          textAlign: isRtl ? 'right' : 'left',
+                        },
+                      ]}
+                    />
+                  </View>
+
+                  <View style={styles.fieldGap}>
+                    <Text style={[styles.fieldLabel, { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' }]}>
+                      وسيلة تواصل (اختياري)
+                    </Text>
+                    <TextInput
+                      value={feedbackContact}
+                      onChangeText={setFeedbackContact}
+                      placeholder="بريد إلكتروني أو رقم هاتف للرد عليك"
+                      placeholderTextColor={theme.mutedForeground}
+                      autoCapitalize="none"
+                      style={[
+                        styles.input,
+                        {
+                          borderColor: theme.border,
+                          backgroundColor: theme.background,
+                          color: theme.foreground,
+                          textAlign: isRtl ? 'right' : 'left',
+                        },
+                      ]}
+                    />
+                  </View>
+
+                  {feedbackError ? (
+                    <Text style={[styles.errorText, { color: theme.destructive }]}>{feedbackError}</Text>
+                  ) : null}
+
+                  <Pressable
+                    onPress={() => void handleSubmitFeedback()}
+                    disabled={feedbackSubmitting}
+                    style={[
+                      styles.primaryBtn,
+                      {
+                        backgroundColor: theme.primary,
+                        opacity: feedbackSubmitting ? 0.7 : 1,
+                        flexDirection: isRtl ? 'row-reverse' : 'row',
+                        gap: 8,
+                      },
+                    ]}
+                    accessibilityRole="button"
+                  >
+                    {feedbackSubmitting ? (
+                      <ActivityIndicator size="small" color={theme.primaryForeground} />
+                    ) : (
+                      <Ionicons name="send-outline" size={16} color={theme.primaryForeground} />
+                    )}
+                    <Text style={[styles.primaryBtnText, { color: theme.primaryForeground }]}>
+                      {feedbackSubmitting ? 'جارٍ الإرسال...' : 'إرسال'}
+                    </Text>
+                  </Pressable>
+                </>
+              )}
             </ScrollView>
           </View>
         </View>

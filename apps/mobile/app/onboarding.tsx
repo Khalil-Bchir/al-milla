@@ -27,6 +27,7 @@ import { MillaPicker } from '../src/components/milla/MillaPicker';
 import { QuranText } from '../src/components/milla/QuranText';
 import { useMilla } from '../src/context/MillaContext';
 import { createAyahAudioController, type AyahAudioController } from '../src/services/audio';
+import { useResponsiveLayout } from '../src/theme/responsive';
 import { MIN_TOUCH_TARGET, RADII, SPACING } from '../src/theme/tokens';
 
 const LOGO_ASSET = require('../assets/images/al-milla-logo.png');
@@ -100,6 +101,7 @@ export default function OnboardingScreen() {
     setQuranFontSize,
     completeOnboarding,
   } = useMilla();
+  const { contentMaxWidth, horizontalPadding } = useResponsiveLayout();
 
   const language = state?.language ?? 'ar';
   const reciter = state?.reciter ?? 'hudhaify';
@@ -421,7 +423,7 @@ export default function OnboardingScreen() {
       <ScrollView
         ref={scrollRef}
         style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingHorizontal: horizontalPadding }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -429,6 +431,8 @@ export default function OnboardingScreen() {
           style={[
             styles.animatedStepWrap,
             {
+              maxWidth: contentMaxWidth,
+              alignSelf: 'center',
               opacity: stepOpacity,
               transform: [{ translateX: stepTranslateX }],
             },

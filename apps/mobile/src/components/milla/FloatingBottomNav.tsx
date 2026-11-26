@@ -12,6 +12,7 @@ import { usePathname, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { MILLA_COPY } from '@al-milla/core';
 import { useMilla } from '../../context/MillaContext';
+import { useResponsiveLayout } from '../../theme/responsive';
 import { SPACING } from '../../theme/tokens';
 
 type NavRoute = '/' | '/memorize' | '/revision' | '/settings';
@@ -34,6 +35,7 @@ export function FloatingBottomNav() {
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
+  const { contentMaxWidth, horizontalPadding } = useResponsiveLayout();
   const { state, theme } = useMilla();
 
   const language = state?.language ?? 'ar';
@@ -129,7 +131,10 @@ export function FloatingBottomNav() {
       pointerEvents="box-none"
       style={[
         styles.dockOuter,
-        { paddingBottom: Math.max(insets.bottom, 10) + 2 },
+        {
+          paddingHorizontal: horizontalPadding,
+          paddingBottom: Math.max(insets.bottom, 10) + 2,
+        },
       ]}
     >
       <View
@@ -142,6 +147,9 @@ export function FloatingBottomNav() {
         style={[
           styles.dockPill,
           {
+            maxWidth: contentMaxWidth,
+            width: '100%',
+            alignSelf: 'center',
             flexDirection: isRtl ? 'row-reverse' : 'row',
             borderColor: theme.isDark
               ? 'rgba(242, 239, 230, 0.14)'

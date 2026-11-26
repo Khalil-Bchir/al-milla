@@ -1,7 +1,8 @@
 import React from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMilla } from '../../context/MillaContext';
+import { useResponsiveLayout } from '../../theme/responsive';
 import { SPACING } from '../../theme/tokens';
 
 interface AppShellProps {
@@ -17,6 +18,8 @@ export function AppShell({
   children,
 }: AppShellProps) {
   const { theme } = useMilla();
+  const insets = useSafeAreaInsets();
+  const { contentMaxWidth, horizontalPadding } = useResponsiveLayout();
 
   return (
     <SafeAreaView
@@ -27,12 +30,18 @@ export function AppShell({
         style={styles.scroll}
         contentContainerStyle={[
           styles.scrollContent,
-          hideBottomNav ? styles.scrollContentNoNav : null,
+          {
+            paddingHorizontal: horizontalPadding,
+            paddingTop: SPACING.lg,
+            paddingBottom: (hideBottomNav ? 40 : 96) + insets.bottom,
+          },
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {children}
+        <View style={[styles.innerColumn, { maxWidth: contentMaxWidth }]}>
+          {children}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -44,10 +53,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: SPACING.lg,
-    paddingBottom: 108,
+    flexGrow: 1,
   },
-  scrollContentNoNav: {
-    paddingBottom: 40,
+  innerColumn: {
+    width: '100%',
+    alignSelf: 'center',
   },
 });

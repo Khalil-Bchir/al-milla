@@ -299,21 +299,35 @@ export default function MemorizeSessionScreen() {
   const [stepsKey, setStepsKey] = useState<string>('');
 
   useEffect(() => {
-    if (!state) return;
-    const key = `${surah.id}:${activeSessionNum}:${ayahs.length}`;
-    if (stepsKey !== key) {
+    const expectedPlanKey = `${surah.id}:${activeSessionNum}`;
+    if (!state || ayahs.length === 0 || planSurahKey !== expectedPlanKey) return;
+
+    const hasRevise = surahPlan.allLessons.length > 0;
+    const hasLink = linkAnchor.hasOldVerses;
+    const key = `${expectedPlanKey}:${ayahs.length}:${hasRevise ? 1 : 0}:${hasLink ? 1 : 0}`;
+    if (stepsKey !== key && (stepsKey === '' || stepIndex === 0)) {
       const steps: GuidedStepDef[] = [];
-      if (surahPlan.allLessons.length > 0) {
+      if (hasRevise) {
         steps.push({ id: 'revise', label: 'المراجعة' });
       }
       steps.push({ id: 'memorize', label: 'الحفظ' }, { id: 'test', label: 'التسميع' });
-      if (linkAnchor.hasOldVerses) {
+      if (hasLink) {
         steps.push({ id: 'link', label: 'الربط' });
       }
       setSessionSteps(steps);
       setStepsKey(key);
     }
-  }, [state, surah.id, activeSessionNum, ayahs.length, surahPlan.allLessons.length, linkAnchor.hasOldVerses, stepsKey]);
+  }, [
+    state,
+    surah.id,
+    activeSessionNum,
+    ayahs.length,
+    planSurahKey,
+    surahPlan.allLessons.length,
+    linkAnchor.hasOldVerses,
+    stepsKey,
+    stepIndex,
+  ]);
 
   // Restore in-progress session draft if user closed app mid-session
   useEffect(() => {
