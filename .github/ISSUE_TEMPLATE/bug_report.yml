@@ -1,0 +1,49 @@
+name: Bug Report
+description: Report a bug in the mobile app, landing page, web app, or API.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping improve **Al-Millah**. Please share enough detail so we can reproduce and fix the issue quickly.
+  - type: dropdown
+    id: workspace
+    attributes:
+      label: Affected Area
+      options:
+        - Mobile App (apps/mobile)
+        - Landing Page (apps/landing)
+        - Web App (apps/web)
+        - API (apps/api)
+        - Core Engine (packages/core)
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Tap ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Device / OS / Browser
+      placeholder: e.g., iOS 18 (Expo Go), Android 15, Chrome 131

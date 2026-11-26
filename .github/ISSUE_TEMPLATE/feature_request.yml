@@ -1,0 +1,35 @@
+name: Feature Request
+description: Suggest an improvement aligned with Al-Millah's Quiet Devotion philosophy.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Al-Millah is built around **Quiet Devotion**: individual-only, free, ad-free, and distraction-free.
+  - type: dropdown
+    id: workspace
+    attributes:
+      label: Target Area
+      options:
+        - Mobile App (apps/mobile)
+        - Landing Page (apps/landing)
+        - Web App (apps/web)
+        - Core Engine (packages/core)
+        - Documentation
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the memorization or revision friction you experienced.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How should this work while keeping the experience calm and minimal?
+    validations:
+      required: true
