@@ -271,21 +271,38 @@ export default function MemorizeSessionScreen() {
     return ayahs.slice(startIdx, startIdx + effectiveTarget);
   }, [ayahs, startIdx, effectiveTarget, usingLearningRange, activeLearningLesson]);
 
-  const linkAnchor = useMemo(
-    () =>
-      computeLinkAnchorRange({
-        ayahs,
-        startIdx,
-        portionCount: portionAyahs.length,
-        verseRecords: state?.verseRecords ?? {},
-        lessons: state?.lessons ?? [],
-        surahId: surah.id,
-        maxOldVerses: 5,
-      }),
-    [ayahs, startIdx, portionAyahs.length, state?.verseRecords, state?.lessons, surah.id],
-  );
+  const linkAnchor = useMemo(() => {
+    const computed = computeLinkAnchorRange({
+      ayahs,
+      startIdx,
+      portionCount: portionAyahs.length,
+      verseRecords: state?.verseRecords ?? {},
+      lessons: state?.lessons ?? [],
+      surahId: surah.id,
+      maxOldVerses: 5,
+    });
+    if (computed.hasOldVerses || surahPlan.allLessons.length === 0 || startIdx <= 0) {
+      return computed;
+    }
+    const fallbackOldStart = Math.max(0, startIdx - 5);
+    const fallbackOldCount = startIdx - fallbackOldStart;
+    const fallbackEnd = startIdx + Math.max(1, portionAyahs.length);
+    return {
+      ayahs: ayahs.slice(fallbackOldStart, fallbackEnd),
+      hasOldVerses: fallbackOldCount > 0,
+      oldVerseCount: fallbackOldCount,
+    };
+  }, [
+    ayahs,
+    startIdx,
+    portionAyahs.length,
+    state?.verseRecords,
+    state?.lessons,
+    surah.id,
+    surahPlan.allLessons.length,
+  ]);
 
-  const [sessionSteps, setSessionSteps] = useState<GuidedStepDef[]>(() => {
+  const liveSessionSteps = useMemo<GuidedStepDef[]>(() => {
     const steps: GuidedStepDef[] = [];
     if (surahPlan.allLessons.length > 0) {
       steps.push({ id: 'revise', label: 'المراجعة' });
@@ -295,39 +312,18 @@ export default function MemorizeSessionScreen() {
       steps.push({ id: 'link', label: 'الربط' });
     }
     return steps;
-  });
-  const [stepsKey, setStepsKey] = useState<string>('');
+  }, [surahPlan.allLessons.length, linkAnchor.hasOldVerses]);
 
-  useEffect(() => {
-    const expectedPlanKey = `${surah.id}:${activeSessionNum}`;
-    if (!state || ayahs.length === 0 || planSurahKey !== expectedPlanKey) return;
-
-    const hasRevise = surahPlan.allLessons.length > 0;
-    const hasLink = linkAnchor.hasOldVerses;
-    const key = `${expectedPlanKey}:${ayahs.length}:${hasRevise ? 1 : 0}:${hasLink ? 1 : 0}`;
-    if (stepsKey !== key && (stepsKey === '' || stepIndex === 0)) {
-      const steps: GuidedStepDef[] = [];
-      if (hasRevise) {
-        steps.push({ id: 'revise', label: 'المراجعة' });
-      }
-      steps.push({ id: 'memorize', label: 'الحفظ' }, { id: 'test', label: 'التسميع' });
-      if (hasLink) {
-        steps.push({ id: 'link', label: 'الربط' });
-      }
-      setSessionSteps(steps);
-      setStepsKey(key);
-    }
-  }, [
-    state,
-    surah.id,
-    activeSessionNum,
-    ayahs.length,
-    planSurahKey,
-    surahPlan.allLessons.length,
-    linkAnchor.hasOldVerses,
-    stepsKey,
-    stepIndex,
-  ]);
+  const lockedStepsRef = useRef<GuidedStepDef[] | null>(null);
+  if (stepIndex === 0 || endPhase !== 'active') {
+    lockedStepsRef.current = null;
+  } else if (!lockedStepsRef.current) {
+    lockedStepsRef.current = liveSessionSteps;
+  }
+  const sessionSteps =
+    stepIndex > 0 && endPhase === 'active' && lockedStepsRef.current
+      ? lockedStepsRef.current
+      : liveSessionSteps;
 
   // Restore in-progress session draft if user closed app mid-session
   useEffect(() => {
@@ -500,10 +496,18 @@ export default function MemorizeSessionScreen() {
     const last = portionAyahs[portionAyahs.length - 1]?.number ?? portionStartAyah;
     setCompletedRange({ start: first, end: last, count: portionAyahs.length });
     setEndPhase('completed');
-    await completeSession(portionAyahs.map((a) => `${surah.id}:${a.number}`));
+    const hasNextInSurah = last < surah.totalAyahs;
     if (advanceCursor) {
-      await advanceNextWirdPosition();
+      setJustFinishedSurah(!hasNextInSurah);
     }
+    const nextCursor =
+      advanceCursor && hasNextInSurah
+        ? { surahId: surah.id, ayahNumber: last + 1 }
+        : undefined;
+    await completeSession(
+      portionAyahs.map((a) => `${surah.id}:${a.number}`),
+      nextCursor,
+    );
   };
 
   const advanceToNextStep = async (advanceCursorOnComplete = true) => {
@@ -676,7 +680,7 @@ export default function MemorizeSessionScreen() {
     setCompletedRange(null);
     setStepIndex(0);
     setHighestStepIndex(0);
-    setStepsKey('');
+    lockedStepsRef.current = null;
     setEndPhase('active');
   };
 
@@ -794,138 +798,137 @@ export default function MemorizeSessionScreen() {
       hideBottomNav
     >
       <View style={styles.stack}>
-        {/* Back to Memorize Dashboard + Active Learning Notice */}
-        <View style={[styles.rowBetween, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
-          <Pressable
-            onPress={() => router.back()}
-            style={[
-              styles.backPill,
-              {
-                flexDirection: isRtl ? 'row-reverse' : 'row',
-                borderColor: theme.border,
-                backgroundColor: theme.card,
-              },
-            ]}
-          >
-            <Ionicons name={backArrow} size={16} color={theme.foreground} />
-            <Text style={[styles.backPillText, { color: theme.foreground }]}>
-              العودة إلى الحفظ
-            </Text>
-          </Pressable>
+        {endPhase === 'active' ? (
+          <>
+            {/* Back to Memorize Dashboard + Active Learning Notice */}
+            <View style={[styles.rowBetween, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
+              <Pressable
+                onPress={() => router.back()}
+                style={[
+                  styles.backPill,
+                  {
+                    flexDirection: isRtl ? 'row-reverse' : 'row',
+                    borderColor: theme.border,
+                    backgroundColor: theme.card,
+                  },
+                ]}
+              >
+                <Ionicons name={backArrow} size={16} color={theme.foreground} />
+                <Text style={[styles.backPillText, { color: theme.foreground }]}>
+                  العودة إلى الحفظ
+                </Text>
+              </Pressable>
 
-          <MemorizeCornerActions />
-        </View>
+              <MemorizeCornerActions />
+            </View>
 
-        {/* Session Progress Bar (2 steps on first session, up to 4 steps later) */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <View style={[styles.rowBetween, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
-            <Text style={[styles.progressTitle, { color: theme.foreground }]}>
-              مسار الجلسة
-            </Text>
-            <Text style={[styles.progressCount, { color: theme.mutedForeground }]}>
-              {endPhase === 'completed'
-                ? 'اكتملت الجلسة ✓'
-                : endPhase === 'finished_early'
-                  ? 'حُفظ تقدّمك ✓'
-                  : `الخطوة ${toArabicDigits(stepIndex + 1)} من ${toArabicDigits(sessionSteps.length)}`}
-            </Text>
-          </View>
+            {/* Session Progress Bar (2 steps on first session, up to 4 steps later) */}
+            <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <View style={[styles.rowBetween, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
+                <Text style={[styles.progressTitle, { color: theme.foreground }]}>
+                  مسار الجلسة
+                </Text>
+                <Text style={[styles.progressCount, { color: theme.mutedForeground }]}>
+                  {`الخطوة ${toArabicDigits(stepIndex + 1)} من ${toArabicDigits(sessionSteps.length)}`}
+                </Text>
+              </View>
 
-          <View style={[styles.stepsGrid, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
-            {sessionSteps.map((step, idx) => {
-              const isCurrent = endPhase === 'active' && idx === stepIndex;
-              const isDone =
-                endPhase === 'completed' || (endPhase === 'active' && idx < highestStepIndex && !isCurrent);
-              const isUnlocked = endPhase === 'active' && idx <= highestStepIndex;
-              const canTap = isUnlocked && !isCurrent;
-              return (
-                <Pressable
-                  key={step.id}
-                  disabled={!canTap}
-                  onPress={() => setStepIndex(idx)}
-                  style={styles.stepCol}
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: !canTap, selected: isCurrent }}
-                >
-                  <View
-                    style={[
-                      styles.stepBar,
-                      {
-                        backgroundColor: isCurrent
-                          ? theme.accent
-                          : isDone
-                            ? theme.primary
-                            : isUnlocked
-                              ? `${theme.primary}66`
-                              : theme.muted,
-                      },
-                    ]}
-                  />
-                  <Text
-                    style={[
-                      styles.stepLbl,
-                      {
-                        color: isCurrent
-                          ? theme.foreground
-                          : isDone || isUnlocked
-                            ? theme.primary
-                            : theme.mutedForeground,
-                        fontWeight: isCurrent ? '700' : '600',
-                      },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {isDone ? `✓ ${step.label}` : step.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+              <View style={[styles.stepsGrid, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
+                {sessionSteps.map((step, idx) => {
+                  const isCurrent = idx === stepIndex;
+                  const isDone = idx < highestStepIndex && !isCurrent;
+                  const isUnlocked = idx <= highestStepIndex;
+                  const canTap = isUnlocked && !isCurrent;
+                  return (
+                    <Pressable
+                      key={step.id}
+                      disabled={!canTap}
+                      onPress={() => setStepIndex(idx)}
+                      style={styles.stepCol}
+                      accessibilityRole="button"
+                      accessibilityState={{ disabled: !canTap, selected: isCurrent }}
+                    >
+                      <View
+                        style={[
+                          styles.stepBar,
+                          {
+                            backgroundColor: isCurrent
+                              ? theme.accent
+                              : isDone
+                                ? theme.primary
+                                : isUnlocked
+                                  ? `${theme.primary}66`
+                                  : theme.muted,
+                          },
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.stepLbl,
+                          {
+                            color: isCurrent
+                              ? theme.foreground
+                              : isDone || isUnlocked
+                                ? theme.primary
+                                : theme.mutedForeground,
+                            fontWeight: isCurrent ? '700' : '600',
+                          },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {isDone ? `✓ ${step.label}` : step.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
 
-          {endPhase === 'active' && (stepIndex > 0 || stepIndex < highestStepIndex) ? (
-            <View style={[styles.stepNavRow, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
-              {stepIndex > 0 ? (
-                <Pressable
-                  onPress={() => setStepIndex((i) => Math.max(0, i - 1))}
-                  style={[
-                    styles.stepNavBtn,
-                    {
-                      flexDirection: isRtl ? 'row-reverse' : 'row',
-                      borderColor: theme.border,
-                      backgroundColor: theme.background,
-                    },
-                  ]}
-                  accessibilityRole="button"
-                >
-                  <Ionicons name={backArrow} size={15} color={theme.foreground} />
-                  <Text style={[styles.stepNavBtnText, { color: theme.foreground }]} numberOfLines={1}>
-                    السابق: {sessionSteps[stepIndex - 1]?.label ?? ''}
-                  </Text>
-                </Pressable>
-              ) : null}
+              {stepIndex > 0 || stepIndex < highestStepIndex ? (
+                <View style={[styles.stepNavRow, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
+                  {stepIndex > 0 ? (
+                    <Pressable
+                      onPress={() => setStepIndex((i) => Math.max(0, i - 1))}
+                      style={[
+                        styles.stepNavBtn,
+                        {
+                          flexDirection: isRtl ? 'row-reverse' : 'row',
+                          borderColor: theme.border,
+                          backgroundColor: theme.background,
+                        },
+                      ]}
+                      accessibilityRole="button"
+                    >
+                      <Ionicons name={backArrow} size={15} color={theme.foreground} />
+                      <Text style={[styles.stepNavBtnText, { color: theme.foreground }]} numberOfLines={1}>
+                        السابق: {sessionSteps[stepIndex - 1]?.label ?? ''}
+                      </Text>
+                    </Pressable>
+                  ) : null}
 
-              {stepIndex < highestStepIndex ? (
-                <Pressable
-                  onPress={() => setStepIndex((i) => Math.min(highestStepIndex, i + 1))}
-                  style={[
-                    styles.stepNavBtn,
-                    {
-                      flexDirection: isRtl ? 'row-reverse' : 'row',
-                      borderColor: theme.primary,
-                      backgroundColor: theme.secondary,
-                    },
-                  ]}
-                  accessibilityRole="button"
-                >
-                  <Text style={[styles.stepNavBtnText, { color: theme.primary }]} numberOfLines={1}>
-                    التالي: {sessionSteps[stepIndex + 1]?.label ?? ''}
-                  </Text>
-                  <Ionicons name={dirArrow} size={15} color={theme.primary} />
-                </Pressable>
+                  {stepIndex < highestStepIndex ? (
+                    <Pressable
+                      onPress={() => setStepIndex((i) => Math.min(highestStepIndex, i + 1))}
+                      style={[
+                        styles.stepNavBtn,
+                        {
+                          flexDirection: isRtl ? 'row-reverse' : 'row',
+                          borderColor: theme.primary,
+                          backgroundColor: theme.secondary,
+                        },
+                      ]}
+                      accessibilityRole="button"
+                    >
+                      <Text style={[styles.stepNavBtnText, { color: theme.primary }]} numberOfLines={1}>
+                        التالي: {sessionSteps[stepIndex + 1]?.label ?? ''}
+                      </Text>
+                      <Ionicons name={dirArrow} size={15} color={theme.primary} />
+                    </Pressable>
+                  ) : null}
+                </View>
               ) : null}
             </View>
-          ) : null}
-        </View>
+          </>
+        ) : null}
 
         {/* STEP 1: Revise (Active Surah Only, One Lesson at a Time) */}
         {currentPhase === 'revise' && activeReviseLesson ? (
@@ -1630,9 +1633,19 @@ export default function MemorizeSessionScreen() {
                 : 'قيد التعلّم';
 
           return (
-            <View style={styles.stack}>
+            <View style={[styles.stack, { paddingTop: SPACING.sm }]}>
               {/* Editorial Hero Summary */}
-              <View style={[styles.doneHeroCard, { backgroundColor: theme.heroBg }]}>
+              <View
+                style={[
+                  styles.doneHeroCard,
+                  {
+                    backgroundColor: theme.heroBg,
+                    paddingVertical: SPACING.xl,
+                    borderWidth: 1,
+                    borderColor: theme.isDark ? theme.border : 'rgba(255,255,255,0.08)',
+                  },
+                ]}
+              >
                 <View style={[styles.rowBetween, { flexDirection: isRtl ? 'row-reverse' : 'row', width: '100%' }]}>
                   <View style={[styles.badge, { backgroundColor: theme.accent }]}>
                     <Text style={styles.doneHeroPillText}>
@@ -1691,52 +1704,120 @@ export default function MemorizeSessionScreen() {
               </View>
 
               {/* Session Metrics & Completed Steps */}
-              <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <View
+                style={[
+                  styles.card,
+                  { backgroundColor: theme.card, borderColor: theme.border, gap: SPACING.md },
+                ]}
+              >
                 <View style={[styles.doneStatsRow, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
-                  <View style={[styles.doneStatBox, { backgroundColor: theme.secondary }]}>
-                    <Text style={[styles.doneStatVal, { color: theme.primary }]}>
+                  <View
+                    style={[
+                      styles.doneStatBox,
+                      {
+                        backgroundColor: theme.secondary,
+                        borderWidth: 1,
+                        borderColor: theme.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.doneStatVal,
+                        { color: theme.isDark ? theme.foreground : theme.primary },
+                      ]}
+                    >
                       {formatNum(completedRange?.count ?? portionAyahs.length, language)}
                     </Text>
                     <Text style={[styles.doneStatLbl, { color: theme.mutedForeground }]}>آيات الورد</Text>
                   </View>
-                  <View style={[styles.doneStatBox, { backgroundColor: theme.secondary }]}>
-                    <Text style={[styles.doneStatVal, { color: theme.primary }]}>
+                  <View
+                    style={[
+                      styles.doneStatBox,
+                      {
+                        backgroundColor: theme.secondary,
+                        borderWidth: 1,
+                        borderColor: theme.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.doneStatVal,
+                        { color: theme.isDark ? theme.foreground : theme.primary },
+                      ]}
+                    >
                       {lessonStateLabel}
                     </Text>
                     <Text style={[styles.doneStatLbl, { color: theme.mutedForeground }]}>حالة الدرس</Text>
                   </View>
-                  <View style={[styles.doneStatBox, { backgroundColor: theme.secondary }]}>
-                    <Text style={[styles.doneStatVal, { color: theme.primary }]}>
+                  <View
+                    style={[
+                      styles.doneStatBox,
+                      {
+                        backgroundColor: theme.secondary,
+                        borderWidth: 1,
+                        borderColor: theme.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.doneStatVal,
+                        { color: theme.isDark ? theme.foreground : theme.primary },
+                      ]}
+                    >
                       {formatNum(currentAyah, language)}
                     </Text>
                     <Text style={[styles.doneStatLbl, { color: theme.mutedForeground }]}>الموضع القادم</Text>
                   </View>
                 </View>
 
-                <View style={[styles.badgesRow, { flexDirection: isRtl ? 'row-reverse' : 'row', justifyContent: 'center' }]}>
-                  {sessionSteps.map((s, idx) => {
-                    const completed = endPhase === 'completed' || idx < stepIndex;
-                    return (
-                      <View
-                        key={s.id}
-                        style={[
-                          styles.badge,
-                          {
-                            backgroundColor: completed ? theme.secondary : theme.muted,
-                          },
-                        ]}
-                      >
-                        <Text
+                <View
+                  style={{
+                    borderTopWidth: 1,
+                    borderTopColor: theme.border,
+                    paddingTop: SPACING.sm,
+                  }}
+                >
+                  <View
+                    style={[
+                      styles.badgesRow,
+                      { flexDirection: isRtl ? 'row-reverse' : 'row', justifyContent: 'center' },
+                    ]}
+                  >
+                    {sessionSteps.map((s, idx) => {
+                      const completed = endPhase === 'completed' || idx < stepIndex;
+                      return (
+                        <View
+                          key={s.id}
                           style={[
-                            styles.badgeText,
-                            { color: completed ? theme.primary : theme.mutedForeground },
+                            styles.badge,
+                            {
+                              backgroundColor: completed ? theme.secondary : theme.muted,
+                              borderWidth: 1,
+                              borderColor: theme.border,
+                            },
                           ]}
                         >
-                          {completed ? `✓ ${s.label}` : s.label}
-                        </Text>
-                      </View>
-                    );
-                  })}
+                          <Text
+                            style={[
+                              styles.badgeText,
+                              {
+                                color: completed
+                                  ? theme.isDark
+                                    ? theme.foreground
+                                    : theme.primary
+                                  : theme.mutedForeground,
+                              },
+                            ]}
+                          >
+                            {completed ? `✓ ${s.label}` : s.label}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
                 </View>
               </View>
 

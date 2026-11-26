@@ -61,7 +61,10 @@ interface MillaContextValue {
   ) => Promise<void>;
   setDailyStage: (stage: DailyStageKey, done: boolean) => Promise<void>;
   toggleDailyStage: (stage: DailyStageKey) => Promise<void>;
-  completeSession: (keys: string[]) => Promise<void>;
+  completeSession: (
+    keys: string[],
+    nextCursor?: { surahId: number; ayahNumber: number },
+  ) => Promise<void>;
   saveLearningLesson: (params: {
     surahId: number;
     startVerse: number;
@@ -325,7 +328,7 @@ export function MillaProvider({ children }: { children: React.ReactNode }) {
   }, [state, reloadFromDb]);
 
   const completeSession = useCallback(
-    async (keys: string[]) => {
+    async (keys: string[], nextCursor?: { surahId: number; ayahNumber: number }) => {
       if (!state) return;
       const today = todayIsoDate();
       const completedAt = new Date().toISOString();
@@ -339,6 +342,24 @@ export function MillaProvider({ children }: { children: React.ReactNode }) {
       };
       const completedSessionNum = state.currentSessionNumber + 1;
       const nextStages = { ...state.dailyStages, verseConnection: true };
+
+      let resolvedSurahId = state.currentSurahId;
+      let resolvedAyah = state.currentAyah;
+      let resolvedMushafPage = state.currentMushafPage;
+      let resolvedCursors = state.surahCursors;
+      if (nextCursor) {
+        const cursorSurah = getSurahById(nextCursor.surahId);
+        const clampedAyah = Math.max(1, Math.min(cursorSurah.totalAyahs, nextCursor.ayahNumber));
+        resolvedSurahId = nextCursor.surahId;
+        resolvedAyah = clampedAyah;
+        resolvedMushafPage = cursorSurah.pageStart;
+        resolvedCursors = { ...state.surahCursors, [nextCursor.surahId]: clampedAyah };
+        await saveSettingToDb('currentSurahId', String(resolvedSurahId));
+        await saveSettingToDb('currentAyah', String(resolvedAyah));
+        await saveSettingToDb('currentMushafPage', String(resolvedMushafPage));
+        await saveSettingToDb('surahCursors', JSON.stringify(resolvedCursors));
+      }
+
       await saveSettingToDb('lastSessionKeys', JSON.stringify(keys));
       await saveSettingToDb('lastSessionCompletedAt', completedAt);
       await saveSettingToDb('currentSessionNumber', String(completedSessionNum));
@@ -352,6 +373,10 @@ export function MillaProvider({ children }: { children: React.ReactNode }) {
         prev
           ? {
               ...prev,
+              currentSurahId: nextCursor ? resolvedSurahId : prev.currentSurahId,
+              currentAyah: nextCursor ? resolvedAyah : prev.currentAyah,
+              currentMushafPage: nextCursor ? resolvedMushafPage : prev.currentMushafPage,
+              surahCursors: nextCursor ? resolvedCursors : prev.surahCursors,
               lastSessionKeys: keys,
               lastSessionCompletedAt: completedAt,
               currentSessionNumber: completedSessionNum,
@@ -371,6 +396,10 @@ export function MillaProvider({ children }: { children: React.ReactNode }) {
 
       void syncPortfolioWithCloud({
         ...state,
+        currentSurahId: resolvedSurahId,
+        currentAyah: resolvedAyah,
+        currentMushafPage: resolvedMushafPage,
+        surahCursors: resolvedCursors,
         lastSessionKeys: keys,
         lastSessionCompletedAt: completedAt,
         currentSessionNumber: completedSessionNum,
