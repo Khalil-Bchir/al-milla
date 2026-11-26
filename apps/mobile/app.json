@@ -5,8 +5,19 @@
     "version": "1.0.0",
     "scheme": "almilla",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "icon": "./assets/images/al-milla-logo.png",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/al-milla-logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F7F5ED",
+      "dark": {
+        "image": "./assets/images/al-milla-logo-dark.jpg",
+        "resizeMode": "contain",
+        "backgroundColor": "#0B0B0A"
+      }
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.almilla.app"
@@ -14,13 +25,16 @@
     "android": {
       "package": "com.almilla.app",
       "adaptiveIcon": {
+        "foregroundImage": "./assets/images/al-milla-logo.png",
         "backgroundColor": "#F7F5ED"
       }
     },
     "plugins": [
       "expo-router",
       "expo-sqlite",
-      "expo-audio"
+      "expo-audio",
+      "expo-font",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true

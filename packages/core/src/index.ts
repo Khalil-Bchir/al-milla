@@ -18,7 +18,10 @@ export {
 export {
   formatCueText,
   maskVerseByLevel,
+  maskVerseDynamic,
+  maskVerseForStrengthening,
   type ProgressiveHideLevel,
+  type StrengtheningHideLevel,
 } from './verse-masking.js';
 
 export {
@@ -55,3 +58,43 @@ export {
   mergeVerseRecords,
   type PortfolioSyncState,
 } from './sync-merge.js';
+
+export {
+  LONG_BREAK_DAYS,
+  SAFETY_NET_DAYS,
+  SESSION_INTERVAL_LADDER,
+  applyLessonReviewRating,
+  applyStep3TestRating,
+  computeLinkAnchorRange,
+  computeMultiSurahRevisionGroups,
+  computePortionSuggestion,
+  computeSurahProgress,
+  computeSurahRevisionPlan,
+  createLearningLesson,
+  daysBetweenIsoDates,
+  findActiveLearningLesson,
+  formatLessonId,
+  getSurahActiveSessionNumber,
+  nextSessionInterval,
+  type LessonRecord,
+  type LessonState,
+  type LinkAnchorResult,
+  type LinkRating,
+  type MultiSurahRevisionGroup,
+  type PlannerSuggestion,
+  type SessionInterval,
+  type SurahProgressSummary,
+  type SurahRevisionPlan,
+} from './lesson-planner.js';
+
+export {
+  buildCareRevisionQueue,
+  buildSmartRevisionQueue,
+  buildSurahRevisionItems,
+  computeSurahRevisionSummaries,
+  scoreLessonRevisionPriority,
+  type RevisionCardItem,
+  type RevisionSessionMode,
+  type RevisionTimePreset,
+  type SurahRevisionCardSummary,
+} from './revision-engine.js';

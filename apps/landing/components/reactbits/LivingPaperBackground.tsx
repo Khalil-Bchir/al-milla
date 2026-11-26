@@ -52,9 +52,12 @@ export function LivingPaperBackground() {
           if (p.x < -10) p.x = width + 10;
           if (p.x > width + 10) p.x = -10;
         }
+        const isDark = document.documentElement.classList.contains('dark');
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(7, 61, 53, ${p.alpha})`;
+        ctx.fillStyle = isDark
+          ? `rgba(242, 239, 230, ${p.alpha * 0.7})`
+          : `rgba(7, 61, 53, ${p.alpha})`;
         ctx.fill();
       }
       if (!prefersReduced) {
@@ -80,7 +83,7 @@ export function LivingPaperBackground() {
     <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
       {/* Slow breathing organic radial washes */}
       <div
-        className="absolute -top-40 right-[-10%] h-[520px] w-[520px] rounded-full blur-3xl"
+        className="absolute -top-40 right-[-10%] h-[520px] w-[520px] rounded-full blur-3xl dark:opacity-0"
         style={{
           background: 'radial-gradient(circle, rgba(7, 61, 53, 0.08) 0%, transparent 70%)',
         }}

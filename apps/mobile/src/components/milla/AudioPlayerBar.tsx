@@ -1,26 +1,26 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
   MILLA_COPY,
   RECITERS,
   formatDigitsInText,
   formatNum,
-  type ReciterId,
 } from '@al-milla/core';
 import { useMilla } from '../../context/MillaContext';
 import type { PlaybackSpeed } from '../../db/database';
 import { createAyahAudioController } from '../../services/audio';
 import { MIN_TOUCH_TARGET, RADII, SPACING } from '../../theme/tokens';
-import { MillaPicker } from './MillaPicker';
 
 interface AudioPlayerBarProps {
   surahId?: number;
   surahName: string;
   ayahNumber: number;
   mode?: 'memorize' | 'reference';
+  externalRepeatCount?: number;
   onPrevAyah?: () => void;
   onNextAyah?: () => void;
+  onRepeatProgress?: (currentRepeat: number, totalRepeats: number) => void;
   onRepeatCycleComplete?: () => void;
 }
 
@@ -31,11 +31,13 @@ export function AudioPlayerBar({
   surahName,
   ayahNumber,
   mode = 'memorize',
+  externalRepeatCount,
   onPrevAyah,
   onNextAyah,
+  onRepeatProgress,
   onRepeatCycleComplete,
 }: AudioPlayerBarProps) {
-  const { state, theme, setReciter, setPlaybackSpeed } = useMilla();
+  const { state, theme, setPlaybackSpeed } = useMilla();
 
   const language = state?.language ?? 'ar';
   const copy = MILLA_COPY[language];
@@ -43,21 +45,74 @@ export function AudioPlayerBar({
   const reciter = state?.reciter ?? 'hudhaify';
   const playbackSpeed = state?.playbackSpeed ?? 1.0;
   const mandatoryRepeats = state?.mandatoryRepeats ?? 5;
+  const difficultyLabel =
+    mandatoryRepeats <= 3
+      ? language === 'en'
+        ? 'Fast'
+        : language === 'fr'
+          ? 'Rapide'
+          : 'سريع'
+      : mandatoryRepeats <= 5
+        ? language === 'en'
+          ? 'Balanced'
+          : language === 'fr'
+            ? 'Équilibré'
+            : 'متوازن'
+        : language === 'en'
+          ? 'Gradual'
+          : language === 'fr'
+            ? 'Progressif'
+            : 'تدريجي';
   const isReferenceMode = mode === 'reference';
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [repeatLoopActive, setRepeatLoopActive] = useState(!isReferenceMode);
   const [currentRepeat, setCurrentRepeat] = useState(1);
   const [audioUnavailable, setAudioUnavailable] = useState(false);
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  const lastRatioRef = useRef(0);
   const audioCtrlRef = useRef(createAyahAudioController());
+
+  const startContinuousProgress = (currentRatio: number, remainingMs: number) => {
+    if (remainingMs <= 0) {
+      progressAnim.stopAnimation();
+      progressAnim.setValue(currentRatio);
+      lastRatioRef.current = currentRatio;
+      return;
+    }
+    if (Math.abs(currentRatio - lastRatioRef.current) > 0.04 || currentRatio === 0) {
+      progressAnim.setValue(currentRatio);
+    }
+    lastRatioRef.current = currentRatio;
+    Animated.timing(progressAnim, {
+      toValue: 1,
+      duration: remainingMs,
+      easing: Easing.linear,
+      useNativeDriver: false,
+    }).start();
+  };
+
+  const resetProgress = () => {
+    progressAnim.stopAnimation();
+    lastRatioRef.current = 0;
+    Animated.timing(progressAnim, {
+      toValue: 0,
+      duration: 120,
+      easing: Easing.linear,
+      useNativeDriver: false,
+    }).start();
+  };
 
   useEffect(() => {
     setIsPlaying(false);
     setRepeatLoopActive(!isReferenceMode);
     setCurrentRepeat(1);
     setAudioUnavailable(false);
+    progressAnim.stopAnimation();
+    progressAnim.setValue(0);
+    lastRatioRef.current = 0;
     void audioCtrlRef.current.stop();
-  }, [surahId, ayahNumber, reciter, isReferenceMode]);
+  }, [surahId, ayahNumber, reciter, isReferenceMode, mandatoryRepeats, progressAnim]);
 
   useEffect(() => {
     const ctrl = audioCtrlRef.current;
@@ -69,6 +124,7 @@ export function AudioPlayerBar({
   const togglePlayPause = async () => {
     if (isPlaying) {
       setIsPlaying(false);
+      resetProgress();
       await audioCtrlRef.current.stop();
       return;
     }
@@ -76,21 +132,41 @@ export function AudioPlayerBar({
     setAudioUnavailable(false);
     setIsPlaying(true);
     setCurrentRepeat(1);
+    progressAnim.stopAnimation();
+    progressAnim.setValue(0);
+    lastRatioRef.current = 0;
 
-    const totalRepeats = repeatLoopActive ? mandatoryRepeats : 1;
+    const remainingFromExternal =
+      typeof externalRepeatCount === 'number' && externalRepeatCount < mandatoryRepeats
+        ? mandatoryRepeats - externalRepeatCount
+        : mandatoryRepeats;
+    const totalRepeats = repeatLoopActive ? remainingFromExternal : 1;
     await audioCtrlRef.current.playAyah({
       reciter,
       surahId,
       ayahNumber,
       speed: playbackSpeed,
       repeats: totalRepeats,
+      onRepeatAdvance: (current, total) => {
+        setCurrentRepeat(current);
+        if (onRepeatProgress) onRepeatProgress(current, total);
+      },
+      onPlaybackProgress: (ratio, remainingMs, playing) => {
+        if (!playing) {
+          if (ratio === 0) resetProgress();
+          return;
+        }
+        startContinuousProgress(ratio, remainingMs);
+      },
       onFinish: () => {
         setIsPlaying(false);
         setCurrentRepeat(totalRepeats);
+        resetProgress();
         if (onRepeatCycleComplete) onRepeatCycleComplete();
       },
       onError: () => {
         setIsPlaying(false);
+        resetProgress();
         setAudioUnavailable(true);
       },
     });
@@ -101,6 +177,9 @@ export function AudioPlayerBar({
     const next = SPEED_OPTIONS[(idx + 1) % SPEED_OPTIONS.length] ?? 1.0;
     void setPlaybackSpeed(next);
   };
+
+  const displayedRepeat =
+    typeof externalRepeatCount === 'number' ? externalRepeatCount : currentRepeat;
 
   return (
     <View
@@ -123,7 +202,11 @@ export function AudioPlayerBar({
           ]}
         >
           <View style={[styles.iconBox, { backgroundColor: `${theme.accent}33` }]}>
-            <Ionicons name="refresh-outline" size={20} color={theme.primary} />
+            <Ionicons
+              name={isReferenceMode ? 'volume-medium-outline' : 'refresh-outline'}
+              size={20}
+              color={theme.primary}
+            />
           </View>
           <View style={{ alignItems: isRtl ? 'flex-end' : 'flex-start' }}>
             <Text style={[styles.metaSub, { color: theme.mutedForeground }]}>
@@ -132,7 +215,7 @@ export function AudioPlayerBar({
             <Text style={[styles.metaTitle, { color: theme.foreground }]}>
               {isReferenceMode
                 ? copy.audioReferenceLabel
-                : `${copy.audioRepeatLabel} ${formatNum(currentRepeat, language)} / ${formatNum(mandatoryRepeats, language)}`}
+                : `${difficultyLabel} • ${formatNum(displayedRepeat, language)} / ${formatNum(mandatoryRepeats, language)}`}
             </Text>
           </View>
         </View>
@@ -144,7 +227,7 @@ export function AudioPlayerBar({
                 key={i}
                 style={[
                   styles.dot,
-                  { backgroundColor: i < currentRepeat ? theme.accent : theme.muted },
+                  { backgroundColor: i < displayedRepeat ? theme.accent : theme.muted },
                 ]}
               />
             ))}
@@ -152,28 +235,21 @@ export function AudioPlayerBar({
         ) : null}
       </View>
 
-      {/* Reciter Picker + Status */}
+      {/* Reciter Label + Status (reciter preference lives in Onboarding & Settings) */}
       <View
         style={[
           styles.pickerRow,
           { flexDirection: isRtl ? 'row-reverse' : 'row' },
         ]}
       >
-        <View style={styles.pickerWrap}>
-          <MillaPicker
-            compact
-            value={reciter}
-            onChange={(val) => void setReciter(val as ReciterId)}
-            title={copy.onboardingReciterPickerTitle}
-            ariaLabel={copy.onboardingReciterPickerTitle}
-            iconName="volume-high-outline"
-            options={RECITERS.map((r) => ({
-              value: r.id,
-              label: language === 'ar' ? r.nameAr : r.nameEn,
-              description: language === 'ar' ? r.styleAr : r.nameAr,
-              keywords: `${r.nameAr} ${r.nameEn}`,
-            }))}
-          />
+        <View style={[styles.pickerWrap, { flexDirection: isRtl ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }]}>
+          <Ionicons name="volume-high-outline" size={15} color={theme.primary} />
+          <Text style={[styles.statusText, { color: theme.foreground, fontWeight: '600' }]}>
+            {(() => {
+              const found = RECITERS.find((r) => r.id === reciter);
+              return found ? (language === 'ar' ? found.nameAr : found.nameEn) : reciter;
+            })()}
+          </Text>
         </View>
         <Text style={[styles.statusText, { color: theme.mutedForeground }]}>
           {audioUnavailable ? copy.audioOfflineStatus : copy.audioLiveStatus}
@@ -181,10 +257,16 @@ export function AudioPlayerBar({
       </View>
 
       <View style={[styles.progressTrack, { backgroundColor: theme.muted }]}>
-        <View
+        <Animated.View
           style={[
             styles.progressFill,
-            { backgroundColor: theme.primary, width: isPlaying ? '65%' : '0%' },
+            {
+              backgroundColor: theme.primary,
+              width: progressAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: ['0%', '100%'],
+              }),
+            },
           ]}
         />
       </View>

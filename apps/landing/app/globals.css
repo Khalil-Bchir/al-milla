@@ -1,19 +1,42 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
+  /* 60% Primary Canvas & Card Surfaces */
   --background: #f7f5ed;
   --foreground: #242a25;
   --card: #ffffff;
   --card-foreground: #242a25;
+  /* 30% Brand Structural Depth & Calm Contrast */
   --primary: #073d35;
   --primary-foreground: #ffffff;
   --secondary: #e7ede5;
   --secondary-foreground: #073d35;
   --muted: #eaf0e8;
   --muted-foreground: #666b64;
-  --accent: #ff8e79;
   --border: #e8e7df;
   --ring: #073d35;
+  /* 10% Warm Coral Accent */
+  --accent: #ff8e79;
+}
+
+.dark {
+  /* 60% Obsidian Canvas & Warm Charcoal Surfaces */
+  --background: #0b0b0a;
+  --foreground: #f2efe6;
+  --card: #141413;
+  --card-foreground: #f2efe6;
+  /* 30% Elevated Slate & Warm Ivory Structure */
+  --primary: #f2efe6;
+  --primary-foreground: #0b0b0a;
+  --secondary: #1b1d1b;
+  --secondary-foreground: #f2efe6;
+  --muted: #1b1d1b;
+  --muted-foreground: #9e9d96;
+  --border: #2a2b28;
+  --ring: #f2efe6;
+  /* 10% Warm Coral Accent */
+  --accent: #ff8e79;
 }
 
 @font-face {
@@ -56,7 +79,7 @@
     font-family: var(--font-inter), var(--font-ibm-arabic), ui-sans-serif, system-ui, sans-serif;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground transition-colors duration-200;
     font-feature-settings: "kern" 1;
   }
 }

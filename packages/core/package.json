@@ -12,7 +12,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch --preserveWatchOutput false",
-    "test": "node --test dist/sync-merge.test.js",
+    "test": "node --test dist/sync-merge.test.js dist/lesson-planner.test.js dist/revision-engine.test.js",
     "typecheck": "tsc --noEmit",
     "check-types": "tsc --noEmit",
     "lint": "tsc --noEmit"

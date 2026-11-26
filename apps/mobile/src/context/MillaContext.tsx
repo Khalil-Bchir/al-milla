@@ -1,9 +1,14 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import {
+  applyLessonReviewRating,
+  applyStep3TestRating,
   applyVerseEvaluation,
+  createLearningLesson,
   formatVerseKey,
+  getSurahActiveSessionNumber,
   getSurahById,
   type AppLanguage,
+  type LessonRecord,
   type MemorizedVerseRecord,
   type ReciterId,
   type SelfEvalRating,
@@ -15,7 +20,9 @@ import {
   resetLocalProgressInDb,
   saveSettingToDb,
   setBookmarkInDb,
+  upsertLessonToDb,
   upsertVerseRecordToDb,
+  type ActiveSessionDraft,
   type DailyStageKey,
   type MobileAppState,
   type MushafViewMode,
@@ -55,6 +62,25 @@ interface MillaContextValue {
   setDailyStage: (stage: DailyStageKey, done: boolean) => Promise<void>;
   toggleDailyStage: (stage: DailyStageKey) => Promise<void>;
   completeSession: (keys: string[]) => Promise<void>;
+  saveLearningLesson: (params: {
+    surahId: number;
+    startVerse: number;
+    endVerse: number;
+  }) => Promise<void>;
+  recordLessonTest: (params: {
+    surahId: number;
+    startVerse: number;
+    endVerse: number;
+    rating: SelfEvalRating;
+    hardAyahNumbers: number[];
+  }) => Promise<void>;
+  evaluateLessonReview: (params: {
+    lessonId: string;
+    rating: SelfEvalRating;
+    hardAyahNumbers: number[];
+  }) => Promise<void>;
+  finishSessionEarly: () => Promise<void>;
+  saveSessionDraft: (draft: ActiveSessionDraft | null) => Promise<void>;
   toggleBookmark: (surahId: number, ayahNumber: number) => Promise<void>;
   setDailyTarget: (target: number) => Promise<void>;
   setQuranFontSize: (size: number) => Promise<void>;
@@ -80,7 +106,7 @@ export function MillaProvider({ children }: { children: React.ReactNode }) {
   const reloadFromDb = useCallback(async () => {
     try {
       const loaded = await loadAppStateFromDb();
-      setState(loaded);
+      setState({ ...loaded, language: 'ar' });
     } catch {
       // Keep previous state if DB read fails transiently
     } finally {
@@ -132,9 +158,9 @@ export function MillaProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const setMandatoryRepeats = useCallback(async (repeats: number) => {
-    const clamped = Math.max(1, Math.min(20, repeats));
-    await saveSettingToDb('mandatoryRepeats', String(clamped));
-    setState((prev) => (prev ? { ...prev, mandatoryRepeats: clamped } : prev));
+    const snapped = repeats <= 3 ? 3 : repeats <= 5 ? 5 : 7;
+    await saveSettingToDb('mandatoryRepeats', String(snapped));
+    setState((prev) => (prev ? { ...prev, mandatoryRepeats: snapped } : prev));
   }, []);
 
   const setMushafViewMode = useCallback(async (mode: MushafViewMode) => {
@@ -301,27 +327,298 @@ export function MillaProvider({ children }: { children: React.ReactNode }) {
   const completeSession = useCallback(
     async (keys: string[]) => {
       if (!state) return;
+      const today = todayIsoDate();
       const completedAt = new Date().toISOString();
+      const nextSurahSession = getSurahActiveSessionNumber(
+        state.surahSessions,
+        state.currentSurahId,
+      );
+      const nextSurahSessions = {
+        ...state.surahSessions,
+        [state.currentSurahId]: nextSurahSession,
+      };
+      const completedSessionNum = state.currentSessionNumber + 1;
       const nextStages = { ...state.dailyStages, verseConnection: true };
       await saveSettingToDb('lastSessionKeys', JSON.stringify(keys));
       await saveSettingToDb('lastSessionCompletedAt', completedAt);
+      await saveSettingToDb('currentSessionNumber', String(completedSessionNum));
+      await saveSettingToDb('currentSessionDate', today);
+      await saveSettingToDb('surahSessions', JSON.stringify(nextSurahSessions));
+      await saveSettingToDb('activeSessionDraft', '');
       await saveSettingToDb('dailyStages', JSON.stringify(nextStages));
       await recordTodayActivity();
 
-      const updatedState: MobileAppState = {
+      setState((prev) =>
+        prev
+          ? {
+              ...prev,
+              lastSessionKeys: keys,
+              lastSessionCompletedAt: completedAt,
+              currentSessionNumber: completedSessionNum,
+              currentSessionDate: today,
+              surahSessions: {
+                ...prev.surahSessions,
+                [prev.currentSurahId]: getSurahActiveSessionNumber(
+                  prev.surahSessions,
+                  prev.currentSurahId,
+                ),
+              },
+              activeSessionDraft: null,
+              dailyStages: { ...prev.dailyStages, verseConnection: true },
+            }
+          : prev,
+      );
+
+      void syncPortfolioWithCloud({
         ...state,
         lastSessionKeys: keys,
         lastSessionCompletedAt: completedAt,
+        currentSessionNumber: completedSessionNum,
+        currentSessionDate: today,
+        surahSessions: nextSurahSessions,
+        activeSessionDraft: null,
         dailyStages: nextStages,
-      };
-      setState(updatedState);
-
-      void syncPortfolioWithCloud(updatedState).then((outcome) => {
+      }).then((outcome) => {
         if (outcome.ok) void reloadFromDb();
       });
     },
     [state, recordTodayActivity, reloadFromDb],
   );
+
+  const saveLearningLesson = useCallback(
+    async (params: { surahId: number; startVerse: number; endVerse: number }) => {
+      if (!state) return;
+      const today = todayIsoDate();
+      const sessionNumber = getSurahActiveSessionNumber(state.surahSessions, params.surahId);
+      const existing = state.lessons.find(
+        (l) =>
+          l.surahId === params.surahId &&
+          l.startVerse === params.startVerse &&
+          l.endVerse === params.endVerse &&
+          l.state === 'learning',
+      );
+      const saved: LessonRecord = existing
+        ? {
+            ...existing,
+            lastReviewedSession: sessionNumber,
+            lastReviewedDate: today,
+          }
+        : createLearningLesson({
+            surahId: params.surahId,
+            startVerse: params.startVerse,
+            endVerse: params.endVerse,
+            sessionNumber,
+            todayIso: today,
+          });
+
+      await upsertLessonToDb(saved);
+      await recordTodayActivity();
+      setState((prev) => {
+        if (!prev) return prev;
+        const existsIdx = prev.lessons.findIndex((l) => l.id === saved.id);
+        const nextLessons =
+          existsIdx >= 0
+            ? prev.lessons.map((l, idx) => (idx === existsIdx ? saved : l))
+            : [...prev.lessons, saved];
+        return { ...prev, lessons: nextLessons };
+      });
+    },
+    [state, recordTodayActivity],
+  );
+
+  const recordLessonTest = useCallback(
+    async (params: {
+      surahId: number;
+      startVerse: number;
+      endVerse: number;
+      rating: SelfEvalRating;
+      hardAyahNumbers: number[];
+    }) => {
+      if (!state) return;
+      const today = todayIsoDate();
+      const sessionNumber = getSurahActiveSessionNumber(state.surahSessions, params.surahId);
+      const hardSet = new Set(params.rating === 'difficult' ? params.hardAyahNumbers : []);
+
+      const nextVerseRecords = { ...state.verseRecords };
+      for (let ayah = params.startVerse; ayah <= params.endVerse; ayah += 1) {
+        const key = formatVerseKey(params.surahId, ayah);
+        const existingRec = nextVerseRecords[key];
+        if (params.rating === 'difficult') {
+          const status: VerseStatus = hardSet.has(ayah) ? 'weak' : 'in_progress';
+          const updated: MemorizedVerseRecord = {
+            key,
+            surahId: params.surahId,
+            ayahNumber: ayah,
+            status,
+            firstMemorizedAt: existingRec?.firstMemorizedAt ?? new Date().toISOString(),
+            lastReviewedAt: new Date().toISOString(),
+            nextReviewAt: new Date(Date.now() + 86_400_000).toISOString(),
+            intervalDays: 1,
+            lastEvaluation: hardSet.has(ayah) ? 'difficult' : existingRec?.lastEvaluation,
+            reviewCount: (existingRec?.reviewCount ?? 0) + 1,
+          };
+          nextVerseRecords[key] = updated;
+          await upsertVerseRecordToDb(updated, 1);
+        } else {
+          const updated = applyVerseEvaluation(existingRec, {
+            surahId: params.surahId,
+            ayahNumber: ayah,
+            rating: params.rating,
+          });
+          nextVerseRecords[key] = updated;
+          await upsertVerseRecordToDb(updated, 1);
+        }
+      }
+
+      const existingLesson = state.lessons.find(
+        (l) =>
+          l.surahId === params.surahId &&
+          l.startVerse === params.startVerse &&
+          l.endVerse === params.endVerse &&
+          l.state === 'learning',
+      );
+      const baseLesson =
+        existingLesson ??
+        createLearningLesson({
+          surahId: params.surahId,
+          startVerse: params.startVerse,
+          endVerse: params.endVerse,
+          sessionNumber,
+          todayIso: today,
+        });
+      const savedLesson = applyStep3TestRating(baseLesson, {
+        rating: params.rating,
+        sessionNumber,
+        todayIso: today,
+      });
+
+      await upsertLessonToDb(savedLesson);
+      const existingIdx = state.lessons.findIndex((l) => l.id === savedLesson.id);
+      const nextLessons =
+        existingIdx >= 0
+          ? state.lessons.map((l, idx) => (idx === existingIdx ? savedLesson : l))
+          : [...state.lessons, savedLesson];
+
+      const nextStages = { ...state.dailyStages, selfTest: true };
+      await saveSettingToDb('dailyStages', JSON.stringify(nextStages));
+      await recordTodayActivity();
+
+      setState((prev) => {
+        if (!prev) return prev;
+        const idx = prev.lessons.findIndex((l) => l.id === savedLesson.id);
+        const mergedLessons =
+          idx >= 0
+            ? prev.lessons.map((l, i) => (i === idx ? savedLesson : l))
+            : [...prev.lessons, savedLesson];
+        return {
+          ...prev,
+          verseRecords: { ...prev.verseRecords, ...nextVerseRecords },
+          lessons: mergedLessons,
+          dailyStages: { ...prev.dailyStages, selfTest: true },
+        };
+      });
+    },
+    [state, recordTodayActivity],
+  );
+
+  const evaluateLessonReview = useCallback(
+    async (params: {
+      lessonId: string;
+      rating: SelfEvalRating;
+      hardAyahNumbers: number[];
+    }) => {
+      if (!state) return;
+      const target = state.lessons.find((l) => l.id === params.lessonId);
+      if (!target) return;
+
+      const today = todayIsoDate();
+      const sessionNumber = getSurahActiveSessionNumber(state.surahSessions, target.surahId);
+      const updatedLesson = applyLessonReviewRating(target, {
+        rating: params.rating,
+        sessionNumber,
+        todayIso: today,
+      });
+      await upsertLessonToDb(updatedLesson);
+
+      const hardSet = new Set(params.rating === 'difficult' ? params.hardAyahNumbers : []);
+      const nextVerseRecords = { ...state.verseRecords };
+      for (let ayah = target.startVerse; ayah <= target.endVerse; ayah += 1) {
+        if (!hardSet.has(ayah)) continue;
+        const key = formatVerseKey(target.surahId, ayah);
+        const updatedVerse = applyVerseEvaluation(nextVerseRecords[key], {
+          surahId: target.surahId,
+          ayahNumber: ayah,
+          rating: 'difficult',
+        });
+        nextVerseRecords[key] = updatedVerse;
+        await upsertVerseRecordToDb(updatedVerse, 1);
+      }
+
+      await recordTodayActivity();
+      setState((prev) =>
+        prev
+          ? {
+              ...prev,
+              lessons: prev.lessons.map((l) => (l.id === updatedLesson.id ? updatedLesson : l)),
+              verseRecords: nextVerseRecords,
+            }
+          : prev,
+      );
+    },
+    [state, recordTodayActivity],
+  );
+
+  const saveSessionDraft = useCallback(async (draft: ActiveSessionDraft | null) => {
+    await saveSettingToDb('activeSessionDraft', draft ? JSON.stringify(draft) : '');
+    setState((prev) => (prev ? { ...prev, activeSessionDraft: draft } : prev));
+  }, []);
+
+  const finishSessionEarly = useCallback(async () => {
+    if (!state) return;
+    const today = todayIsoDate();
+    const nextSurahSession = getSurahActiveSessionNumber(
+      state.surahSessions,
+      state.currentSurahId,
+    );
+    const nextSurahSessions = {
+      ...state.surahSessions,
+      [state.currentSurahId]: nextSurahSession,
+    };
+    const completedSessionNum = state.currentSessionNumber + 1;
+    await saveSettingToDb('currentSessionNumber', String(completedSessionNum));
+    await saveSettingToDb('currentSessionDate', today);
+    await saveSettingToDb('surahSessions', JSON.stringify(nextSurahSessions));
+    await saveSettingToDb('activeSessionDraft', '');
+    await recordTodayActivity();
+
+    setState((prev) =>
+      prev
+        ? {
+            ...prev,
+            currentSessionNumber: completedSessionNum,
+            currentSessionDate: today,
+            surahSessions: {
+              ...prev.surahSessions,
+              [prev.currentSurahId]: getSurahActiveSessionNumber(
+                prev.surahSessions,
+                prev.currentSurahId,
+              ),
+            },
+            activeSessionDraft: null,
+          }
+        : prev,
+    );
+
+    void syncPortfolioWithCloud({
+      ...state,
+      currentSessionNumber: completedSessionNum,
+      currentSessionDate: today,
+      surahSessions: nextSurahSessions,
+      activeSessionDraft: null,
+    }).then((outcome) => {
+      if (outcome.ok) void reloadFromDb();
+    });
+  }, [state, recordTodayActivity, reloadFromDb]);
 
   const toggleBookmark = useCallback(
     async (surahId: number, ayahNumber: number) => {
@@ -343,7 +640,7 @@ export function MillaProvider({ children }: { children: React.ReactNode }) {
   );
 
   const setDailyTarget = useCallback(async (target: number) => {
-    const clamped = Math.max(1, Math.min(20, target));
+    const clamped = Math.max(3, Math.min(5, Math.round(target)));
     await saveSettingToDb('dailyTarget', String(clamped));
     setState((prev) => (prev ? { ...prev, dailyTarget: clamped } : prev));
   }, []);
@@ -417,6 +714,11 @@ export function MillaProvider({ children }: { children: React.ReactNode }) {
         setDailyStage,
         toggleDailyStage,
         completeSession,
+        saveLearningLesson,
+        recordLessonTest,
+        evaluateLessonReview,
+        finishSessionEarly,
+        saveSessionDraft,
         toggleBookmark,
         setDailyTarget,
         setQuranFontSize,

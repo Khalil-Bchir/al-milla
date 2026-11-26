@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { ArrowLeft, ArrowRight, ArrowUp, BookOpen, Menu, X } from 'lucide-react';
+import { ArrowLeft, ArrowUp, BookOpen, Menu, X } from 'lucide-react';
 import { AnimatedContent } from '@/components/reactbits/AnimatedContent';
 import { BlurText } from '@/components/reactbits/BlurText';
 import { CountUp } from '@/components/reactbits/CountUp';
@@ -11,14 +11,16 @@ import { Magnet } from '@/components/reactbits/Magnet';
 import { SurahRibbon } from '@/components/reactbits/SurahRibbon';
 import { TiltedCard } from '@/components/reactbits/TiltedCard';
 import { LiveSessionPreview } from '@/components/LiveSessionPreview';
-import { InstallGuide } from '@/components/InstallGuide';
-import { LandingLanguageSwitcher } from '@/components/LandingLanguageSwitcher';
+import { FeaturesSection } from '@/components/FeaturesSection';
+import { FaqSection } from '@/components/FaqSection';
+import { ArabesqueBackdrop } from '@/components/ArabesqueBackdrop';
+import { LandingThemeSwitcher, type LandingTheme } from '@/components/LandingThemeSwitcher';
 import { LANDING_COPY, formatLandingNum, type LandingLang } from '@/lib/landing-copy';
 
-const LANDING_LANG_STORAGE_KEY = 'milla_landing_lang';
+const LANDING_THEME_STORAGE_KEY = 'milla_landing_theme';
 
-function isLandingLang(value: string | null): value is LandingLang {
-  return value === 'ar' || value === 'en' || value === 'fr';
+function isLandingTheme(value: string | null): value is LandingTheme {
+  return value === 'light' || value === 'dark';
 }
 
 const APP_URL =
@@ -28,44 +30,47 @@ const APP_URL =
     : 'https://app.al-milla.khalilbchir.pro');
 
 export default function LandingPage() {
-  const [lang, setLang] = useState<LandingLang>('ar');
+  const lang: LandingLang = 'ar';
+  const [theme, setTheme] = useState<LandingTheme>('light');
   const [activeMethodStep, setActiveMethodStep] = useState<number>(0);
   const [mobileNavOpen, setMobileNavOpen] = useState<boolean>(false);
   const copy = LANDING_COPY[lang];
-  const DirArrow = lang === 'ar' ? ArrowLeft : ArrowRight;
-  const appHref = `${APP_URL}?lang=${lang}`;
+  const DirArrow = ArrowLeft;
+  const appHref = APP_URL;
 
   useEffect(() => {
     try {
-      const params = new URLSearchParams(window.location.search);
-      const urlLang = params.get('lang');
-      if (isLandingLang(urlLang)) {
-        setLang(urlLang);
-        window.localStorage.setItem(LANDING_LANG_STORAGE_KEY, urlLang);
-        return;
-      }
-      const savedLang = window.localStorage.getItem(LANDING_LANG_STORAGE_KEY);
-      if (isLandingLang(savedLang)) {
-        setLang(savedLang);
+      const savedTheme = window.localStorage.getItem(LANDING_THEME_STORAGE_KEY);
+      if (isLandingTheme(savedTheme)) {
+        setTheme(savedTheme);
+      } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        setTheme('dark');
       }
     } catch {
-      // Ignore storage/URL access errors
+      // Ignore storage access errors
     }
   }, []);
 
-  const handleLangChange = (nextLang: LandingLang) => {
-    setLang(nextLang);
-    try {
-      window.localStorage.setItem(LANDING_LANG_STORAGE_KEY, nextLang);
-    } catch {
-      // Ignore storage write errors
-    }
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+  }, [theme]);
+
+  const handleToggleTheme = () => {
+    setTheme((prev) => {
+      const next: LandingTheme = prev === 'dark' ? 'light' : 'dark';
+      try {
+        window.localStorage.setItem(LANDING_THEME_STORAGE_KEY, next);
+      } catch {
+        // Ignore storage write errors
+      }
+      return next;
+    });
   };
 
   useEffect(() => {
-    document.documentElement.lang = lang;
-    document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
-  }, [lang]);
+    document.documentElement.lang = 'ar';
+    document.documentElement.dir = 'rtl';
+  }, []);
 
   return (
     <div className="relative min-h-screen bg-background text-foreground">
@@ -77,7 +82,7 @@ export default function LandingPage() {
           <div className="flex items-center justify-between gap-3">
             <a href="#" className="flex items-center gap-2.5">
               <img
-                src="/images/al-milla-logo.png"
+                src={theme === 'dark' ? '/images/al-milla-logo-dark.jpg' : '/images/al-milla-logo.png'}
                 alt={copy.brand}
                 className="h-9 w-9 rounded-xl border border-border/80 object-cover shadow-2xs"
               />
@@ -92,21 +97,27 @@ export default function LandingPage() {
                 {copy.navMethod}
               </a>
               <a
+                href="#features"
+                className="rounded-xl px-3.5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-secondary/70 hover:text-foreground"
+              >
+                {copy.navFeatures}
+              </a>
+              <a
                 href="#principles"
                 className="rounded-xl px-3.5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-secondary/70 hover:text-foreground"
               >
                 {copy.navPrinciples}
               </a>
               <a
-                href="#install"
+                href="#faq"
                 className="rounded-xl px-3.5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-secondary/70 hover:text-foreground"
               >
-                {lang === 'ar' ? 'التثبيت' : lang === 'fr' ? 'Installer' : 'Install'}
+                {copy.navFaq}
               </a>
             </nav>
 
             <div className="flex items-center gap-2">
-              <LandingLanguageSwitcher lang={lang} onChange={handleLangChange} variant="dropdown" />
+              <LandingThemeSwitcher theme={theme} lang={lang} onToggle={handleToggleTheme} />
 
               <a
                 href={appHref}
@@ -138,6 +149,13 @@ export default function LandingPage() {
                 {copy.navMethod}
               </a>
               <a
+                href="#features"
+                onClick={() => setMobileNavOpen(false)}
+                className="rounded-xl px-3 py-2 text-sm font-semibold text-foreground hover:bg-secondary/60"
+              >
+                {copy.navFeatures}
+              </a>
+              <a
                 href="#principles"
                 onClick={() => setMobileNavOpen(false)}
                 className="rounded-xl px-3 py-2 text-sm font-semibold text-foreground hover:bg-secondary/60"
@@ -145,11 +163,11 @@ export default function LandingPage() {
                 {copy.navPrinciples}
               </a>
               <a
-                href="#install"
+                href="#faq"
                 onClick={() => setMobileNavOpen(false)}
                 className="rounded-xl px-3 py-2 text-sm font-semibold text-foreground hover:bg-secondary/60"
               >
-                {lang === 'ar' ? 'التثبيت' : lang === 'fr' ? 'Installer' : 'Install'}
+                {copy.navFaq}
               </a>
             </nav>
           )}
@@ -201,11 +219,22 @@ export default function LandingPage() {
                   <div className="relative overflow-hidden rounded-3xl border border-border bg-card shadow-md">
                     <img
                       src="/images/mushaf-morning.jpg"
-                      alt="Mushaf resting on a wooden rehal in morning light"
-                      className="aspect-[4/3] w-full object-cover"
+                      alt="مصحف مفتوح على حامل خشبي في ضوء الصباح"
+                      loading="eager"
+                      decoding="async"
+                      fetchPriority="high"
+                      className="block aspect-[4/3] w-full object-cover dark:hidden"
+                    />
+                    <img
+                      src="/images/hero-revision.jpg"
+                      alt="أشعة دافئة عبر مشربية خشبية هندسية"
+                      loading="eager"
+                      decoding="async"
+                      fetchPriority="high"
+                      className="hidden aspect-[4/3] w-full object-cover brightness-90 contrast-105 dark:block"
                     />
                     <div
-                      className="absolute inset-x-4 bottom-4 rounded-2xl border border-white/40 bg-[#f7f5ed]/92 px-5 py-3.5 text-center shadow-sm backdrop-blur-md"
+                      className="absolute inset-x-4 bottom-4 rounded-2xl border border-border/80 bg-background/92 px-5 py-3.5 text-center shadow-sm backdrop-blur-md"
                       dir="rtl"
                       lang="ar"
                     >
@@ -301,8 +330,17 @@ export default function LandingPage() {
                     <div className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
                       <img
                         src="/images/quiet-study.jpg"
-                        alt="Calm sunlit study space with olive branch shadows"
-                        className="aspect-[4/5] w-full object-cover"
+                        alt="خلوة هادئة مع ظلال أغصان الزيتون"
+                        loading="lazy"
+                        decoding="async"
+                        className="block aspect-[4/5] w-full object-cover dark:hidden"
+                      />
+                      <img
+                        src="/images/hero-memorize.jpg"
+                        alt="حامل مصحف خشبي في إضاءة هادئة"
+                        loading="lazy"
+                        decoding="async"
+                        className="hidden aspect-[4/5] w-full object-cover brightness-75 contrast-110 dark:block"
                       />
                     </div>
                   </TiltedCard>
@@ -351,29 +389,41 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Install on Home Screen Guide */}
+        {/* App Features Grid */}
+        <FeaturesSection lang={lang} copy={copy} />
+
+        {/* Frequently Asked Questions */}
         <AnimatedContent>
-          <InstallGuide lang={lang} appUrl={appHref} />
+          <FaqSection lang={lang} copy={copy} />
         </AnimatedContent>
 
         {/* Closing Invitation */}
         <section className="mx-auto max-w-5xl px-4 py-16 sm:px-6 sm:py-20">
           <AnimatedContent>
-            <div className="rounded-3xl bg-primary p-8 text-center text-primary-foreground sm:p-14">
-              <h2 className="text-2xl font-bold sm:text-3xl">{copy.finalTitle}</h2>
-              <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed opacity-90 sm:text-base">
-                {copy.finalSubtitle}
-              </p>
-              <div className="mt-8">
-                <Magnet>
-                  <a
-                    href={appHref}
-                    className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-2xl bg-white px-8 text-base font-bold text-[#073d35] transition-colors hover:bg-secondary"
-                  >
-                    <span>{copy.finalCta}</span>
-                    <DirArrow className="h-4 w-4" aria-hidden="true" />
-                  </a>
-                </Magnet>
+            <div className="relative overflow-hidden rounded-3xl border border-border bg-[#073d35] p-8 text-center text-white dark:bg-card sm:p-14">
+              <ArabesqueBackdrop
+                variant="featured"
+                pattern="medallion"
+                className="!text-white/75 dark:!text-primary/80"
+              />
+              <div className="relative z-10">
+                <h2 className="text-2xl font-bold text-white dark:text-foreground sm:text-3xl">
+                  {copy.finalTitle}
+                </h2>
+                <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-white/88 dark:text-muted-foreground sm:text-base">
+                  {copy.finalSubtitle}
+                </p>
+                <div className="mt-8">
+                  <Magnet>
+                    <a
+                      href={appHref}
+                      className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-2xl bg-[#f7f5ed] px-8 text-base font-bold text-[#073d35] transition-colors hover:bg-[#e7ede5] dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/90"
+                    >
+                      <span>{copy.finalCta}</span>
+                      <DirArrow className="h-4 w-4" aria-hidden="true" />
+                    </a>
+                  </Magnet>
+                </div>
               </div>
             </div>
           </AnimatedContent>
@@ -387,7 +437,11 @@ export default function LandingPage() {
             <div className="space-y-4 lg:col-span-5">
               <div className="flex items-center gap-3">
                 <img
-                  src="/images/al-milla-logo.png"
+                  src={
+                    theme === 'dark'
+                      ? '/images/al-milla-logo-dark.jpg'
+                      : '/images/al-milla-logo.png'
+                  }
                   alt={copy.brand}
                   className="h-10 w-10 rounded-xl border border-border object-cover shadow-2xs"
                 />
@@ -433,6 +487,14 @@ export default function LandingPage() {
                 </li>
                 <li>
                   <a
+                    href="#features"
+                    className="text-foreground/85 transition-colors hover:text-primary"
+                  >
+                    {copy.navFeatures}
+                  </a>
+                </li>
+                <li>
+                  <a
                     href="#principles"
                     className="text-foreground/85 transition-colors hover:text-primary"
                   >
@@ -441,10 +503,10 @@ export default function LandingPage() {
                 </li>
                 <li>
                   <a
-                    href="#install"
+                    href="#faq"
                     className="text-foreground/85 transition-colors hover:text-primary"
                   >
-                    {copy.footerInstallLink}
+                    {copy.navFaq}
                   </a>
                 </li>
                 <li>
@@ -459,13 +521,18 @@ export default function LandingPage() {
               </ul>
             </div>
 
-            {/* Language & Quranic Verse */}
+            {/* Theme & Quranic Verse */}
             <div className="space-y-4 lg:col-span-4">
               <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                {copy.footerLanguageTitle}
+                المظهر والتفضيل
               </h3>
-              <div>
-                <LandingLanguageSwitcher lang={lang} onChange={handleLangChange} variant="pills" />
+              <div className="flex flex-wrap items-center gap-2">
+                <LandingThemeSwitcher
+                  theme={theme}
+                  lang={lang}
+                  onToggle={handleToggleTheme}
+                  variant="pill"
+                />
               </div>
 
               <div className="rounded-2xl border border-border/80 bg-background/70 px-4 py-3">

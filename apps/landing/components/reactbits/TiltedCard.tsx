@@ -41,7 +41,7 @@ export function TiltedCard({ children, className = '', maxTiltDeg = 7 }: TiltedC
         ref={ref}
         onMouseMove={handleMove}
         onMouseLeave={handleLeave}
-        className="transition-transform duration-300 ease-out will-change-transform"
+        className="h-full transition-transform duration-300 ease-out will-change-transform"
         style={{
           transform: `rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg) scale(${tilt.scale})`,
         }}

@@ -1,170 +1,99 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  FlatList,
+  Image,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import {
   MILLA_COPY,
-  computeRevisionQueues,
-  formatCueText,
+  buildCareRevisionQueue,
+  buildSmartRevisionQueue,
+  computeSurahRevisionSummaries,
   formatNum,
   getSurahById,
   getSurahDisplayName,
-  toArabicDigits,
-  type MemorizedVerseRecord,
-  type SelfEvalRating,
+  type RevisionTimePreset,
+  type SurahRevisionCardSummary,
 } from '@al-milla/core';
 import { AppShell } from '../src/components/milla/AppShell';
-import { AudioPlayerBar } from '../src/components/milla/AudioPlayerBar';
+import { ARABESQUE_CARD_PATTERNS, ArabesqueBackdrop } from '../src/components/milla/ArabesqueBackdrop';
+import { SurahProgressBar } from '../src/components/milla/SurahProgressBar';
 import { useMilla } from '../src/context/MillaContext';
-import { loadVerifiedSurahAyahs } from '../src/services/quran';
 import { MIN_TOUCH_TARGET, RADII, SPACING } from '../src/theme/tokens';
 
-type RevisionGroupId = 'yesterday' | 'older' | 'weak';
-type RecallViewMode = 'full' | 'cue' | 'hidden';
+const QUIET_STUDY_IMG = require('../assets/images/quiet-study.jpg');
+const HERO_REVISION_IMG = require('../assets/images/hero-revision.jpg');
+const TIME_PRESETS: readonly { minutes: RevisionTimePreset; label: string }[] = [
+  { minutes: 5, label: 'سريعة' },
+  { minutes: 10, label: 'متوسطة' },
+  { minutes: 20, label: 'شاملة' },
+];
 
-interface RevisionTargetItem {
-  key: string;
-  surahId: number;
-  ayahNumber: number;
-}
-
-interface SurahRevisionBucket {
-  surahId: number;
-  items: RevisionTargetItem[];
-}
-
-interface RevisionGroupMeta {
-  id: RevisionGroupId;
-  title: string;
-  subtitle: string;
-  icon: 'time-outline' | 'refresh-circle-outline' | 'alert-circle-outline';
-  items: RevisionTargetItem[];
-  surahBuckets: SurahRevisionBucket[];
-}
-
-function toTargetItems(records: MemorizedVerseRecord[]): RevisionTargetItem[] {
-  return [...records]
-    .sort((a, b) => a.surahId - b.surahId || a.ayahNumber - b.ayahNumber)
-    .map((r) => ({ key: r.key, surahId: r.surahId, ayahNumber: r.ayahNumber }));
-}
-
-function groupItemsBySurah(items: RevisionTargetItem[]): SurahRevisionBucket[] {
-  const bySurah = new Map<number, RevisionTargetItem[]>();
-  for (const item of items) {
-    const existing = bySurah.get(item.surahId);
-    if (existing) existing.push(item);
-    else bySurah.set(item.surahId, [item]);
-  }
-  return Array.from(bySurah.entries())
-    .sort(([a], [b]) => a - b)
-    .map(([surahId, surahItems]) => ({ surahId, items: surahItems }));
-}
-
-export default function RevisionScreen() {
+export default function RevisionDashboardScreen() {
   const router = useRouter();
-  const { state, theme, evaluateVerse, setDailyStage } = useMilla();
+  const { state, theme } = useMilla();
+
+  const [timePreset, setTimePreset] = useState<RevisionTimePreset>(10);
+  const [selectedSurahId, setSelectedSurahId] = useState<number | null>(null);
+  const [showAllSurahsModal, setShowAllSurahsModal] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
+  const [surahSearch, setSurahSearch] = useState('');
 
   const language = state?.language ?? 'ar';
   const copy = MILLA_COPY[language];
   const isRtl = language === 'ar';
-  const backArrow = isRtl ? 'arrow-forward' : 'arrow-back';
-  const forwardArrow = isRtl ? 'arrow-back' : 'arrow-forward';
+  const dirArrow = isRtl ? 'arrow-back' : 'arrow-forward';
 
-  const queues = useMemo(() => {
-    if (!state) {
-      return { yesterdayItems: [], olderDueItems: [], weakItems: [], totalDueCount: 0 };
-    }
-    return computeRevisionQueues(state.verseRecords, {
-      lastSessionKeys: state.lastSessionKeys,
-      lastSessionCompletedAt: state.lastSessionCompletedAt,
-    });
+  const surahSummaries = useMemo<SurahRevisionCardSummary[]>(() => {
+    if (!state) return [];
+    return computeSurahRevisionSummaries(
+      state.lessons,
+      state.verseRecords,
+      state.surahSessions,
+      state.currentSurahId,
+    );
   }, [state]);
 
-  const totalMemorizedCount = state ? Object.keys(state.verseRecords).length : 0;
-
-  const [activeGroupId, setActiveGroupId] = useState<RevisionGroupId | null>(null);
-  const [selectedSurahId, setSelectedSurahId] = useState<number | null>(null);
-  const [activeAudioIdx, setActiveAudioIdx] = useState<number>(0);
-  const [recallMode, setRecallMode] = useState<RecallViewMode>('full');
-  const [groupRating, setGroupRating] = useState<SelfEvalRating>('good');
-  const [completedTitle, setCompletedTitle] = useState<string | null>(null);
-  const [completedSurahNotice, setCompletedSurahNotice] = useState<string | null>(null);
-  const [ayahTextMap, setAyahTextMap] = useState<Record<string, string>>({});
-  const [loadingTexts, setLoadingTexts] = useState<boolean>(false);
-
-  const groups = useMemo<RevisionGroupMeta[]>(() => {
-    const yesterdayItems = toTargetItems(queues.yesterdayItems);
-    const olderItems = toTargetItems(queues.olderDueItems);
-    const weakItems = toTargetItems(queues.weakItems);
-
-    return [
-      {
-        id: 'yesterday',
-        title: copy.revisionPillar1Title,
-        subtitle: copy.revisionPillar1Sub,
-        icon: 'time-outline',
-        items: yesterdayItems,
-        surahBuckets: groupItemsBySurah(yesterdayItems),
-      },
-      {
-        id: 'older',
-        title: copy.revisionPillar2Title,
-        subtitle: copy.revisionPillar2Sub,
-        icon: 'refresh-circle-outline',
-        items: olderItems,
-        surahBuckets: groupItemsBySurah(olderItems),
-      },
-      {
-        id: 'weak',
-        title: copy.revisionPillar3Title,
-        subtitle: copy.revisionPillar3Sub,
-        icon: 'alert-circle-outline',
-        items: weakItems,
-        surahBuckets: groupItemsBySurah(weakItems),
-      },
-    ];
-  }, [queues, copy]);
-
-  const activeGroup = useMemo(
-    () => groups.find((g) => g.id === activeGroupId) ?? null,
-    [groups, activeGroupId],
-  );
-
-  const activeBucket = useMemo(() => {
-    if (!activeGroup || activeGroup.surahBuckets.length === 0) return null;
-    return (
-      activeGroup.surahBuckets.find((b) => b.surahId === selectedSurahId) ??
-      activeGroup.surahBuckets[0] ??
-      null
-    );
-  }, [activeGroup, selectedSurahId]);
-
-  useEffect(() => {
-    if (!activeBucket || activeBucket.items.length === 0) return;
-    const firstKey = activeBucket.items[0]?.key;
-    if (firstKey && ayahTextMap[firstKey]) return;
-
-    let cancelled = false;
-    setLoadingTexts(true);
-
-    void loadVerifiedSurahAyahs(activeBucket.surahId).then((res) => {
-      if (cancelled) return;
-      if (res.ayahs.length > 0) {
-        setAyahTextMap((prev) => {
-          const next = { ...prev };
-          for (const a of res.ayahs) {
-            next[`${activeBucket.surahId}:${a.number}`] = a.textAr;
-          }
-          return next;
-        });
-      }
-      setLoadingTexts(false);
+  const smartQueue = useMemo(() => {
+    if (!state) return [];
+    return buildSmartRevisionQueue(state.lessons, {
+      surahSessions: state.surahSessions,
+      currentSurahId: state.currentSurahId,
+      timePreset,
+      verseRecords: state.verseRecords,
     });
+  }, [state, timePreset]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [activeBucket, ayahTextMap]);
+  const careQueue = useMemo(() => {
+    if (!state) return [];
+    return buildCareRevisionQueue(state.lessons, state.surahSessions, state.verseRecords);
+  }, [state]);
+
+  const smartSurahNames = useMemo(() => {
+    const ids = Array.from(new Set(smartQueue.map((item) => item.surahId)));
+    return ids.map((id) => getSurahDisplayName(getSurahById(id), language));
+  }, [smartQueue, language]);
+
+  const previewSummaries = useMemo(() => surahSummaries.slice(0, 4), [surahSummaries]);
+
+  const modalFilteredSummaries = useMemo(() => {
+    const q = surahSearch.trim().toLowerCase();
+    if (!q) return surahSummaries;
+    return surahSummaries.filter((item) => {
+      const s = getSurahById(item.surahId);
+      const hay = `${item.surahId} ${s.nameAr} ${s.nameEn} ${s.nameFr}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [surahSummaries, surahSearch]);
 
   if (!state) {
     return (
@@ -174,620 +103,1025 @@ export default function RevisionScreen() {
     );
   }
 
-  const startGroup = (groupId: RevisionGroupId, initialSurahId?: number) => {
-    const group = groups.find((g) => g.id === groupId);
-    const firstSurahId = initialSurahId ?? group?.surahBuckets[0]?.surahId ?? null;
-    setActiveGroupId(groupId);
-    setSelectedSurahId(firstSurahId);
-    setActiveAudioIdx(0);
-    setRecallMode('full');
-    setGroupRating('good');
-    setCompletedTitle(null);
-    setCompletedSurahNotice(null);
-  };
+  const hasSavedContent = surahSummaries.length > 0;
+  const hasSmartItems = smartQueue.length > 0;
+  const selectedSummary =
+    selectedSurahId !== null
+      ? (surahSummaries.find((s) => s.surahId === selectedSurahId) ?? null)
+      : null;
 
-  const handleCompleteSurah = async () => {
-    if (!activeGroup || !activeBucket) return;
-
-    const completedSurah = getSurahById(activeBucket.surahId);
-    const remainingBuckets = activeGroup.surahBuckets.filter(
-      (b) => b.surahId !== activeBucket.surahId,
-    );
-
-    for (const item of activeBucket.items) {
-      if (state.verseRecords[item.key]) {
-        await evaluateVerse(item.surahId, item.ayahNumber, groupRating, false);
+  const handleLaunchSmart = () => {
+    if (!hasSmartItems) {
+      if (hasSavedContent && surahSummaries[0]) {
+        setSelectedSurahId(surahSummaries[0].surahId);
+        return;
       }
-    }
-
-    if (remainingBuckets.length > 0) {
-      setSelectedSurahId(remainingBuckets[0]?.surahId ?? null);
-      setActiveAudioIdx(0);
-      setGroupRating('good');
-      setCompletedSurahNotice(getSurahDisplayName(completedSurah, language));
+      router.push('/memorize');
       return;
     }
-
-    if (activeGroup.id === 'yesterday') {
-      await setDailyStage('yesterdayReview', true);
-    } else if (activeGroup.id === 'older' || activeGroup.id === 'weak') {
-      await setDailyStage('olderReview', true);
-    }
-
-    setCompletedTitle(activeGroup.title);
-    setActiveGroupId(null);
-    setSelectedSurahId(null);
+    router.push({
+      pathname: '/revision-session',
+      params: { mode: 'smart', minutes: String(timePreset) },
+    });
   };
 
-  const evalOptions: { id: SelfEvalRating; label: string; hint: string }[] = [
-    { id: 'difficult', label: copy.evalDifficult, hint: copy.evalDifficultHint },
-    { id: 'good', label: copy.evalGood, hint: copy.evalGoodHint },
-    { id: 'easy', label: copy.evalEasy, hint: copy.evalEasyHint },
+  const handleLaunchCare = () => {
+    router.push({
+      pathname: '/revision-session',
+      params: { mode: 'care' },
+    });
+  };
+
+  const handleLaunchSurahMode = (
+    surahId: number,
+    mode: 'surah_flow' | 'surah_connections' | 'surah_random',
+  ) => {
+    setSelectedSurahId(null);
+    setShowAllSurahsModal(false);
+    router.push({
+      pathname: '/revision-session',
+      params: { mode, surahId: String(surahId) },
+    });
+  };
+
+  const totalLessonsCount = state.lessons.length;
+  const careLessonsCount = careQueue.length;
+  const strongLessonsCount = state.lessons.filter(
+    (l) => l.state === 'done' && l.lastEvaluation !== 'difficult' && l.consecutiveDifficultCount === 0,
+  ).length;
+  const steadyLessonsCount = Math.max(0, totalLessonsCount - strongLessonsCount - careLessonsCount);
+  const readySurahId = surahSummaries[0]?.surahId ?? null;
+  const connectionsSurahId = surahSummaries.find((s) => s.hasConnections)?.surahId ?? null;
+
+  const modesHeading =
+    language === 'en'
+      ? 'Revision Modes'
+      : language === 'fr'
+        ? 'Modes de révision'
+        : 'أساليب المراجعة';
+
+  const modeCards: readonly {
+    id: string;
+    icon: 'reader-outline' | 'git-merge-outline' | 'shuffle-outline' | 'heart-outline';
+    title: string;
+    subtitle: string;
+    badge?: string;
+    disabled: boolean;
+    onPress: () => void;
+  }[] = [
+    {
+      id: 'flow',
+      icon: 'reader-outline',
+      title: language === 'en' ? 'Connected Flow' : language === 'fr' ? 'Flux continu' : 'تلاوة متصلة',
+      subtitle: readySurahId
+        ? getSurahDisplayName(getSurahById(readySurahId), language)
+        : language === 'en'
+          ? 'Start memorizing first'
+          : language === 'fr'
+            ? 'Commencez à mémoriser'
+            : 'ابدأ الحفظ أولاً',
+      disabled: readySurahId === null,
+      onPress: () => {
+        if (readySurahId !== null) handleLaunchSurahMode(readySurahId, 'surah_flow');
+      },
+    },
+    {
+      id: 'connections',
+      icon: 'git-merge-outline',
+      title:
+        language === 'en' ? 'Verse Linking' : language === 'fr' ? 'Liaison des versets' : 'ربط الآيات',
+      subtitle: connectionsSurahId
+        ? getSurahDisplayName(getSurahById(connectionsSurahId), language)
+        : language === 'en'
+          ? 'Needs 2 passages in a surah'
+          : language === 'fr'
+            ? 'Requiert 2 passages'
+            : 'يتطلب مقطعين في سورة',
+      disabled: connectionsSurahId === null,
+      onPress: () => {
+        if (connectionsSurahId !== null) handleLaunchSurahMode(connectionsSurahId, 'surah_connections');
+      },
+    },
+    {
+      id: 'random',
+      icon: 'shuffle-outline',
+      title: language === 'en' ? 'Random Recall' : language === 'fr' ? 'Rappel aléatoire' : 'اختبار عشوائي',
+      subtitle: readySurahId
+        ? getSurahDisplayName(getSurahById(readySurahId), language)
+        : language === 'en'
+          ? 'Start memorizing first'
+          : language === 'fr'
+            ? 'Commencez à mémoriser'
+            : 'ابدأ الحفظ أولاً',
+      disabled: readySurahId === null,
+      onPress: () => {
+        if (readySurahId !== null) handleLaunchSurahMode(readySurahId, 'surah_random');
+      },
+    },
+    {
+      id: 'care',
+      icon: 'heart-outline',
+      title: language === 'en' ? 'Gentle Care' : language === 'fr' ? 'Soin particulier' : 'عناية خاصة',
+      subtitle:
+        careLessonsCount > 0
+          ? language === 'en'
+            ? 'Strengthen harder passages'
+            : language === 'fr'
+              ? 'Consolider les passages'
+              : 'تثبيت الآيات الصعبة'
+          : language === 'en'
+            ? 'Everything is steady'
+            : language === 'fr'
+              ? 'Tout est stable'
+              : 'محفوظك مستقر حالياً',
+      badge: careLessonsCount > 0 ? formatNum(careLessonsCount, language) : undefined,
+      disabled: careLessonsCount === 0,
+      onPress: handleLaunchCare,
+    },
   ];
 
-  const safeAudioIdx =
-    activeBucket && activeAudioIdx < activeBucket.items.length ? activeAudioIdx : 0;
-  const activeTarget = activeBucket?.items[safeAudioIdx] ?? activeBucket?.items[0] ?? null;
-  const activeSurah = activeBucket ? getSurahById(activeBucket.surahId) : null;
-
-  if (activeGroup && activeBucket && activeTarget && activeSurah) {
-    const surahDisplayName = getSurahDisplayName(activeSurah, language);
-    const chooseSurahHeading =
-      language === 'en'
-        ? 'Choose Surah to revise'
-        : language === 'fr'
-          ? 'Choisir la sourate à réviser'
-          : 'اختر السورة للمراجعة';
-
-    return (
-      <AppShell title={activeGroup.title} subtitle={surahDisplayName}>
-        <View style={styles.stack}>
-          <View
-            style={[
-              styles.rowBetween,
-              { flexDirection: isRtl ? 'row-reverse' : 'row' },
-            ]}
-          >
-            <Pressable
-              onPress={() => {
-                setActiveGroupId(null);
-                setSelectedSurahId(null);
-              }}
+  return (
+    <AppShell title={copy.navRevision}>
+      <View style={styles.stack}>
+        <View style={[styles.rowBetween, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
+          <View style={styles.headerTextCol}>
+            <Text
               style={[
-                styles.backPill,
-                {
-                  flexDirection: isRtl ? 'row-reverse' : 'row',
-                  borderColor: theme.border,
-                  backgroundColor: theme.card,
-                },
+                styles.pageTitle,
+                { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' },
               ]}
             >
-              <Ionicons name={backArrow} size={16} color={theme.foreground} />
-              <Text style={[styles.backPillText, { color: theme.foreground }]}>
-                {copy.revisionBackBtn}
-              </Text>
-            </Pressable>
-
-            <View style={[styles.badge, { backgroundColor: theme.secondary }]}>
-              <Text style={[styles.badgeText, { color: theme.primary }]}>
-                {copy.ayahLabel} {formatNum(safeAudioIdx + 1, language)} /{' '}
-                {formatNum(activeBucket.items.length, language)}
-              </Text>
-            </View>
-          </View>
-
-          {activeGroup.surahBuckets.length > 1 ? (
-            <View
-              style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}
+              {language === 'en'
+                ? 'Tend to What You Memorized'
+                : language === 'fr'
+                  ? 'Prenez soin de vos acquis'
+                  : 'تعاهَد محفوظك برفق'}
+            </Text>
+            <Text
+              style={[
+                styles.pageSubtitle,
+                { color: theme.mutedForeground, textAlign: isRtl ? 'right' : 'left' },
+              ]}
             >
+              {language === 'en'
+                ? 'Calm, steady review keeps every verse alive in your heart.'
+                : language === 'fr'
+                  ? 'Une révision paisible garde chaque verset vivant dans votre cœur.'
+                  : 'المراجعة الهادئة تُبقي الآيات حيّة في قلبك دون عجلة.'}
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => setShowInfoModal(true)}
+            style={[
+              styles.infoIconBtn,
+              { backgroundColor: theme.card, borderColor: theme.border },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="دليل المراجعة"
+          >
+            <Ionicons
+              name="information-circle-outline"
+              size={20}
+              color={theme.isDark ? theme.foreground : theme.primary}
+            />
+          </Pressable>
+        </View>
+
+        {/* Smart Daily Revision Hero */}
+        <View
+          style={[
+            styles.heroWrap,
+            {
+              borderWidth: theme.isDark ? 1 : 0,
+              borderColor: theme.isDark ? theme.border : 'transparent',
+            },
+          ]}
+        >
+          <View style={styles.heroBg}>
+            <Image
+              source={HERO_REVISION_IMG}
+              style={[styles.heroOverlay, { width: '100%', height: '100%' }]}
+              resizeMode="cover"
+            />
+            <View
+              style={[
+                styles.heroOverlay,
+                {
+                  backgroundColor: theme.isDark
+                    ? 'rgba(18, 20, 18, 0.80)'
+                    : 'rgba(7, 61, 53, 0.82)',
+                },
+              ]}
+            />
+            <View style={styles.heroCard}>
+          <View style={[styles.rowBetween, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
+            <View style={[styles.heroPill, { backgroundColor: theme.accent }]}>
               <Text
                 style={[
-                  styles.smallMuted,
-                  { color: theme.mutedForeground, textAlign: isRtl ? 'right' : 'left' },
+                  styles.heroPillDarkText,
+                  { color: theme.isDark ? theme.accentForeground : '#073d35' },
                 ]}
               >
-                {chooseSurahHeading}
+                المراجعة الذكية
               </Text>
-              <View
-                style={[
-                  styles.wrapRow,
-                  { flexDirection: isRtl ? 'row-reverse' : 'row' },
-                ]}
-              >
-                {activeGroup.surahBuckets.map((bucket) => {
-                  const bucketSurah = getSurahById(bucket.surahId);
-                  const selected = bucket.surahId === activeBucket.surahId;
-                  return (
-                    <Pressable
-                      key={bucket.surahId}
-                      onPress={() => {
-                        setSelectedSurahId(bucket.surahId);
-                        setActiveAudioIdx(0);
-                        setCompletedSurahNotice(null);
-                      }}
-                      style={[
-                        styles.surahChip,
-                        {
-                          flexDirection: isRtl ? 'row-reverse' : 'row',
-                          borderColor: selected ? theme.primary : theme.border,
-                          backgroundColor: selected ? theme.primary : theme.background,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.surahChipText,
-                          { color: selected ? theme.primaryForeground : theme.foreground },
-                        ]}
-                      >
-                        {getSurahDisplayName(bucketSurah, language)}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.surahChipCount,
-                          { color: selected ? theme.primaryForeground : theme.primary },
-                        ]}
-                      >
-                        {formatNum(bucket.items.length, language)}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
+            </View>
+            {hasSmartItems ? (
+              <View style={styles.heroGlassPill}>
+                <Text style={[styles.heroGlassText, { color: theme.accent }]}>
+                  {formatNum(smartQueue.length, language)} مقاطع
+                </Text>
               </View>
-            </View>
-          ) : null}
+            ) : null}
+          </View>
 
-          {completedSurahNotice ? (
-            <View
-              style={[
-                styles.noticeBox,
-                {
-                  flexDirection: isRtl ? 'row-reverse' : 'row',
-                  borderColor: theme.primary,
-                  backgroundColor: theme.secondary,
-                },
-              ]}
-            >
-              <Ionicons name="checkmark-circle" size={16} color={theme.primary} />
-              <Text style={[styles.noticeText, { color: theme.primary }]}>
-                {copy.revisionCompletedBanner}: {completedSurahNotice}
-              </Text>
-            </View>
-          ) : null}
+          <View style={{ gap: 4 }}>
+            <Text style={[styles.heroTitle, { textAlign: isRtl ? 'right' : 'left' }]}>
+              راجع محفوظك
+            </Text>
+            <Text style={[styles.heroSub, { textAlign: isRtl ? 'right' : 'left' }]}>
+              {hasSmartItems
+                ? smartSurahNames.length === 1
+                  ? `${formatNum(smartQueue.length, language)} مقاطع من ${smartSurahNames[0]}`
+                  : `${formatNum(smartQueue.length, language)} مقاطع من ${formatNum(smartSurahNames.length, language)} سور`
+                : hasSavedContent
+                  ? 'اختر أي سورة بالأسفل لمراجعتها'
+                  : 'احفظ أول درس لتبدأ خطة مراجعتك'}
+            </Text>
+          </View>
 
-          {/* 3-mode Recall Switcher */}
-          <View
-            style={[
-              styles.modeSwitcher,
-              {
-                flexDirection: isRtl ? 'row-reverse' : 'row',
-                backgroundColor: theme.card,
-                borderColor: theme.border,
-              },
-            ]}
-          >
-            {(
-              [
-                { id: 'full', label: copy.revisionModeFull, icon: 'eye-outline' },
-                { id: 'cue', label: copy.revisionModeCue, icon: 'sparkles-outline' },
-                { id: 'hidden', label: copy.revisionModeHidden, icon: 'eye-off-outline' },
-              ] as const
-            ).map((mode) => {
-              const selected = recallMode === mode.id;
+          {/* Time-box Selector */}
+          <View style={[styles.timeRow, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
+            {TIME_PRESETS.map((preset) => {
+              const selected = timePreset === preset.minutes;
               return (
                 <Pressable
-                  key={mode.id}
-                  onPress={() => setRecallMode(mode.id)}
+                  key={preset.minutes}
+                  onPress={() => setTimePreset(preset.minutes)}
                   style={[
-                    styles.modeBtn,
+                    styles.timeChip,
                     {
-                      flexDirection: isRtl ? 'row-reverse' : 'row',
-                      backgroundColor: selected ? theme.primary : 'transparent',
+                      borderColor: selected ? theme.accent : 'rgba(255,255,255,0.22)',
+                      backgroundColor: selected ? `${theme.accent}2E` : 'rgba(255,255,255,0.08)',
                     },
                   ]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
                 >
-                  <Ionicons
-                    name={mode.icon}
-                    size={14}
-                    color={selected ? theme.primaryForeground : theme.mutedForeground}
-                  />
                   <Text
                     style={[
-                      styles.modeBtnText,
-                      { color: selected ? theme.primaryForeground : theme.mutedForeground },
+                      styles.timeChipText,
+                      { color: selected ? theme.accent : '#ffffff' },
                     ]}
-                    numberOfLines={1}
                   >
-                    {mode.label}
+                    {preset.label}
                   </Text>
                 </Pressable>
               );
             })}
           </View>
 
-          {/* Reading Surface */}
-          <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <View
+          <Pressable
+            onPress={handleLaunchSmart}
+            style={[
+              styles.heroCta,
+              {
+                flexDirection: isRtl ? 'row-reverse' : 'row',
+                backgroundColor: theme.isDark ? theme.primary : '#f7f5ed',
+              },
+            ]}
+            accessibilityRole="button"
+          >
+            <Text
               style={[
-                styles.surfaceHeader,
-                {
-                  borderBottomColor: theme.border,
-                  flexDirection: isRtl ? 'row-reverse' : 'row',
-                },
+                styles.heroCtaText,
+                { color: theme.isDark ? theme.primaryForeground : '#073d35' },
               ]}
             >
-              <Text style={[styles.surfaceTitle, { color: theme.foreground }]}>
-                {surahDisplayName} • {copy.ayahLabel} {formatNum(activeTarget.ayahNumber, language)}
+              {hasSmartItems ? 'ابدأ المراجعة' : hasSavedContent ? 'اختر سورة للمراجعة' : 'ابدأ أول درس حفظ'}
+            </Text>
+            <Ionicons
+              name={dirArrow}
+              size={18}
+              color={theme.isDark ? theme.primaryForeground : '#073d35'}
+            />
+          </Pressable>
+            </View>
+          </View>
+        </View>
+
+        {/* Revision Strength & Overview Analytics */}
+        <View style={[styles.statsCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <ArabesqueBackdrop variant="subtle" pattern="arch" />
+
+          <View style={[styles.statsGrid, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
+            <View style={[styles.statTile, { backgroundColor: theme.secondary }]}>
+              <Text style={[styles.statVal, { color: theme.isDark ? theme.foreground : theme.primary }]}>
+                {formatNum(surahSummaries.length, language)}
               </Text>
-              <Text style={[styles.smallMuted, { color: theme.mutedForeground }]}>
-                {copy.revisionTapAyahHint}
+              <Text style={[styles.statLbl, { color: theme.mutedForeground }]}>
+                {language === 'en' ? 'Surahs' : language === 'fr' ? 'Sourates' : 'سورة للمراجعة'}
               </Text>
             </View>
+            <View style={[styles.statTile, { backgroundColor: theme.secondary }]}>
+              <Text style={[styles.statVal, { color: theme.isDark ? theme.foreground : theme.primary }]}>
+                {formatNum(smartQueue.length, language)}
+              </Text>
+              <Text style={[styles.statLbl, { color: theme.mutedForeground }]}>
+                {language === 'en'
+                  ? "Today's Passages"
+                  : language === 'fr'
+                    ? 'Passages du jour'
+                    : 'مقاطع اليوم'}
+              </Text>
+            </View>
+            <View style={[styles.statTile, { backgroundColor: theme.secondary }]}>
+              <Text style={[styles.statVal, { color: theme.isDark ? theme.foreground : theme.primary }]}>
+                {formatNum(careLessonsCount, language)}
+              </Text>
+              <Text style={[styles.statLbl, { color: theme.mutedForeground }]}>
+                {language === 'en' ? 'Needs Care' : language === 'fr' ? 'À consolider' : 'تحتاج عناية'}
+              </Text>
+            </View>
+          </View>
 
-            <View style={[styles.surfaceBody, { backgroundColor: theme.secondary }]}>
-              {recallMode === 'hidden' ? (
-                <View style={styles.hiddenBox}>
-                  <Ionicons name="eye-off-outline" size={28} color={theme.primary} />
-                  <Text style={[styles.hiddenTitle, { color: theme.foreground }]}>
-                    {copy.revisionHiddenTitle}
-                  </Text>
-                  <Text style={[styles.hiddenBody, { color: theme.mutedForeground }]}>
-                    {copy.revisionHiddenBody}
+          {totalLessonsCount > 0 ? (
+            <View style={styles.masteryWrap}>
+              <View style={[styles.masteryTrack, { backgroundColor: theme.secondary }]}>
+                {strongLessonsCount > 0 ? (
+                  <View
+                    style={[
+                      styles.masterySeg,
+                      { flex: strongLessonsCount, backgroundColor: theme.primary },
+                    ]}
+                  />
+                ) : null}
+                {steadyLessonsCount > 0 ? (
+                  <View
+                    style={[
+                      styles.masterySeg,
+                      { flex: steadyLessonsCount, backgroundColor: theme.accent },
+                    ]}
+                  />
+                ) : null}
+                {careLessonsCount > 0 ? (
+                  <View
+                    style={[
+                      styles.masterySeg,
+                      { flex: careLessonsCount, backgroundColor: theme.mutedForeground },
+                    ]}
+                  />
+                ) : null}
+              </View>
+              <View
+                style={[styles.masteryLegend, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}
+              >
+                <View style={[styles.legendItem, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
+                  <View style={[styles.legendDot, { backgroundColor: theme.primary }]} />
+                  <Text style={[styles.metaText, { color: theme.mutedForeground }]}>
+                    {language === 'en' ? 'Strong' : language === 'fr' ? 'Maîtrisé' : 'متقن'} (
+                    {formatNum(strongLessonsCount, language)})
                   </Text>
                 </View>
-              ) : loadingTexts && !ayahTextMap[activeTarget.key] ? (
-                <View style={styles.hiddenBox}>
-                  <ActivityIndicator size="small" color={theme.primary} />
-                  <Text style={[styles.hiddenBody, { color: theme.mutedForeground }]}>
-                    {copy.loadingLabel}
+                <View style={[styles.legendItem, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
+                  <View style={[styles.legendDot, { backgroundColor: theme.accent }]} />
+                  <Text style={[styles.metaText, { color: theme.mutedForeground }]}>
+                    {language === 'en' ? 'Steady' : language === 'fr' ? 'En cours' : 'قيد التثبيت'} (
+                    {formatNum(steadyLessonsCount, language)})
                   </Text>
                 </View>
-              ) : (
-                <View style={styles.versesWrap}>
-                  {activeBucket.items.map((item, idx) => {
-                    const isSelected = idx === safeAudioIdx;
-                    const rawText = ayahTextMap[item.key] ?? '';
-                    const displayedText =
-                      recallMode === 'cue' && rawText ? formatCueText(rawText) : rawText;
-                    return (
-                      <Pressable
-                        key={item.key}
-                        onPress={() => setActiveAudioIdx(idx)}
+                <View style={[styles.legendItem, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
+                  <View style={[styles.legendDot, { backgroundColor: theme.mutedForeground }]} />
+                  <Text style={[styles.metaText, { color: theme.mutedForeground }]}>
+                    {language === 'en' ? 'Needs Care' : language === 'fr' ? 'Fragile' : 'يحتاج عناية'} (
+                    {formatNum(careLessonsCount, language)})
+                  </Text>
+                </View>
+              </View>
+            </View>
+          ) : null}
+        </View>
+
+        {/* Quick Revision Modes 2x2 Grid */}
+        <View style={styles.sectionBlock}>
+          <Text
+            style={[
+              styles.sectionTitle,
+              { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' },
+            ]}
+          >
+            {modesHeading}
+          </Text>
+
+          <View style={styles.modesGrid}>
+            {modeCards.map((item, idx) => {
+              const modePattern =
+                ARABESQUE_CARD_PATTERNS[idx % ARABESQUE_CARD_PATTERNS.length] ?? 'medallion';
+              return (
+                <Pressable
+                  key={item.id}
+                  disabled={item.disabled}
+                  onPress={item.onPress}
+                  style={[
+                    styles.modeGridCard,
+                    {
+                      backgroundColor: theme.card,
+                      borderColor:
+                        theme.isDark || item.disabled ? theme.border : theme.primary,
+                      opacity: item.disabled ? 0.58 : 1,
+                    },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: item.disabled }}
+                >
+                  <ArabesqueBackdrop variant="corner" pattern={modePattern} />
+
+                  <View
+                    style={[
+                      styles.modeGridTop,
+                      { flexDirection: isRtl ? 'row-reverse' : 'row' },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.modeGridIconBox,
+                        { backgroundColor: item.disabled ? theme.muted : theme.secondary },
+                      ]}
+                    >
+                      <Ionicons
+                        name={item.icon}
+                        size={20}
+                        color={
+                          item.disabled
+                            ? theme.mutedForeground
+                            : theme.isDark
+                              ? theme.foreground
+                              : theme.primary
+                        }
+                      />
+                    </View>
+                    {item.badge ? (
+                      <View
                         style={[
-                          styles.ayahLineBtn,
-                          isSelected
-                            ? {
-                                backgroundColor: `${theme.primary}1F`,
-                                borderColor: theme.primary,
-                              }
-                            : { borderColor: 'transparent' },
+                          styles.modeBadgePill,
+                          { backgroundColor: `${theme.accent}28` },
                         ]}
                       >
                         <Text
                           style={[
-                            styles.quranText,
-                            { color: theme.foreground, fontSize: state.quranFontSize },
+                            styles.modeBadgeText,
+                            { color: theme.isDark ? theme.accent : theme.foreground },
                           ]}
                         >
-                          {displayedText || copy.loadingLabel}{' '}
-                          <Text style={{ color: theme.primary }}>
-                            ﴿{toArabicDigits(item.ayahNumber)}﴾
-                          </Text>
+                          {item.badge}
                         </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              )}
-            </View>
+                      </View>
+                    ) : (
+                      <Ionicons
+                        name={dirArrow}
+                        size={16}
+                        color={
+                          item.disabled
+                            ? theme.mutedForeground
+                            : theme.isDark
+                              ? theme.foreground
+                              : theme.primary
+                        }
+                      />
+                    )}
+                  </View>
+
+                  <Text
+                    style={[
+                      styles.modeGridTitle,
+                      { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {item.title}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.modeGridSub,
+                      { color: theme.mutedForeground, textAlign: isRtl ? 'right' : 'left' },
+                    ]}
+                    numberOfLines={2}
+                  >
+                    {item.subtitle}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
+        </View>
 
-          <AudioPlayerBar
-            mode="reference"
-            surahId={activeTarget.surahId}
-            surahName={surahDisplayName}
-            ayahNumber={activeTarget.ayahNumber}
-            onPrevAyah={
-              safeAudioIdx > 0 ? () => setActiveAudioIdx((i) => Math.max(0, i - 1)) : undefined
-            }
-            onNextAyah={
-              safeAudioIdx + 1 < activeBucket.items.length
-                ? () => setActiveAudioIdx((i) => i + 1)
-                : undefined
-            }
-          />
+        {/* Revise by Surah */}
+        <View style={styles.sectionBlock}>
+          <Text
+            style={[
+              styles.sectionTitle,
+              { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' },
+            ]}
+          >
+            اختر سورة للمراجعة
+          </Text>
 
-          <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <Text
-              style={[
-                styles.evalHeading,
-                { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' },
-              ]}
-            >
-              {copy.revisionEvalPrompt} ({surahDisplayName})
-            </Text>
-            <View style={[styles.evalGrid, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
-              {evalOptions.map((opt) => {
-                const selected = groupRating === opt.id;
+          {surahSummaries.length === 0 ? (
+            <View style={styles.emptyImageWrap}>
+              <View style={styles.emptyBg}>
+                <Image
+                  source={QUIET_STUDY_IMG}
+                  style={[styles.emptyOverlay, { width: '100%', height: '100%' }]}
+                  resizeMode="cover"
+                />
+                <View
+                  style={[
+                    styles.emptyOverlay,
+                    {
+                      backgroundColor: theme.isDark
+                        ? 'rgba(11, 11, 10, 0.78)'
+                        : 'rgba(7, 61, 53, 0.74)',
+                    },
+                  ]}
+                />
+                <View style={styles.emptyCard}>
+                  <Ionicons name="refresh-outline" size={28} color="#ffffff" />
+                  <Text style={styles.emptyImageText}>
+                    ستظهر هنا السور التي بدأت بحفظها لمراجعتها في أي وقت.
+                  </Text>
+                </View>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.surahCardsList}>
+              {previewSummaries.map((summary, idx) => {
+                const surah = getSurahById(summary.surahId);
+                const summaryPattern =
+                  ARABESQUE_CARD_PATTERNS[(idx + 1) % ARABESQUE_CARD_PATTERNS.length] ??
+                  'rosette';
                 return (
                   <Pressable
-                    key={opt.id}
-                    onPress={() => setGroupRating(opt.id)}
+                    key={summary.surahId}
+                    onPress={() => setSelectedSurahId(summary.surahId)}
                     style={[
-                      styles.evalTile,
-                      {
-                        borderColor: selected ? theme.primary : theme.border,
-                        backgroundColor: selected ? theme.primary : theme.background,
-                      },
+                      styles.surahCard,
+                      { backgroundColor: theme.card, borderColor: theme.border },
                     ]}
+                    accessibilityRole="button"
                   >
+                    <ArabesqueBackdrop variant="corner" pattern={summaryPattern} />
+
+                    <View
+                      style={[styles.rowBetween, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}
+                    >
+                      <View
+                        style={[
+                          styles.surahTitleGroup,
+                          { flexDirection: isRtl ? 'row-reverse' : 'row' },
+                        ]}
+                      >
+                        <Text style={[styles.surahName, { color: theme.foreground }]}>
+                          {getSurahDisplayName(surah, language)}
+                        </Text>
+                        <View
+                          style={[
+                            styles.readinessPill,
+                            {
+                              backgroundColor:
+                                summary.readiness === 'care'
+                                  ? `${theme.accent}28`
+                                  : theme.secondary,
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.readinessText,
+                              {
+                                color:
+                                  summary.readiness === 'care' && theme.isDark
+                                    ? theme.accent
+                                    : theme.foreground,
+                              },
+                            ]}
+                          >
+                            {summary.readiness === 'care'
+                              ? 'تحتاج عناية'
+                              : summary.readiness === 'ready'
+                                ? 'جاهزة'
+                                : 'مستقرة'}
+                          </Text>
+                        </View>
+                      </View>
+                      <View
+                        style={[
+                          styles.surahTitleGroup,
+                          { flexDirection: isRtl ? 'row-reverse' : 'row' },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.surahPct,
+                            { color: theme.isDark ? theme.foreground : theme.primary },
+                          ]}
+                        >
+                          {formatNum(summary.percent, language)}%
+                        </Text>
+                        <Ionicons
+                          name={isRtl ? 'chevron-back' : 'chevron-forward'}
+                          size={16}
+                          color={theme.mutedForeground}
+                        />
+                      </View>
+                    </View>
+
+                    <SurahProgressBar percent={summary.percent} height={6} />
+
                     <Text
                       style={[
-                        styles.evalTitle,
-                        { color: selected ? theme.primaryForeground : theme.foreground },
+                        styles.metaText,
+                        { color: theme.mutedForeground, textAlign: isRtl ? 'right' : 'left' },
                       ]}
                     >
-                      {opt.label}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.evalSub,
-                        { color: selected ? theme.primaryForeground : theme.mutedForeground },
-                      ]}
-                    >
-                      {opt.hint}
+                      {formatNum(summary.memorizedCount, language)} /{' '}
+                      {formatNum(summary.totalAyahs, language)} آية •{' '}
+                      {formatNum(summary.lessonCount, language)} مقاطع
                     </Text>
                   </Pressable>
                 );
               })}
-            </View>
 
-            <Pressable
-              onPress={() => void handleCompleteSurah()}
-              style={[
-                styles.primaryBtn,
-                { flexDirection: isRtl ? 'row-reverse' : 'row', backgroundColor: theme.primary },
-              ]}
-            >
-              <Ionicons name="checkmark-circle-outline" size={20} color={theme.primaryForeground} />
-              <Text style={[styles.primaryBtnText, { color: theme.primaryForeground }]}>
-                {activeGroup.surahBuckets.length > 1
-                  ? `${copy.revisionCompleteBtn} (${surahDisplayName})`
-                  : copy.revisionCompleteBtn}
-              </Text>
-            </Pressable>
-          </View>
+              {surahSummaries.length > 4 ? (
+                <Pressable
+                  onPress={() => {
+                    setSurahSearch('');
+                    setShowAllSurahsModal(true);
+                  }}
+                  style={[
+                    styles.viewAllBtn,
+                    {
+                      flexDirection: isRtl ? 'row-reverse' : 'row',
+                      borderColor: theme.border,
+                      backgroundColor: theme.card,
+                    },
+                  ]}
+                  accessibilityRole="button"
+                >
+                  <Text
+                    style={[
+                      styles.viewAllText,
+                      { color: theme.isDark ? theme.foreground : theme.primary },
+                    ]}
+                  >
+                    عرض كل السور ({formatNum(surahSummaries.length, language)})
+                  </Text>
+                  <Ionicons
+                    name={dirArrow}
+                    size={16}
+                    color={theme.isDark ? theme.foreground : theme.primary}
+                  />
+                </Pressable>
+              ) : null}
+            </View>
+          )}
         </View>
-      </AppShell>
-    );
-  }
+      </View>
 
-  return (
-    <AppShell title={copy.revisionTitle} subtitle={copy.revisionSubtitle}>
-      <View style={styles.stack}>
-        {/* Hero Banner */}
-        <View style={[styles.heroBanner, { backgroundColor: theme.heroBg }]}>
+      {/* Surah Mode Selector Sheet */}
+      <Modal
+        visible={selectedSummary !== null}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setSelectedSurahId(null)}
+      >
+        <View style={styles.modalBackdrop}>
           <View
             style={[
-              styles.rowBetween,
-              { flexDirection: isRtl ? 'row-reverse' : 'row' },
-            ]}
-          >
-            <Text style={styles.heroBannerLabel}>{copy.revisionHeaderLabel}</Text>
-            <View style={styles.heroPill}>
-              <Text style={styles.heroPillText}>{copy.revisionThreePillars}</Text>
-            </View>
-          </View>
-          <Text style={[styles.heroTitle, { textAlign: isRtl ? 'right' : 'left' }]}>
-            {queues.totalDueCount > 0
-              ? `${copy.revisionDueToday} ${formatNum(queues.totalDueCount, language)} ${copy.versesUnit}`
-              : copy.revisionNoneDue}
-          </Text>
-          <View style={[styles.heroGrid, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
-            <View style={styles.heroStat}>
-              <Text style={styles.heroStatLbl}>{copy.homeYesterdayShort}</Text>
-              <Text style={styles.heroStatVal}>
-                {formatNum(queues.yesterdayItems.length, language)}
-              </Text>
-            </View>
-            <View style={styles.heroStat}>
-              <Text style={styles.heroStatLbl}>{copy.homeOlderShort}</Text>
-              <Text style={styles.heroStatVal}>
-                {formatNum(queues.olderDueItems.length, language)}
-              </Text>
-            </View>
-            <View style={styles.heroStat}>
-              <Text style={styles.heroStatLbl}>{copy.homeWeakShort}</Text>
-              <Text style={styles.heroStatVal}>
-                {formatNum(queues.weakItems.length, language)}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {completedTitle ? (
-          <View
-            style={[
-              styles.card,
-              {
-                flexDirection: isRtl ? 'row-reverse' : 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                backgroundColor: theme.card,
-                borderColor: theme.primary,
-              },
-            ]}
-          >
-            <View
-              style={[
-                styles.rowLeft,
-                { flexDirection: isRtl ? 'row-reverse' : 'row', flex: 1 },
-              ]}
-            >
-              <View style={[styles.iconBox, { backgroundColor: theme.secondary }]}>
-                <Ionicons name="checkmark-circle-outline" size={20} color={theme.primary} />
-              </View>
-              <View style={{ flex: 1, alignItems: isRtl ? 'flex-end' : 'flex-start' }}>
-                <Text style={[styles.pillarTitle, { color: theme.foreground }]}>
-                  {copy.revisionCompletedBanner}: {completedTitle}
-                </Text>
-                <Text style={[styles.pillarSub, { color: theme.mutedForeground }]}>
-                  {copy.revisionCompletedSub}
-                </Text>
-              </View>
-            </View>
-            <Pressable
-              onPress={() => setCompletedTitle(null)}
-              style={styles.closeIconBtn}
-              accessibilityLabel={copy.mushafClose}
-            >
-              <Ionicons name="close" size={16} color={theme.mutedForeground} />
-            </Pressable>
-          </View>
-        ) : null}
-
-        {totalMemorizedCount === 0 ? (
-          <View
-            style={[
-              styles.emptyCard,
+              styles.modalSheet,
               { backgroundColor: theme.card, borderColor: theme.border },
             ]}
           >
-            <Ionicons name="book-outline" size={32} color={theme.primary} />
-            <Text style={[styles.emptyTitle, { color: theme.foreground }]}>
-              {copy.revisionEmptyTitle}
-            </Text>
-            <Text style={[styles.emptyBody, { color: theme.mutedForeground }]}>
-              {copy.revisionEmptyBody}
-            </Text>
-            <Pressable
-              onPress={() => router.push('/memorize')}
+            {selectedSummary ? (
+              <>
+                <View style={[styles.rowBetween, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
+                  <View style={{ alignItems: isRtl ? 'flex-end' : 'flex-start', gap: 2 }}>
+                    <Text style={[styles.modalTitle, { color: theme.foreground }]}>
+                      {getSurahDisplayName(getSurahById(selectedSummary.surahId), language)}
+                    </Text>
+                    <Text style={[styles.metaText, { color: theme.mutedForeground }]}>
+                      اختر أسلوب المراجعة لهذه السورة فقط
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => setSelectedSurahId(null)}
+                    style={styles.modalCloseBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="إغلاق"
+                  >
+                    <Ionicons name="close" size={22} color={theme.foreground} />
+                  </Pressable>
+                </View>
+
+                <View style={styles.modeCardsStack}>
+                  <Pressable
+                    onPress={() => handleLaunchSurahMode(selectedSummary.surahId, 'surah_flow')}
+                    style={[
+                      styles.modeTile,
+                      {
+                        flexDirection: isRtl ? 'row-reverse' : 'row',
+                        borderColor: theme.border,
+                        backgroundColor: theme.background,
+                      },
+                    ]}
+                  >
+                    <View style={[styles.modeIconBox, { backgroundColor: theme.secondary }]}>
+                      <Ionicons
+                        name="book-outline"
+                        size={18}
+                        color={theme.isDark ? theme.foreground : theme.primary}
+                      />
+                    </View>
+                    <View style={{ flex: 1, alignItems: isRtl ? 'flex-end' : 'flex-start', gap: 2 }}>
+                      <Text style={[styles.surahName, { color: theme.foreground }]}>
+                        تسميع بالترتيب
+                      </Text>
+                      <Text style={[styles.metaText, { color: theme.mutedForeground }]}>
+                        راجع السورة من أولها
+                      </Text>
+                    </View>
+                    <Ionicons name={dirArrow} size={16} color={theme.mutedForeground} />
+                  </Pressable>
+
+                  <Pressable
+                    disabled={!selectedSummary.hasConnections}
+                    onPress={() =>
+                      handleLaunchSurahMode(selectedSummary.surahId, 'surah_connections')
+                    }
+                    style={[
+                      styles.modeTile,
+                      {
+                        flexDirection: isRtl ? 'row-reverse' : 'row',
+                        borderColor: theme.border,
+                        backgroundColor: theme.background,
+                        opacity: selectedSummary.hasConnections ? 1 : 0.45,
+                      },
+                    ]}
+                  >
+                    <View style={[styles.modeIconBox, { backgroundColor: theme.secondary }]}>
+                      <Ionicons
+                        name="git-commit-outline"
+                        size={18}
+                        color={theme.isDark ? theme.foreground : theme.primary}
+                      />
+                    </View>
+                    <View style={{ flex: 1, alignItems: isRtl ? 'flex-end' : 'flex-start', gap: 2 }}>
+                      <Text style={[styles.surahName, { color: theme.foreground }]}>
+                        اختبار الربط
+                      </Text>
+                      <Text style={[styles.metaText, { color: theme.mutedForeground }]}>
+                        {selectedSummary.hasConnections
+                          ? 'الوصل بين الدروس المتجاورة'
+                          : 'يتاح بعد إتمام درسين متجاورين'}
+                      </Text>
+                    </View>
+                    <Ionicons name={dirArrow} size={16} color={theme.mutedForeground} />
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => handleLaunchSurahMode(selectedSummary.surahId, 'surah_random')}
+                    style={[
+                      styles.modeTile,
+                      {
+                        flexDirection: isRtl ? 'row-reverse' : 'row',
+                        borderColor: theme.border,
+                        backgroundColor: theme.background,
+                      },
+                    ]}
+                  >
+                    <View style={[styles.modeIconBox, { backgroundColor: `${theme.accent}24` }]}>
+                      <Ionicons name="shuffle-outline" size={18} color={theme.accent} />
+                    </View>
+                    <View style={{ flex: 1, alignItems: isRtl ? 'flex-end' : 'flex-start', gap: 2 }}>
+                      <Text style={[styles.surahName, { color: theme.foreground }]}>
+                        تسميع عشوائي
+                      </Text>
+                      <Text style={[styles.metaText, { color: theme.mutedForeground }]}>
+                        ابدأ من مواضع متفرقة
+                      </Text>
+                    </View>
+                    <Ionicons name={dirArrow} size={16} color={theme.mutedForeground} />
+                  </Pressable>
+                </View>
+              </>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Virtualized All Surahs Modal */}
+      <Modal
+        visible={showAllSurahsModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowAllSurahsModal(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View
+            style={[
+              styles.modalSheet,
+              { maxHeight: '82%', backgroundColor: theme.card, borderColor: theme.border },
+            ]}
+          >
+            <View style={[styles.rowBetween, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
+              <Text style={[styles.modalTitle, { color: theme.foreground }]}>
+                جميع السور ({formatNum(surahSummaries.length, language)})
+              </Text>
+              <Pressable
+                onPress={() => setShowAllSurahsModal(false)}
+                style={styles.modalCloseBtn}
+                accessibilityRole="button"
+                accessibilityLabel="إغلاق"
+              >
+                <Ionicons name="close" size={22} color={theme.foreground} />
+              </Pressable>
+            </View>
+
+            <View
               style={[
-                styles.primaryBtn,
+                styles.searchWrap,
                 {
-                  width: '100%',
                   flexDirection: isRtl ? 'row-reverse' : 'row',
-                  backgroundColor: theme.primary,
+                  borderColor: theme.border,
+                  backgroundColor: theme.background,
                 },
               ]}
             >
-              <Text style={[styles.primaryBtnText, { color: theme.primaryForeground }]}>
-                {copy.revisionGoToSession}
-              </Text>
-              <Ionicons name={forwardArrow} size={18} color={theme.primaryForeground} />
-            </Pressable>
-          </View>
-        ) : (
-          groups.map((group) => {
-            const isAvailable = group.items.length > 0;
-            return (
-              <View
-                key={group.id}
-                style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}
-              >
-                <View
-                  style={[
-                    styles.rowBetween,
-                    { flexDirection: isRtl ? 'row-reverse' : 'row' },
-                  ]}
-                >
-                  <View
+              <Ionicons name="search-outline" size={18} color={theme.mutedForeground} />
+              <TextInput
+                value={surahSearch}
+                onChangeText={setSurahSearch}
+                placeholder="ابحث باسم السورة أو رقمها..."
+                placeholderTextColor={theme.mutedForeground}
+                style={[
+                  styles.searchInput,
+                  { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' },
+                ]}
+              />
+              {surahSearch.length > 0 ? (
+                <Pressable onPress={() => setSurahSearch('')}>
+                  <Ionicons name="close-circle" size={18} color={theme.mutedForeground} />
+                </Pressable>
+              ) : null}
+            </View>
+
+            <FlatList
+              data={modalFilteredSummaries}
+              keyExtractor={(item) => String(item.surahId)}
+              initialNumToRender={14}
+              windowSize={7}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.modalListContent}
+              renderItem={({ item }) => {
+                const surah = getSurahById(item.surahId);
+                return (
+                  <Pressable
+                    onPress={() => {
+                      setShowAllSurahsModal(false);
+                      setSelectedSurahId(item.surahId);
+                    }}
                     style={[
-                      styles.rowLeft,
-                      { flexDirection: isRtl ? 'row-reverse' : 'row', flex: 1 },
+                      styles.compactRow,
+                      {
+                        flexDirection: isRtl ? 'row-reverse' : 'row',
+                        borderColor: theme.border,
+                        backgroundColor: theme.background,
+                      },
                     ]}
                   >
-                    <View style={[styles.iconBox, { backgroundColor: theme.secondary }]}>
-                      <Ionicons name={group.icon} size={20} color={theme.primary} />
-                    </View>
-                    <View style={{ flex: 1, alignItems: isRtl ? 'flex-end' : 'flex-start' }}>
-                      <Text style={[styles.pillarTitle, { color: theme.foreground }]}>
-                        {group.title}
-                      </Text>
+                    <View style={[styles.surahNumCircle, { backgroundColor: theme.secondary }]}>
                       <Text
                         style={[
-                          styles.pillarSub,
-                          { color: theme.mutedForeground, textAlign: isRtl ? 'right' : 'left' },
+                          styles.surahNumText,
+                          { color: theme.isDark ? theme.foreground : theme.primary },
                         ]}
                       >
-                        {group.subtitle}
+                        {formatNum(item.surahId, language)}
                       </Text>
                     </View>
-                  </View>
-
-                  <View style={[styles.badge, { backgroundColor: theme.secondary }]}>
-                    <Text style={[styles.badgeText, { color: theme.secondaryForeground }]}>
-                      {formatNum(group.items.length, language)}{' '}
-                      {group.items.length === 1 ? copy.verseSingular : copy.versesUnit}
-                    </Text>
-                  </View>
-                </View>
-
-                {group.surahBuckets.length > 0 ? (
-                  <View
-                    style={[
-                      styles.wrapRow,
-                      { flexDirection: isRtl ? 'row-reverse' : 'row' },
-                    ]}
-                  >
-                    {group.surahBuckets.map((bucket) => {
-                      const bucketSurah = getSurahById(bucket.surahId);
-                      return (
-                        <Pressable
-                          key={bucket.surahId}
-                          onPress={() => startGroup(group.id, bucket.surahId)}
+                    <View style={{ flex: 1, gap: 4 }}>
+                      <View
+                        style={[
+                          styles.rowBetween,
+                          { flexDirection: isRtl ? 'row-reverse' : 'row' },
+                        ]}
+                      >
+                        <Text style={[styles.surahName, { color: theme.foreground }]}>
+                          {getSurahDisplayName(surah, language)}
+                        </Text>
+                        <Text
                           style={[
-                            styles.surahChip,
-                            {
-                              flexDirection: isRtl ? 'row-reverse' : 'row',
-                              borderColor: theme.border,
-                              backgroundColor: theme.background,
-                            },
+                            styles.surahPct,
+                            { color: theme.isDark ? theme.foreground : theme.primary },
                           ]}
                         >
-                          <Text style={[styles.surahChipText, { color: theme.foreground }]}>
-                            {getSurahDisplayName(bucketSurah, language)}
-                          </Text>
-                          <Text style={[styles.surahChipCount, { color: theme.primary }]}>
-                            {formatNum(bucket.items.length, language)}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                ) : null}
+                          {formatNum(item.percent, language)}%
+                        </Text>
+                      </View>
+                      <SurahProgressBar percent={item.percent} height={4} />
+                    </View>
+                  </Pressable>
+                );
+              }}
+            />
+          </View>
+        </View>
+      </Modal>
 
-                <Pressable
-                  disabled={!isAvailable}
-                  onPress={() => startGroup(group.id)}
+      {/* Revision Guide Info Modal */}
+      <Modal
+        visible={showInfoModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowInfoModal(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View
+            style={[
+              styles.modalSheet,
+              { maxHeight: '82%', backgroundColor: theme.card, borderColor: theme.border },
+            ]}
+          >
+            <View style={[styles.rowBetween, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
+              <Text style={[styles.modalTitle, { color: theme.foreground }]}>
+                دليل المراجعة
+              </Text>
+              <Pressable
+                onPress={() => setShowInfoModal(false)}
+                style={styles.modalCloseBtn}
+                accessibilityRole="button"
+                accessibilityLabel="إغلاق"
+              >
+                <Ionicons name="close" size={22} color={theme.foreground} />
+              </Pressable>
+            </View>
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.modalListContent}
+            >
+              {[
+                {
+                  title: 'المراجعة الذكية',
+                  body: 'تختار لك تلقائياً أهم ما يحتاج إلى مراجعة بناءً على تقييمك السابق وحالة الدروس دون خلط بين السور ودون بدء درس حفظ جديد. اختر «سريعة» (حتى مقطعين)، «متوسطة» (حتى ٤ مقاطع)، أو «شاملة» (حتى ٨ مقاطع).',
+                },
+                {
+                  title: 'مقاطع تحتاج عناية',
+                  body: 'تظهر تلقائياً عند وجود مقاطع قيّمتها كـ «صعب» أو لا تزال قيد التعلّم، لتثبيتها بهدوء بالاستماع والتدرّج.',
+                },
+                {
+                  title: 'أساليب مراجعة السورة',
+                  body: '• تسميع بالترتيب: مراجعة مقاطع السورة بالتسلسل من بدايتها.\n• اختبار الربط: التركيز على مواضع الوصل بين الدروس المتجاورة.\n• تسميع عشوائي: استدعاء مقاطع متفرقة لكسر الاعتماد على الترتيب فقط.',
+                },
+                {
+                  title: 'التلميح والتقييم',
+                  body: 'أثناء الإخفاء الكامل يمكنك استخدام زر «تلميح» لإظهار الكلمات الأولى فقط من الآية. تقييمك بعد كل مقطع يحدّث أولوية مراجعتك القادمة وشريط قوة الحفظ دون تغيير موضع حفظك الجديد.',
+                },
+                {
+                  title: 'كيف يؤثر التقييم على المراجعة؟',
+                  body: '• صعب: يرفع أولوية المقطع فوراً إلى مقدّمة المراجعة الذكية ويضيفه إلى «عناية خاصة».\n• جيد: يثبّت المقطع بالإخفاء التدريجي (١/٣ ثم ٢/٣ ثم ٣/٣) ويعيده للمراجعة قريباً.\n• سهل: يرفع حالة المقطع إلى «متقن» ويباعد بين جلسات مراجعته (١، ٣، ٧، ١٤، ٣٠ جلسة).',
+                },
+              ].map((item) => (
+                <View
+                  key={item.title}
                   style={[
-                    styles.startGroupBtn,
-                    {
-                      flexDirection: isRtl ? 'row-reverse' : 'row',
-                      backgroundColor: isAvailable ? theme.primary : theme.muted,
-                      borderColor: isAvailable ? theme.primary : theme.border,
-                    },
+                    styles.infoGuideCard,
+                    { backgroundColor: theme.background, borderColor: theme.border },
                   ]}
                 >
-                  <Ionicons
-                    name="play-circle-outline"
-                    size={18}
-                    color={isAvailable ? theme.primaryForeground : theme.mutedForeground}
-                  />
                   <Text
                     style={[
-                      styles.startGroupBtnText,
-                      { color: isAvailable ? theme.primaryForeground : theme.mutedForeground },
+                      styles.surahName,
+                      {
+                        color: theme.isDark ? theme.accent : theme.primary,
+                        textAlign: isRtl ? 'right' : 'left',
+                      },
                     ]}
                   >
-                    {isAvailable ? copy.revisionStartBtn : copy.revisionEmptyBtn}
+                    {item.title}
                   </Text>
-                </Pressable>
-              </View>
-            );
-          })
-        )}
-      </View>
+                  <Text
+                    style={[
+                      styles.infoGuideBody,
+                      { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' },
+                    ]}
+                  >
+                    {item.body}
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </AppShell>
   );
 }
@@ -795,165 +1129,290 @@ export default function RevisionScreen() {
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   stack: { gap: SPACING.lg },
-  heroBanner: {
-    borderRadius: RADII.card,
-    padding: SPACING.xl,
-    gap: SPACING.md,
-  },
+  headerTextCol: { flex: 1, gap: 4 },
+  pageTitle: { fontSize: 24, fontWeight: '700' },
+  pageSubtitle: { fontSize: 13, lineHeight: 20 },
   rowBetween: { alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  rowLeft: { alignItems: 'center', gap: 10 },
-  heroBannerLabel: { fontSize: 12, color: 'rgba(255,255,255,0.9)' },
+  heroWrap: {
+    borderRadius: RADII.hero,
+    overflow: 'hidden',
+  },
+  heroBg: {
+    width: '100%',
+  },
+  heroOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
+  heroCard: {
+    padding: SPACING.xl,
+    gap: 14,
+  },
   heroPill: {
     borderRadius: RADII.pill,
-    backgroundColor: 'rgba(255,255,255,0.16)',
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  heroPillText: { fontSize: 12, fontWeight: '600', color: '#ffffff' },
-  heroTitle: { fontSize: 20, fontWeight: '700', color: '#ffffff' },
-  heroGrid: { gap: 10, marginTop: 4 },
-  heroStat: {
+  heroPillDarkText: { fontSize: 11, fontWeight: '700' },
+  heroGlassPill: {
+    borderRadius: RADII.pill,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  heroGlassText: { fontSize: 12, fontWeight: '700' },
+  heroTitle: { fontSize: 22, fontWeight: '700', color: '#ffffff' },
+  heroSub: { fontSize: 13, color: 'rgba(255,255,255,0.88)', lineHeight: 20 },
+  timeRow: { gap: 8 },
+  timeChip: {
+    flex: 1,
+    minHeight: 38,
+    borderRadius: RADII.control,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timeChipText: { fontSize: 13, fontWeight: '700' },
+  heroCta: {
+    minHeight: 48,
+    borderRadius: RADII.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    marginTop: 2,
+  },
+  heroCtaText: { fontSize: 14, fontWeight: '700' },
+  statsCard: {
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: RADII.card,
+    borderWidth: 1,
+    padding: SPACING.md,
+    gap: 12,
+  },
+  statsGrid: { gap: 8 },
+  statTile: {
     flex: 1,
     borderRadius: RADII.control,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    padding: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
     alignItems: 'center',
+    gap: 4,
   },
-  heroStatLbl: { fontSize: 12, color: 'rgba(255,255,255,0.8)' },
-  heroStatVal: { fontSize: 18, fontWeight: '700', color: '#ffffff', marginTop: 4 },
-  card: {
+  statVal: { fontSize: 19, fontWeight: '700' },
+  statLbl: { fontSize: 11, textAlign: 'center' },
+  masteryWrap: { gap: 8 },
+  masteryTrack: {
+    height: 7,
+    borderRadius: 4,
+    overflow: 'hidden',
+    flexDirection: 'row',
+    gap: 2,
+  },
+  masterySeg: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  masteryLegend: {
+    justifyContent: 'space-around',
+    gap: 8,
+  },
+  legendItem: {
+    alignItems: 'center',
+    gap: 5,
+  },
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  modesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  modeGridCard: {
+    position: 'relative',
+    overflow: 'hidden',
+    width: '48.5%',
+    minHeight: 116,
+    borderRadius: RADII.card,
+    borderWidth: 1,
+    padding: SPACING.md,
+    gap: 8,
+    justifyContent: 'space-between',
+  },
+  modeGridTop: {
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  modeGridIconBox: {
+    width: MIN_TOUCH_TARGET - 6,
+    height: MIN_TOUCH_TARGET - 6,
+    borderRadius: RADII.control,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modeBadgePill: {
+    borderRadius: RADII.pill,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  modeBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  modeGridTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  modeGridSub: {
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  sectionBlock: { gap: SPACING.md },
+  sectionTitle: { fontSize: 16, fontWeight: '700' },
+  emptyImageWrap: { borderRadius: RADII.card, overflow: 'hidden' },
+  emptyBg: { width: '100%' },
+  emptyOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
+  emptyCard: {
+    alignItems: 'center',
+    paddingVertical: 28,
+    paddingHorizontal: 18,
+    gap: 10,
+  },
+  emptyImageText: {
+    fontSize: 13,
+    color: '#ffffff',
+    textAlign: 'center',
+    lineHeight: 20,
+    fontWeight: '600',
+  },
+  surahCardsList: { gap: SPACING.md },
+  surahCard: {
+    position: 'relative',
+    overflow: 'hidden',
     borderRadius: RADII.card,
     borderWidth: 1,
     padding: SPACING.lg,
-    gap: SPACING.md,
-  },
-  iconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: RADII.control,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  closeIconBtn: {
-    width: MIN_TOUCH_TARGET,
-    height: MIN_TOUCH_TARGET,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pillarTitle: { fontSize: 16, fontWeight: '700' },
-  pillarSub: { fontSize: 12, marginTop: 2 },
-  badge: { borderRadius: RADII.pill, paddingHorizontal: 10, paddingVertical: 4 },
-  badgeText: { fontSize: 12, fontWeight: '600' },
-  wrapRow: { flexWrap: 'wrap', gap: 6 },
-  surahChip: {
-    minHeight: 36,
-    alignItems: 'center',
-    gap: 6,
-    borderRadius: RADII.control,
-    borderWidth: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  surahChipText: { fontSize: 12, fontWeight: '600' },
-  surahChipCount: { fontSize: 11, fontWeight: '700' },
-  startGroupBtn: {
-    minHeight: 48,
-    borderRadius: RADII.control,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
-  },
-  startGroupBtnText: { fontSize: 14, fontWeight: '700' },
-  emptyCard: {
-    borderRadius: RADII.card,
-    borderWidth: 1,
-    padding: SPACING.xxl,
-    alignItems: 'center',
     gap: 12,
   },
-  emptyTitle: { fontSize: 18, fontWeight: '700', textAlign: 'center' },
-  emptyBody: { fontSize: 14, textAlign: 'center', lineHeight: 22 },
-  primaryBtn: {
-    minHeight: 52,
-    borderRadius: RADII.card,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
+  surahTitleGroup: { alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  surahName: { fontSize: 15, fontWeight: '700' },
+  readinessPill: {
+    borderRadius: RADII.pill,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
-  primaryBtnText: { fontSize: 15, fontWeight: '700' },
-  backPill: {
-    minHeight: MIN_TOUCH_TARGET,
-    alignItems: 'center',
-    gap: 6,
+  readinessText: { fontSize: 11, fontWeight: '700' },
+  surahPct: { fontSize: 13, fontWeight: '700' },
+  metaText: { fontSize: 11, lineHeight: 16 },
+  chooseModeBtn: {
+    minHeight: 36,
     borderRadius: RADII.control,
     borderWidth: 1,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+  },
+  chooseModeText: { fontSize: 12, fontWeight: '700' },
+  viewAllBtn: {
+    minHeight: MIN_TOUCH_TARGET,
+    borderRadius: RADII.control,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
     paddingHorizontal: 14,
   },
-  backPillText: { fontSize: 12, fontWeight: '700' },
-  smallMuted: { fontSize: 11, fontWeight: '600' },
-  noticeBox: {
+  viewAllText: { fontSize: 13, fontWeight: '700' },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    borderTopLeftRadius: RADII.hero,
+    borderTopRightRadius: RADII.hero,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    padding: SPACING.lg,
+    gap: SPACING.md,
+  },
+  modalTitle: { fontSize: 17, fontWeight: '700' },
+  modalCloseBtn: {
+    minWidth: MIN_TOUCH_TARGET,
+    minHeight: MIN_TOUCH_TARGET,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modeCardsStack: { gap: 10, paddingBottom: 12 },
+  modeTile: {
+    minHeight: 64,
     borderRadius: RADII.control,
     borderWidth: 1,
     padding: 12,
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
   },
-  noticeText: { fontSize: 12, fontWeight: '600' },
-  modeSwitcher: {
-    borderRadius: RADII.card,
-    borderWidth: 1,
-    padding: 6,
-    gap: 6,
+  modeIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  modeBtn: {
-    flex: 1,
+  searchWrap: {
     minHeight: MIN_TOUCH_TARGET,
     borderRadius: RADII.control,
+    borderWidth: 1,
+    paddingHorizontal: 12,
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingHorizontal: 6,
+    gap: 8,
   },
-  modeBtnText: { fontSize: 12, fontWeight: '700' },
-  surfaceHeader: {
-    borderBottomWidth: 1,
-    paddingBottom: 10,
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  surfaceTitle: { fontSize: 12, fontWeight: '700' },
-  surfaceBody: { borderRadius: RADII.control, padding: SPACING.md },
-  hiddenBox: { alignItems: 'center', paddingVertical: 28, gap: 8 },
-  hiddenTitle: { fontSize: 14, fontWeight: '600', textAlign: 'center' },
-  hiddenBody: { fontSize: 12, textAlign: 'center' },
-  versesWrap: { gap: 8 },
-  ayahLineBtn: {
+  searchInput: { flex: 1, fontSize: 14, paddingVertical: 8 },
+  modalListContent: { gap: 8, paddingBottom: 16 },
+  compactRow: {
+    minHeight: 58,
     borderRadius: RADII.control,
     borderWidth: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+    gap: 12,
   },
-  quranText: {
-    textAlign: 'right',
-    writingDirection: 'rtl',
-    lineHeight: 46,
+  surahNumCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  evalHeading: { fontSize: 13, fontWeight: '700' },
-  evalGrid: { gap: 8 },
-  evalTile: {
-    flex: 1,
-    minHeight: 60,
-    borderRadius: RADII.control,
+  surahNumText: { fontSize: 12, fontWeight: '700' },
+  infoIconBtn: {
+    width: MIN_TOUCH_TARGET,
+    height: MIN_TOUCH_TARGET,
+    borderRadius: RADII.card,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 8,
   },
-  evalTitle: { fontSize: 12, fontWeight: '700' },
-  evalSub: { fontSize: 10, marginTop: 2 },
+  infoGuideCard: {
+    borderRadius: RADII.control,
+    borderWidth: 1,
+    padding: 14,
+    gap: 6,
+  },
+  infoGuideBody: { fontSize: 13, lineHeight: 21 },
 });

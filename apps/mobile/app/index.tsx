@@ -1,7 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  ImageBackground,
+  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -11,24 +10,53 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import {
   MILLA_COPY,
-  computeProgressMetrics,
-  computeRevisionQueues,
+  RECITERS,
+  buildCareRevisionQueue,
+  buildSmartRevisionQueue,
+  computeSurahProgress,
+  computeSurahRevisionPlan,
+  computeSurahRevisionSummaries,
+  findActiveLearningLesson,
   formatNum,
+  getSurahActiveSessionNumber,
   getSurahById,
   getSurahDisplayName,
+  toArabicDigits,
 } from '@al-milla/core';
 import { AppShell } from '../src/components/milla/AppShell';
+import { ARABESQUE_CARD_PATTERNS, ArabesqueBackdrop } from '../src/components/milla/ArabesqueBackdrop';
+import { DailyQuoteCard } from '../src/components/milla/DailyQuoteCard';
+import { MemorizeSettingsModal } from '../src/components/milla/MemorizeModals';
 import { QuietDhikrCard } from '../src/components/milla/QuietDhikrCard';
+import { SurahProgressBar } from '../src/components/milla/SurahProgressBar';
 import { useMilla } from '../src/context/MillaContext';
 import { MIN_TOUCH_TARGET, RADII, SPACING } from '../src/theme/tokens';
 
 const MUSHAF_MORNING_IMG = require('../assets/images/mushaf-morning.jpg');
 
-type ShortcutHref = '/self-test' | '/tafsir' | '/mutashabihat' | '/progress';
+interface FeatureActionItem {
+  id: string;
+  label: string;
+  subtitle: string;
+  icon:
+    | 'flash-outline'
+    | 'sparkles-outline'
+    | 'shuffle-outline'
+    | 'git-commit-outline'
+    | 'book-outline'
+    | 'options-outline';
+  onPress: () => void;
+  disabled?: boolean;
+}
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 export default function HomeScreen() {
   const router = useRouter();
   const { state, theme, isLoading } = useMilla();
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
     if (!isLoading && state && !state.onboardingCompleted) {
@@ -36,67 +64,191 @@ export default function HomeScreen() {
     }
   }, [isLoading, state, router]);
 
-  if (isLoading || !state) {
-    return (
-      <View style={[styles.center, { backgroundColor: theme.background }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
-      </View>
-    );
-  }
-
-  if (!state.onboardingCompleted) {
-    return null;
+  if (isLoading || !state || !state.onboardingCompleted) {
+    return <View style={[styles.center, { backgroundColor: theme.background }]} />;
   }
 
   const language = state.language;
   const copy = MILLA_COPY[language];
   const isRtl = language === 'ar';
   const dirArrow = isRtl ? 'arrow-back' : 'arrow-forward';
+
   const surah = getSurahById(state.currentSurahId);
-  const rangeEnd = Math.min(surah.totalAyahs, state.currentAyah + state.dailyTarget - 1);
+  const activeLearning = findActiveLearningLesson(state.lessons, surah.id);
+  const portionStart = activeLearning ? activeLearning.startVerse : state.currentAyah;
+  const portionEnd = activeLearning
+    ? activeLearning.endVerse
+    : Math.min(surah.totalAyahs, state.currentAyah + state.dailyTarget - 1);
 
-  const memorizedInCurrentSurah = Object.values(state.verseRecords).filter(
-    (r) => r.surahId === surah.id && (r.status === 'memorized' || r.status === 'weak'),
-  ).length;
-  const surahPct = Math.min(
-    100,
-    Math.round((memorizedInCurrentSurah / Math.max(1, surah.totalAyahs)) * 100),
-  );
-
-  const queues = computeRevisionQueues(state.verseRecords, {
-    lastSessionKeys: state.lastSessionKeys,
-    lastSessionCompletedAt: state.lastSessionCompletedAt,
+  const activeSessionNum = getSurahActiveSessionNumber(state.surahSessions, surah.id);
+  const surahPlan = computeSurahRevisionPlan(state.lessons, {
+    surahId: surah.id,
+    activeSessionNumber: activeSessionNum,
+    todayIso: todayIso(),
   });
-  const metrics = computeProgressMetrics(
-    state.verseRecords,
-    state.activityDates,
-    state.currentSurahId,
-  );
 
-  const shortcutItems: {
-    href: ShortcutHref;
-    label: string;
-    icon: 'checkmark-circle-outline' | 'bulb-outline' | 'git-compare-outline' | 'bar-chart-outline';
-  }[] = [
-    { href: '/self-test', label: copy.selfTestTitle, icon: 'checkmark-circle-outline' },
-    { href: '/tafsir', label: copy.tafsirTitle, icon: 'bulb-outline' },
-    { href: '/mutashabihat', label: copy.mutashabihatTitle, icon: 'git-compare-outline' },
-    { href: '/progress', label: copy.progressTitle, icon: 'bar-chart-outline' },
+  const { memorizedCount: memorizedInSurah, percent: surahPct } = computeSurahProgress({
+    surahId: surah.id,
+    totalAyahs: surah.totalAyahs,
+    verseRecords: state.verseRecords,
+    lessons: state.lessons,
+  });
+
+  const totalMemorized = Object.values(state.verseRecords).filter(
+    (r) => r.status === 'memorized' || r.status === 'weak',
+  ).length;
+
+  const smartQueue5 = buildSmartRevisionQueue(state.lessons, {
+    surahSessions: state.surahSessions,
+    currentSurahId: surah.id,
+    timePreset: 5,
+    verseRecords: state.verseRecords,
+  });
+  const careQueue = buildCareRevisionQueue(
+    state.lessons,
+    state.surahSessions,
+    state.verseRecords,
+  );
+  const surahSummaries = computeSurahRevisionSummaries(
+    state.lessons,
+    state.verseRecords,
+    state.surahSessions,
+    surah.id,
+  );
+  const currentSurahSummary = surahSummaries.find((s) => s.surahId === surah.id) ?? null;
+  const hasCurrentSurahSaved = (currentSurahSummary?.memorizedCount ?? 0) > 0;
+  const activeReciterObj = RECITERS.find((r) => r.id === state.reciter) ?? RECITERS[0]!;
+  const activeReciterLabel = language === 'ar' ? activeReciterObj.nameAr : activeReciterObj.nameEn;
+
+  const needLessonFirst =
+    language === 'en'
+      ? 'Complete a lesson first'
+      : language === 'fr'
+        ? 'Terminez une leçon d’abord'
+        : 'ابدأ أول درس أولاً';
+
+  const featureActions: FeatureActionItem[] = [
+    {
+      id: 'quick_review',
+      label:
+        language === 'en'
+          ? 'Quick Review'
+          : language === 'fr'
+            ? 'Révision rapide'
+            : 'مراجعة سريعة',
+      subtitle:
+        smartQueue5.length > 0
+          ? language === 'en'
+            ? `${formatNum(smartQueue5.length, language)} passages ready`
+            : language === 'fr'
+              ? `${formatNum(smartQueue5.length, language)} passages prêts`
+              : `${formatNum(smartQueue5.length, language)} مقاطع من محفوظك`
+          : needLessonFirst,
+      icon: 'flash-outline',
+      disabled: smartQueue5.length === 0,
+      onPress: () =>
+        router.push({
+          pathname: '/revision-session',
+          params: { mode: 'smart', minutes: '5' },
+        }),
+    },
+    careQueue.length > 0
+      ? {
+          id: 'care_review',
+          label:
+            language === 'en'
+              ? 'Gentle Care'
+              : language === 'fr'
+                ? 'Soin doux'
+                : 'عناية خاصة',
+          subtitle:
+            language === 'en'
+              ? `${formatNum(careQueue.length, language)} challenging verses`
+              : language === 'fr'
+                ? `${formatNum(careQueue.length, language)} passages difficiles`
+                : `${formatNum(careQueue.length, language)} مقاطع تحتاج عناية`,
+          icon: 'sparkles-outline',
+          onPress: () =>
+            router.push({
+              pathname: '/revision-session',
+              params: { mode: 'care' },
+            }),
+        }
+      : {
+          id: 'random_recall',
+          label:
+            language === 'en'
+              ? 'Random Recall'
+              : language === 'fr'
+                ? 'Rappel aléatoire'
+                : 'تسميع عشوائي',
+          subtitle: hasCurrentSurahSaved
+            ? getSurahDisplayName(surah, language)
+            : needLessonFirst,
+          icon: 'shuffle-outline',
+          disabled: !hasCurrentSurahSaved,
+          onPress: () =>
+            router.push({
+              pathname: '/revision-session',
+              params: { mode: 'surah_random', surahId: String(surah.id) },
+            }),
+        },
+    currentSurahSummary?.hasConnections
+      ? {
+          id: 'connection_drill',
+          label:
+            language === 'en'
+              ? 'Connection Drill'
+              : language === 'fr'
+                ? 'Liaisons'
+                : 'اختبار الربط',
+          subtitle: getSurahDisplayName(surah, language),
+          icon: 'git-commit-outline',
+          onPress: () =>
+            router.push({
+              pathname: '/revision-session',
+              params: { mode: 'surah_connections', surahId: String(surah.id) },
+            }),
+        }
+      : {
+          id: 'surah_flow',
+          label:
+            language === 'en'
+              ? 'Surah Flow'
+              : language === 'fr'
+                ? 'Enchaînement'
+                : 'تسميع السورة',
+          subtitle: hasCurrentSurahSaved
+            ? getSurahDisplayName(surah, language)
+            : needLessonFirst,
+          icon: 'book-outline',
+          disabled: !hasCurrentSurahSaved,
+          onPress: () =>
+            router.push({
+              pathname: '/revision-session',
+              params: { mode: 'surah_flow', surahId: String(surah.id) },
+            }),
+        },
+    {
+      id: 'quick_prefs',
+      label:
+        language === 'en'
+          ? 'Portion & Voice'
+          : language === 'fr'
+            ? 'Portion & Voix'
+            : 'الورد والصوت',
+      subtitle: `${formatNum(state.dailyTarget, language)} ${copy.versesUnit} • ${activeReciterLabel}`,
+      icon: 'options-outline',
+      onPress: () => setSettingsOpen(true),
+    },
   ];
 
   const shortcutsHeading =
-    language === 'en' ? 'Quick Shortcuts' : language === 'fr' ? 'Accès rapides' : 'اختصارات سريعة';
-
-  const revisionSubtitle =
-    queues.totalDueCount > 0
-      ? `${formatNum(queues.totalDueCount, language)} ${copy.homeDueSummary} (${formatNum(queues.yesterdayItems.length, language)} ${copy.homeYesterdayShort} • ${formatNum(queues.olderDueItems.length, language)} ${copy.homeOlderShort} • ${formatNum(queues.weakItems.length, language)} ${copy.homeWeakShort})`
-      : metrics.totalMemorizedVerses > 0
-        ? language === 'en'
-          ? 'All due revisions are caught up for now'
-          : language === 'fr'
-            ? 'Toutes vos révisions dues sont à jour'
-            : 'أتممت مراجعاتك المستحقة حالياً • محفوظك ثابت بإذن الله'
-        : copy.homeRevisionEmpty;
+    language === 'en'
+      ? 'Quick Actions'
+      : language === 'fr'
+        ? 'Actions rapides'
+        : 'اختصارات سريعة';
 
   return (
     <AppShell title={copy.navHome} subtitle={copy.homeSubtitle}>
@@ -121,10 +273,29 @@ export default function HomeScreen() {
           </Text>
         </View>
 
-        {/* 1. Editorial Photo Hero for Today's Session */}
-        <View style={styles.heroWrap}>
-          <ImageBackground source={MUSHAF_MORNING_IMG} style={styles.heroBg} resizeMode="cover">
-            <View style={styles.heroOverlay} />
+        {/* Primary Today's Memorization Hero */}
+        <View
+          style={[
+            styles.heroWrap,
+            theme.isDark ? { borderWidth: 1, borderColor: theme.border } : null,
+          ]}
+        >
+          <View style={styles.heroBg}>
+            <Image
+              source={MUSHAF_MORNING_IMG}
+              style={[styles.heroOverlay, { width: '100%', height: '100%' }]}
+              resizeMode="cover"
+            />
+            <View
+              style={[
+                styles.heroOverlay,
+                {
+                  backgroundColor: theme.isDark
+                    ? 'rgba(11, 11, 10, 0.84)'
+                    : 'rgba(7, 61, 53, 0.84)',
+                },
+              ]}
+            />
             <View style={styles.heroInner}>
               <View
                 style={[
@@ -133,12 +304,16 @@ export default function HomeScreen() {
                 ]}
               >
                 <View style={[styles.coralBadge, { backgroundColor: theme.accent }]}>
-                  <Text style={styles.coralBadgeText}>{copy.homeTodayWird}</Text>
+                  <Text style={[styles.coralBadgeText, { color: theme.accentForeground }]}>
+                    {copy.homeTodayWird}
+                  </Text>
                 </View>
                 <View style={styles.glassBadge}>
                   <Text style={styles.glassBadgeText}>
-                    {formatNum(Math.min(memorizedInCurrentSurah, state.dailyTarget), language)} /{' '}
-                    {formatNum(state.dailyTarget, language)} {copy.versesUnit}
+                    جلسة {toArabicDigits(activeSessionNum)}
+                    {surahPlan.allLessons.length > 0
+                      ? ` • ${toArabicDigits(surahPlan.allLessons.length)} للمراجعة`
+                      : ''}
                   </Text>
                 </View>
               </View>
@@ -147,12 +322,11 @@ export default function HomeScreen() {
                 {getSurahDisplayName(surah, language)}
               </Text>
               <Text style={[styles.heroSub, { textAlign: isRtl ? 'right' : 'left' }]}>
-                {copy.ayahLabel} {formatNum(state.currentAyah, language)} -{' '}
-                {formatNum(rangeEnd, language)} • {copy.hizbLabel}{' '}
+                {copy.ayahLabel} {formatNum(portionStart, language)} -{' '}
+                {formatNum(portionEnd, language)} • {copy.hizbLabel}{' '}
                 {formatNum(surah.hizb, language)}
               </Text>
 
-              {/* Progress Bar */}
               <View style={styles.heroProgressWrap}>
                 <View
                   style={[
@@ -161,359 +335,311 @@ export default function HomeScreen() {
                   ]}
                 >
                   <Text style={styles.heroProgressText}>
-                    {formatNum(memorizedInCurrentSurah, language)} /{' '}
+                    {formatNum(memorizedInSurah, language)} /{' '}
                     {formatNum(surah.totalAyahs, language)} {copy.versesUnit}
                   </Text>
                   <Text style={[styles.heroPctText, { color: theme.accent }]}>
                     {formatNum(surahPct, language)}%
                   </Text>
                 </View>
-                <View style={styles.heroTrack}>
-                  <View
-                    style={[
-                      styles.heroFill,
-                      { backgroundColor: theme.accent, width: `${surahPct}%` },
-                    ]}
-                  />
-                </View>
+                <SurahProgressBar
+                  percent={surahPct}
+                  trackColor="rgba(255,255,255,0.2)"
+                  fillColor={theme.accent}
+                  height={7}
+                />
               </View>
 
               <Pressable
-                onPress={() => router.push('/memorize')}
+                onPress={() => router.push('/memorize-session')}
                 style={[
                   styles.heroCta,
-                  { flexDirection: isRtl ? 'row-reverse' : 'row' },
-                ]}
-                accessibilityRole="button"
-              >
-                <Text style={styles.heroCtaText}>
-                  {queues.totalDueCount > 0 ? copy.homeContinueSessionCta : copy.homeContinueCta}
-                </Text>
-                <Ionicons name={dirArrow} size={20} color="#073d35" />
-              </Pressable>
-            </View>
-          </ImageBackground>
-        </View>
-
-        {/* 2. Clean Typographic Tracking Strip */}
-        <Pressable
-          onPress={() => router.push('/progress')}
-          style={[
-            styles.strip,
-            {
-              flexDirection: isRtl ? 'row-reverse' : 'row',
-              borderColor: theme.border,
-            },
-          ]}
-          accessibilityRole="button"
-        >
-          <View style={styles.stripCol}>
-            <Text style={[styles.stripNum, { color: theme.primary }]}>
-              {formatNum(metrics.totalMemorizedVerses, language)}
-            </Text>
-            <Text style={[styles.stripLbl, { color: theme.mutedForeground }]}>
-              {copy.progressTotalLabel}
-            </Text>
-          </View>
-          <View style={[styles.stripDivider, { backgroundColor: theme.border }]} />
-          <View style={styles.stripCol}>
-            <Text style={[styles.stripNum, { color: theme.foreground }]}>
-              {formatNum(metrics.surahMasteryList.length, language)}
-            </Text>
-            <Text style={[styles.stripLbl, { color: theme.mutedForeground }]}>
-              {copy.progressActiveSurahs}
-            </Text>
-          </View>
-          <View style={[styles.stripDivider, { backgroundColor: theme.border }]} />
-          <View style={styles.stripCol}>
-            <Text style={[styles.stripNum, { color: theme.foreground }]}>
-              {formatNum(metrics.completedSurahsCount, language)}
-            </Text>
-            <Text style={[styles.stripLbl, { color: theme.mutedForeground }]}>
-              {copy.progressCompletedSurahs}
-            </Text>
-          </View>
-        </Pressable>
-
-        {/* 3. Unified Today's Path (Revision + Memorize) */}
-        <View
-          style={[
-            styles.pathCard,
-            { backgroundColor: theme.card, borderColor: theme.border },
-          ]}
-        >
-          <Pressable
-            onPress={() => router.push('/revision')}
-            style={[
-              styles.pathRow,
-              {
-                flexDirection: isRtl ? 'row-reverse' : 'row',
-                borderBottomColor: theme.border,
-                borderBottomWidth: 1,
-              },
-            ]}
-            accessibilityRole="button"
-          >
-            <View
-              style={[
-                styles.pathLeft,
-                { flexDirection: isRtl ? 'row-reverse' : 'row' },
-              ]}
-            >
-              <View style={[styles.pathIconBox, { backgroundColor: theme.secondary }]}>
-                <Ionicons name="refresh-outline" size={20} color={theme.primary} />
-                {queues.totalDueCount > 0 ? (
-                  <View
-                    style={[
-                      styles.notifDot,
-                      { backgroundColor: theme.accent, borderColor: theme.card },
-                    ]}
-                  />
-                ) : null}
-              </View>
-              <View style={[styles.pathTextWrap, { alignItems: isRtl ? 'flex-end' : 'flex-start' }]}>
-                <Text style={[styles.pathTitle, { color: theme.foreground }]}>
-                  {copy.homeRevisionTitle}
-                </Text>
-                <Text
-                  style={[
-                    styles.pathSub,
-                    { color: theme.mutedForeground, textAlign: isRtl ? 'right' : 'left' },
-                  ]}
-                >
-                  {revisionSubtitle}
-                </Text>
-              </View>
-            </View>
-            <Ionicons name={dirArrow} size={20} color={theme.primary} />
-          </Pressable>
-
-          <Pressable
-            onPress={() => router.push('/memorize')}
-            style={[
-              styles.pathRow,
-              { flexDirection: isRtl ? 'row-reverse' : 'row' },
-            ]}
-            accessibilityRole="button"
-          >
-            <View
-              style={[
-                styles.pathLeft,
-                { flexDirection: isRtl ? 'row-reverse' : 'row' },
-              ]}
-            >
-              <View style={[styles.pathIconBox, { backgroundColor: theme.secondary }]}>
-                <Ionicons name="book-outline" size={20} color={theme.primary} />
-              </View>
-              <View style={[styles.pathTextWrap, { alignItems: isRtl ? 'flex-end' : 'flex-start' }]}>
-                <Text style={[styles.pathTitle, { color: theme.foreground }]}>
-                  {copy.homeNewMemTitle}
-                </Text>
-                <Text
-                  style={[
-                    styles.pathSub,
-                    { color: theme.mutedForeground, textAlign: isRtl ? 'right' : 'left' },
-                  ]}
-                >
-                  {getSurahDisplayName(surah, language)} • {copy.ayahLabel}{' '}
-                  {formatNum(state.currentAyah, language)} - {formatNum(rangeEnd, language)}
-                </Text>
-              </View>
-            </View>
-            <Ionicons name={dirArrow} size={20} color={theme.primary} />
-          </Pressable>
-        </View>
-
-        {/* 4. Quick Shortcuts Pills */}
-        <View style={styles.shortcutsSection}>
-          <Text
-            style={[
-              styles.shortcutsHeading,
-              { color: theme.mutedForeground, textAlign: isRtl ? 'right' : 'left' },
-            ]}
-          >
-            {shortcutsHeading}
-          </Text>
-          <View
-            style={[
-              styles.shortcutsWrap,
-              { flexDirection: isRtl ? 'row-reverse' : 'row' },
-            ]}
-          >
-            {shortcutItems.map((item) => (
-              <Pressable
-                key={item.href}
-                onPress={() => router.push(item.href)}
-                style={[
-                  styles.shortcutPill,
                   {
                     flexDirection: isRtl ? 'row-reverse' : 'row',
-                    borderColor: theme.border,
-                    backgroundColor: theme.card,
+                    backgroundColor: theme.isDark ? theme.primary : '#f7f5ed',
                   },
                 ]}
                 accessibilityRole="button"
               >
-                <Ionicons name={item.icon} size={16} color={theme.primary} />
-                <Text style={[styles.shortcutText, { color: theme.foreground }]}>
-                  {item.label}
+                <Text
+                  style={[
+                    styles.heroCtaText,
+                    { color: theme.isDark ? theme.primaryForeground : '#073d35' },
+                  ]}
+                >
+                  {totalMemorized > 0
+                    ? copy.homeContinueCta
+                    : language === 'en'
+                      ? 'Start Memorizing'
+                      : language === 'fr'
+                        ? 'Commencer'
+                        : 'ابدأ الحفظ'}
                 </Text>
+                <Ionicons
+                  name={dirArrow}
+                  size={20}
+                  color={theme.isDark ? theme.primaryForeground : '#073d35'}
+                />
               </Pressable>
-            ))}
+            </View>
           </View>
         </View>
 
-        {/* 5. Quiet Interactive Dhikr */}
-        <QuietDhikrCard />
+        <DailyQuoteCard />
 
-        {/* 6. Open Mushaf CTA */}
-        <Pressable
-          onPress={() => router.push('/mushaf')}
-          style={[
-            styles.openMushafBtn,
-            {
-              flexDirection: isRtl ? 'row-reverse' : 'row',
-              borderColor: theme.border,
-              backgroundColor: theme.secondary,
-            },
-          ]}
-          accessibilityRole="button"
-        >
-          <Ionicons name="library-outline" size={20} color={theme.primary} />
-          <Text style={[styles.openMushafText, { color: theme.primary }]}>
-            {copy.homeOpenMushaf}
+        {/* All App Feature Shortcuts */}
+        <View style={styles.sectionBlock}>
+          <Text
+            style={[
+              styles.sectionHeading,
+              { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' },
+            ]}
+          >
+            {shortcutsHeading}
           </Text>
-        </Pressable>
+
+          <View style={styles.shortcutsGrid}>
+            {featureActions.map((item, idx) => {
+              const isDisabled = Boolean(item.disabled);
+              const shortcutPattern =
+                ARABESQUE_CARD_PATTERNS[idx % ARABESQUE_CARD_PATTERNS.length] ?? 'medallion';
+              return (
+                <Pressable
+                  key={item.id}
+                  disabled={isDisabled}
+                  onPress={item.onPress}
+                  style={[
+                    styles.shortcutCard,
+                    {
+                      backgroundColor: theme.card,
+                      borderColor:
+                        theme.isDark || isDisabled ? theme.border : theme.primary,
+                      opacity: isDisabled ? 0.58 : 1,
+                    },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: isDisabled }}
+                >
+                  <ArabesqueBackdrop variant="corner" pattern={shortcutPattern} />
+
+                  <View
+                    style={[
+                      styles.shortcutTop,
+                      { flexDirection: isRtl ? 'row-reverse' : 'row' },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.shortcutIconBox,
+                        { backgroundColor: isDisabled ? theme.muted : theme.secondary },
+                      ]}
+                    >
+                      <Ionicons
+                        name={item.icon}
+                        size={20}
+                        color={
+                          isDisabled
+                            ? theme.mutedForeground
+                            : theme.isDark
+                              ? theme.foreground
+                              : theme.primary
+                        }
+                      />
+                    </View>
+                    <Ionicons
+                      name={dirArrow}
+                      size={16}
+                      color={
+                        isDisabled
+                          ? theme.mutedForeground
+                          : theme.isDark
+                            ? theme.foreground
+                            : theme.primary
+                      }
+                    />
+                  </View>
+
+                  <Text
+                    style={[
+                      styles.shortcutTitle,
+                      { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {item.label}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.shortcutSub,
+                      { color: theme.mutedForeground, textAlign: isRtl ? 'right' : 'left' },
+                    ]}
+                    numberOfLines={2}
+                  >
+                    {item.subtitle}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        <QuietDhikrCard />
       </View>
+
+      <MemorizeSettingsModal visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </AppShell>
   );
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  stack: { gap: SPACING.xxl },
+  center: { flex: 1 },
+  stack: { gap: SPACING.xl },
   greeting: { fontSize: 24, fontWeight: '700' },
-  subgreeting: { fontSize: 15, marginTop: 4 },
+  subgreeting: { fontSize: 13, lineHeight: 20, marginTop: 4 },
   heroWrap: {
     borderRadius: RADII.hero,
     overflow: 'hidden',
-    backgroundColor: '#073d35',
   },
-  heroBg: { width: '100%' },
+  heroBg: {
+    width: '100%',
+  },
   heroOverlay: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(7, 61, 53, 0.78)',
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: 'rgba(7, 61, 53, 0.84)',
   },
-  heroInner: { padding: SPACING.xxl },
+  heroInner: {
+    padding: SPACING.xl,
+    gap: 12,
+  },
   heroBadgesRow: {
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
     gap: 8,
   },
   coralBadge: {
     borderRadius: RADII.pill,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  coralBadgeText: { fontSize: 12, fontWeight: '700', color: '#242a25' },
+  coralBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#073d35',
+  },
   glassBadge: {
     borderRadius: RADII.pill,
     backgroundColor: 'rgba(255,255,255,0.16)',
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  glassBadgeText: { fontSize: 12, fontWeight: '600', color: '#ffffff' },
-  heroTitle: { fontSize: 24, fontWeight: '700', color: '#ffffff' },
-  heroSub: { fontSize: 14, color: 'rgba(255,255,255,0.9)', marginTop: 4 },
-  heroProgressWrap: { marginTop: 16 },
-  heroProgressLabels: {
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 6,
+  glassBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#ffffff',
   },
-  heroProgressText: { fontSize: 12, color: 'rgba(255,255,255,0.9)' },
-  heroPctText: { fontSize: 12, fontWeight: '700' },
+  heroTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  heroSub: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.88)',
+  },
+  heroProgressWrap: {
+    gap: 6,
+    marginTop: 4,
+  },
+  heroProgressLabels: {
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  heroProgressText: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.86)',
+  },
+  heroPctText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
   heroTrack: {
-    height: 8,
-    borderRadius: RADII.pill,
+    height: 7,
+    borderRadius: 4,
     backgroundColor: 'rgba(255,255,255,0.2)',
     overflow: 'hidden',
   },
-  heroFill: { height: '100%', borderRadius: RADII.pill },
+  heroFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
   heroCta: {
-    marginTop: 20,
-    minHeight: 52,
+    minHeight: 50,
     borderRadius: RADII.card,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#f7f5ed',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
+    marginTop: 4,
   },
-  heroCtaText: { fontSize: 15, fontWeight: '700', color: '#073d35' },
-  strip: {
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    paddingVertical: 14,
-    alignItems: 'center',
+  heroCtaText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#073d35',
   },
-  stripCol: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
-  stripDivider: { width: 1, height: 34 },
-  stripNum: { fontSize: 24, fontWeight: '700' },
-  stripLbl: { fontSize: 11, marginTop: 2, textAlign: 'center' },
-  pathCard: {
+  sectionBlock: {
+    gap: SPACING.md,
+  },
+  sectionHeading: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  shortcutsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  shortcutCard: {
+    position: 'relative',
+    overflow: 'hidden',
+    width: '48.5%',
+    minHeight: 116,
     borderRadius: RADII.card,
     borderWidth: 1,
-    overflow: 'hidden',
+    padding: SPACING.md,
+    gap: 8,
+    justifyContent: 'space-between',
   },
-  pathRow: {
-    minHeight: 78,
+  shortcutTop: {
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
-    padding: 16,
   },
-  pathLeft: { flex: 1, alignItems: 'center', gap: 14 },
-  pathIconBox: {
-    width: 44,
-    height: 44,
+  shortcutIconBox: {
+    width: MIN_TOUCH_TARGET - 6,
+    height: MIN_TOUCH_TARGET - 6,
     borderRadius: RADII.control,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  notifDot: {
-    position: 'absolute',
-    top: -3,
-    right: -3,
-    width: 12,
-    height: 12,
-    borderRadius: 999,
-    borderWidth: 2,
-  },
-  pathTextWrap: { flex: 1 },
-  pathTitle: { fontSize: 16, fontWeight: '700' },
-  pathSub: { fontSize: 12, marginTop: 2 },
-  shortcutsSection: { gap: 10 },
-  shortcutsHeading: { fontSize: 12, fontWeight: '700' },
-  shortcutsWrap: { flexWrap: 'wrap', gap: 8 },
-  shortcutPill: {
-    minHeight: MIN_TOUCH_TARGET,
-    alignItems: 'center',
-    gap: 8,
+  soonBadge: {
     borderRadius: RADII.pill,
-    borderWidth: 1,
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
-  shortcutText: { fontSize: 12, fontWeight: '700' },
-  openMushafBtn: {
-    minHeight: 52,
-    borderRadius: RADII.card,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
+  soonBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
   },
-  openMushafText: { fontSize: 16, fontWeight: '700' },
+  shortcutTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  shortcutSub: {
+    fontSize: 11,
+    lineHeight: 16,
+  },
 });

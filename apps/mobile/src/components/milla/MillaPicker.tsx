@@ -30,6 +30,9 @@ interface MillaPickerProps {
   iconName?: 'book-outline' | 'volume-high-outline' | 'search-outline';
   compact?: boolean;
   fullWidth?: boolean;
+  previewingValue?: string | null;
+  onPreviewOption?: (value: string) => void;
+  onClosePicker?: () => void;
 }
 
 export function MillaPicker({
@@ -43,6 +46,9 @@ export function MillaPicker({
   iconName,
   compact = false,
   fullWidth = false,
+  previewingValue = null,
+  onPreviewOption,
+  onClosePicker,
 }: MillaPickerProps) {
   const { state, theme } = useMilla();
   const [open, setOpen] = useState(false);
@@ -63,6 +69,7 @@ export function MillaPicker({
   const handleClose = () => {
     setOpen(false);
     setQuery('');
+    onClosePicker?.();
   };
 
   return (
@@ -226,9 +233,54 @@ export function MillaPicker({
                           </Text>
                         ) : null}
                       </View>
-                      {selected ? (
-                        <Ionicons name="checkmark-circle" size={20} color={theme.primary} />
-                      ) : null}
+                      <View style={[styles.optionActions, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
+                        {onPreviewOption ? (
+                          <Pressable
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              onPreviewOption(item.value);
+                            }}
+                            style={[
+                              styles.previewBtn,
+                              {
+                                flexDirection: isRtl ? 'row-reverse' : 'row',
+                                backgroundColor:
+                                  previewingValue === item.value ? theme.primary : theme.card,
+                                borderColor:
+                                  previewingValue === item.value ? theme.primary : theme.border,
+                              },
+                            ]}
+                            accessibilityRole="button"
+                            accessibilityLabel={`استماع إلى ${item.label}`}
+                          >
+                            <Ionicons
+                              name={previewingValue === item.value ? 'stop' : 'play'}
+                              size={13}
+                              color={
+                                previewingValue === item.value
+                                  ? theme.primaryForeground
+                                  : theme.primary
+                              }
+                            />
+                            <Text
+                              style={[
+                                styles.previewBtnText,
+                                {
+                                  color:
+                                    previewingValue === item.value
+                                      ? theme.primaryForeground
+                                      : theme.foreground,
+                                },
+                              ]}
+                            >
+                              {previewingValue === item.value ? 'إيقاف' : 'استماع'}
+                            </Text>
+                          </Pressable>
+                        ) : null}
+                        {selected ? (
+                          <Ionicons name="checkmark-circle" size={20} color={theme.primary} />
+                        ) : null}
+                      </View>
                     </Pressable>
                   );
                 }}
@@ -324,5 +376,15 @@ const styles = StyleSheet.create({
   optionTextWrap: { flex: 1 },
   optionLabel: { fontSize: 14 },
   optionDesc: { fontSize: 12, marginTop: 2 },
+  optionActions: { alignItems: 'center', gap: 8 },
+  previewBtn: {
+    minHeight: 34,
+    borderRadius: RADII.pill,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    gap: 4,
+  },
+  previewBtnText: { fontSize: 11, fontWeight: '700' },
   emptyText: { textAlign: 'center', paddingVertical: 32, fontSize: 14 },
 });

@@ -28,6 +28,22 @@ const alQuranCloudResponseSchema = z.object({
     .optional(),
 });
 
+const alQuranCloudSingleEditionSchema = z.object({
+  code: z.number(),
+  data: z
+    .object({
+      ayahs: z.array(
+        z.object({
+          numberInSurah: z.number().int().min(1),
+          text: z.string(),
+        }),
+      ),
+    })
+    .optional(),
+});
+
+const tafsirCache = new Map<number, Record<number, string>>();
+
 const alQuranCloudPageResponseSchema = z.object({
   code: z.number(),
   data: z
@@ -91,32 +107,37 @@ export async function loadVerifiedSurahAyahs(surahId: number): Promise<SurahLoad
 
   try {
     const response = await fetch(
-      `https://api.alquran.cloud/v1/surah/${surahId}/editions/quran-uthmani,en.sahih,fr.hamidullah`,
+      `https://api.alquran.cloud/v1/surah/${surahId}/editions/quran-uthmani,ar.muyassar`,
     );
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
     const rawText = await response.text();
     const parsed = alQuranCloudResponseSchema.safeParse(JSON.parse(rawText));
-    if (!parsed.success || parsed.data.code !== 200 || !parsed.data.data || parsed.data.data.length < 3) {
+    if (!parsed.success || parsed.data.code !== 200 || !parsed.data.data || parsed.data.data.length < 2) {
       throw new Error('استجابة غير مكتملة من مصدر المصحف');
     }
 
     const arEd = parsed.data.data[0];
-    const enEd = parsed.data.data[1];
-    const frEd = parsed.data.data[2];
-    if (!arEd || !enEd || !frEd) {
+    const tafsirEd = parsed.data.data[1];
+    if (!arEd || !tafsirEd) {
       throw new Error('بيانات السورة ناقصة');
     }
 
+    const tafsirByNumber: Record<number, string> = {};
+    for (const item of tafsirEd.ayahs) {
+      tafsirByNumber[item.numberInSurah] = item.text;
+    }
+    tafsirCache.set(surahId, tafsirByNumber);
+
     const bundledByNumber = new Map<number, AyahEntry>(surah.ayahs.map((a) => [a.number, a]));
-    const ayahs: AyahEntry[] = arEd.ayahs.map((arAyah, idx) => {
+    const ayahs: AyahEntry[] = arEd.ayahs.map((arAyah) => {
       const existing = bundledByNumber.get(arAyah.numberInSurah);
       return {
         number: arAyah.numberInSurah,
         textAr: stripLeadingBasmalah(surahId, arAyah.numberInSurah, arAyah.text),
-        translationEn: enEd.ayahs[idx]?.text ?? existing?.translationEn ?? '',
-        translationFr: frEd.ayahs[idx]?.text ?? existing?.translationFr ?? '',
+        translationEn: existing?.translationEn ?? '',
+        translationFr: existing?.translationFr ?? '',
         transliteration: existing?.transliteration ?? '',
       };
     });
@@ -135,6 +156,29 @@ export async function loadVerifiedSurahAyahs(surahId: number): Promise<SurahLoad
       fromCache: surah.ayahs.length > 0,
       error: message,
     };
+  }
+}
+
+export async function loadSurahArabicTafsir(surahId: number): Promise<Record<number, string>> {
+  const cached = tafsirCache.get(surahId);
+  if (cached) return cached;
+
+  try {
+    const response = await fetch(`https://api.alquran.cloud/v1/surah/${surahId}/ar.muyassar`);
+    if (!response.ok) return {};
+    const rawText = await response.text();
+    const parsed = alQuranCloudSingleEditionSchema.safeParse(JSON.parse(rawText));
+    if (!parsed.success || parsed.data.code !== 200 || !parsed.data.data) {
+      return {};
+    }
+    const map: Record<number, string> = {};
+    for (const ayah of parsed.data.data.ayahs) {
+      map[ayah.numberInSurah] = ayah.text;
+    }
+    tafsirCache.set(surahId, map);
+    return map;
+  } catch {
+    return {};
   }
 }
 

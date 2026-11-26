@@ -1,3 +1,5 @@
+export const QURAN_FONT_FAMILY = 'AmiriQuran';
+
 export interface MillaTheme {
   isDark: boolean;
   background: string;
@@ -40,22 +42,22 @@ export const LIGHT_THEME: MillaTheme = {
 
 export const DARK_THEME: MillaTheme = {
   isDark: true,
-  background: '#0d1613',
-  foreground: '#f2f1e8',
-  card: '#13201c',
-  cardForeground: '#f2f1e8',
-  primary: '#9fd0c5',
-  primaryForeground: '#06221d',
-  secondary: '#1b2c26',
-  secondaryForeground: '#dce8e2',
-  muted: '#182722',
-  mutedForeground: '#9ca8a1',
+  background: '#0B0B0A',
+  foreground: '#F2EFE6',
+  card: '#141413',
+  cardForeground: '#F2EFE6',
+  primary: '#F2EFE6',
+  primaryForeground: '#0B0B0A',
+  secondary: '#1B1D1B',
+  secondaryForeground: '#F2EFE6',
+  muted: '#1B1D1B',
+  mutedForeground: '#9E9D96',
   accent: '#ff8e79',
-  accentForeground: '#1a100e',
+  accentForeground: '#1A100E',
   destructive: '#cf6679',
   destructiveForeground: '#14080a',
-  border: '#22362f',
-  heroBg: '#073d35',
+  border: '#2A2B28',
+  heroBg: '#1B1D1B',
 };
 
 export function getTheme(nightMode: boolean): MillaTheme {

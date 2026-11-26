@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { formatNum } from '@al-milla/core';
 import { useMilla } from '../../context/MillaContext';
 import { MIN_TOUCH_TARGET, RADII, SPACING } from '../../theme/tokens';
+import { ArabesqueBackdrop } from './ArabesqueBackdrop';
 
 const QUIET_STUDY_IMG = require('../../../assets/images/quiet-study.jpg');
 
@@ -71,11 +72,12 @@ export function QuietDhikrCard() {
         { backgroundColor: theme.card, borderColor: theme.border },
       ]}
     >
-      <ImageBackground source={QUIET_STUDY_IMG} style={styles.banner} resizeMode="cover">
+      <View style={styles.banner}>
+        <Image source={QUIET_STUDY_IMG} style={styles.bannerOverlay} resizeMode="cover" />
         <View
           style={[
             styles.bannerOverlay,
-            { backgroundColor: theme.isDark ? 'rgba(19, 32, 28, 0.72)' : 'rgba(255, 255, 255, 0.72)' },
+            { backgroundColor: theme.isDark ? 'rgba(20, 20, 19, 0.78)' : 'rgba(255, 255, 255, 0.72)' },
           ]}
         />
         <View
@@ -113,7 +115,7 @@ export function QuietDhikrCard() {
             <Text style={[styles.nextText, { color: theme.foreground }]}>{labels.next}</Text>
           </Pressable>
         </View>
-      </ImageBackground>
+      </View>
 
       <Pressable
         onPress={() => setCount((c) => c + 1)}
@@ -121,6 +123,8 @@ export function QuietDhikrCard() {
         accessibilityLabel={`${item.ar} - ${labels.tapHint}`}
         style={styles.tapBody}
       >
+        <ArabesqueBackdrop variant="subtle" pattern="rosette" />
+
         <Text style={[styles.dhikrArabic, { color: theme.foreground }]}>{item.ar}</Text>
         {language !== 'ar' ? (
           <Text style={[styles.dhikrTrans, { color: theme.mutedForeground }]}>
@@ -136,7 +140,7 @@ export function QuietDhikrCard() {
         >
           <Text style={[styles.tapHint, { color: theme.mutedForeground }]}>{labels.tapHint}</Text>
           <View style={[styles.counterPill, { backgroundColor: theme.accent }]}>
-            <Text style={styles.counterText}>
+            <Text style={[styles.counterText, { color: theme.accentForeground }]}>
               {formatNum(count, language)} / {formatNum(item.target, language)}
             </Text>
           </View>
@@ -159,11 +163,19 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   banner: {
+    position: 'relative',
+    overflow: 'hidden',
     height: 96,
     justifyContent: 'flex-end',
   },
   bannerOverlay: {
-    ...StyleSheet.absoluteFill,
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
   },
   bannerBottom: {
     alignItems: 'center',
@@ -190,6 +202,8 @@ const styles = StyleSheet.create({
   },
   nextText: { fontSize: 12, fontWeight: '600' },
   tapBody: {
+    position: 'relative',
+    overflow: 'hidden',
     padding: SPACING.lg,
     paddingTop: SPACING.sm,
     minHeight: MIN_TOUCH_TARGET,

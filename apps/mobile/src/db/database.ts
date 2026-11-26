@@ -3,6 +3,8 @@ import { z } from 'zod';
 import type {
   AppLanguage,
   AyahEntry,
+  LessonRecord,
+  LessonState,
   MemorizedVerseRecord,
   MushafPageAyah,
   NarrationId,
@@ -10,11 +12,22 @@ import type {
   ReciterId,
   RevisionIntervalDays,
   SelfEvalRating,
+  SessionInterval,
+  StrengtheningHideLevel,
   VerseStatus,
 } from '@al-milla/core';
 
 export type PlaybackSpeed = 0.75 | 1.0 | 1.25;
 export type MushafViewMode = 'verses' | 'page';
+
+export interface ActiveSessionDraft {
+  surahId: number;
+  sessionNumber: number;
+  stepIndex: number;
+  memOffset: number;
+  highestLearnedOffset: number;
+  reviseLessonIdx: number;
+}
 
 export type DailyStageKey =
   | 'yesterdayReview'
@@ -49,8 +62,13 @@ export interface MobileAppState {
   mutashabihatMastered: Record<string, boolean>;
   lastSessionKeys: string[];
   lastSessionCompletedAt: string | null;
+  currentSessionNumber: number;
+  currentSessionDate: string | null;
+  surahSessions: Record<number, number>;
+  activeSessionDraft: ActiveSessionDraft | null;
   dailyStages: DailyStagesMap;
   verseRecords: Record<string, MemorizedVerseRecord>;
+  lessons: LessonRecord[];
   bookmarks: string[];
   activityDates: string[];
 }
@@ -104,6 +122,28 @@ interface ActivityRow {
 
 interface CachedJsonRow {
   payload_json: string;
+}
+
+interface LessonRow {
+  id: string;
+  surah_id: number;
+  start_verse: number;
+  end_verse: number;
+  lesson_state: string;
+  hiding_level: number;
+  consecutive_difficult_count: number;
+  session_learned: number;
+  last_reviewed_session: number;
+  learned_date: string;
+  last_reviewed_date: string;
+  interval_sessions: number;
+  next_review_session: number;
+  last_evaluation: string | null;
+  review_count: number;
+}
+
+interface TableColumnRow {
+  name: string;
 }
 
 const DEFAULT_DAILY_STAGES: DailyStagesMap = {
@@ -173,6 +213,21 @@ function toIntervalDays(val: number): RevisionIntervalDays {
   return 1;
 }
 
+function toSessionInterval(val: number): SessionInterval {
+  if (val === 3 || val === 7 || val === 14 || val === 30) return val;
+  return 1;
+}
+
+function toLessonState(val: string | undefined): LessonState {
+  if (val === 'strengthening' || val === 'done') return val;
+  return 'learning';
+}
+
+function toHidingLevel(val: number | undefined): StrengtheningHideLevel {
+  if (val === 2 || val === 3) return val;
+  return 1;
+}
+
 function toEvalRating(val: string | null): SelfEvalRating | undefined {
   if (val === 'difficult' || val === 'good' || val === 'easy') return val;
   return undefined;
@@ -227,7 +282,42 @@ async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
           cached_at TEXT NOT NULL,
           source TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS lessons (
+          id TEXT PRIMARY KEY NOT NULL,
+          surah_id INTEGER NOT NULL,
+          start_verse INTEGER NOT NULL,
+          end_verse INTEGER NOT NULL,
+          lesson_state TEXT NOT NULL DEFAULT 'learning',
+          hiding_level INTEGER NOT NULL DEFAULT 1,
+          consecutive_difficult_count INTEGER NOT NULL DEFAULT 0,
+          session_learned INTEGER NOT NULL,
+          last_reviewed_session INTEGER NOT NULL,
+          learned_date TEXT NOT NULL,
+          last_reviewed_date TEXT NOT NULL,
+          interval_sessions INTEGER NOT NULL,
+          next_review_session INTEGER NOT NULL,
+          last_evaluation TEXT,
+          review_count INTEGER NOT NULL DEFAULT 0
+        );
       `);
+
+      const lessonCols = await db.getAllAsync<TableColumnRow>('PRAGMA table_info(lessons)');
+      const existingNames = new Set(lessonCols.map((c) => c.name));
+      if (!existingNames.has('lesson_state')) {
+        await db.execAsync(
+          "ALTER TABLE lessons ADD COLUMN lesson_state TEXT NOT NULL DEFAULT 'learning';",
+        );
+      }
+      if (!existingNames.has('hiding_level')) {
+        await db.execAsync(
+          'ALTER TABLE lessons ADD COLUMN hiding_level INTEGER NOT NULL DEFAULT 1;',
+        );
+      }
+      if (!existingNames.has('consecutive_difficult_count')) {
+        await db.execAsync(
+          'ALTER TABLE lessons ADD COLUMN consecutive_difficult_count INTEGER NOT NULL DEFAULT 0;',
+        );
+      }
       return db;
     })();
   }
@@ -273,6 +363,26 @@ export async function loadAppStateFromDb(): Promise<MobileAppState> {
   const activityRows = await db.getAllAsync<ActivityRow>(
     'SELECT date_iso FROM activity_dates ORDER BY date_iso ASC',
   );
+  const lessonRows = await db.getAllAsync<LessonRow>(
+    'SELECT id, surah_id, start_verse, end_verse, lesson_state, hiding_level, consecutive_difficult_count, session_learned, last_reviewed_session, learned_date, last_reviewed_date, interval_sessions, next_review_session, last_evaluation, review_count FROM lessons ORDER BY surah_id ASC, start_verse ASC',
+  );
+  const lessons: LessonRecord[] = lessonRows.map((row) => ({
+    id: row.id,
+    surahId: row.surah_id,
+    startVerse: row.start_verse,
+    endVerse: row.end_verse,
+    state: toLessonState(row.lesson_state),
+    hidingLevel: toHidingLevel(row.hiding_level),
+    consecutiveDifficultCount: row.consecutive_difficult_count ?? 0,
+    sessionLearned: row.session_learned,
+    lastReviewedSession: row.last_reviewed_session,
+    learnedDate: row.learned_date,
+    lastReviewedDate: row.last_reviewed_date,
+    interval: toSessionInterval(row.interval_sessions),
+    nextReviewSession: row.next_review_session,
+    lastEvaluation: toEvalRating(row.last_evaluation),
+    reviewCount: row.review_count,
+  }));
 
   let dailyStages: DailyStagesMap = { ...DEFAULT_DAILY_STAGES };
   const rawStages = settingsMap.get('dailyStages');
@@ -333,6 +443,44 @@ export async function loadAppStateFromDb(): Promise<MobileAppState> {
     }
   }
 
+  let surahSessions: Record<number, number> = {};
+  const rawSurahSessions = settingsMap.get('surahSessions');
+  if (rawSurahSessions) {
+    try {
+      const parsed = z.record(z.string(), z.number()).safeParse(JSON.parse(rawSurahSessions));
+      if (parsed.success) {
+        const mapped: Record<number, number> = {};
+        for (const [k, v] of Object.entries(parsed.data)) {
+          const numKey = Number.parseInt(k, 10);
+          if (Number.isFinite(numKey)) mapped[numKey] = v;
+        }
+        surahSessions = mapped;
+      }
+    } catch {
+      surahSessions = {};
+    }
+  }
+
+  let activeSessionDraft: ActiveSessionDraft | null = null;
+  const rawDraft = settingsMap.get('activeSessionDraft');
+  if (rawDraft) {
+    try {
+      const parsed = z
+        .object({
+          surahId: z.number().int().min(1).max(114),
+          sessionNumber: z.number().int().min(1),
+          stepIndex: z.number().int().min(0),
+          memOffset: z.number().int().min(0),
+          highestLearnedOffset: z.number().int().min(0),
+          reviseLessonIdx: z.number().int().min(0),
+        })
+        .safeParse(JSON.parse(rawDraft));
+      if (parsed.success) activeSessionDraft = parsed.data;
+    } catch {
+      activeSessionDraft = null;
+    }
+  }
+
   return {
     syncKey,
     syncVersion: parseInteger(settingsMap.get('syncVersion'), 0, 0, 1_000_000),
@@ -343,11 +491,14 @@ export async function loadAppStateFromDb(): Promise<MobileAppState> {
     largeUiMode: toBoolean(settingsMap.get('largeUiMode'), false),
     showTranslation: toBoolean(settingsMap.get('showTranslation'), false),
     showTransliteration: toBoolean(settingsMap.get('showTransliteration'), false),
-    mandatoryRepeats: parseInteger(settingsMap.get('mandatoryRepeats'), 5, 1, 20),
+    mandatoryRepeats: (() => {
+      const raw = parseInteger(settingsMap.get('mandatoryRepeats'), 5, 1, 20);
+      return raw <= 3 ? 3 : raw <= 5 ? 5 : 7;
+    })(),
     mushafViewMode: toMushafViewMode(settingsMap.get('mushafViewMode')),
     currentMushafPage: parseInteger(settingsMap.get('currentMushafPage'), 1, 1, 604),
     narration: toNarrationId(settingsMap.get('narration')),
-    dailyTarget: parseInteger(settingsMap.get('dailyTarget'), 4, 1, 20),
+    dailyTarget: parseInteger(settingsMap.get('dailyTarget'), 3, 3, 5),
     quranFontSize: parseInteger(settingsMap.get('quranFontSize'), 26, 18, 36),
     reciter: toReciterId(settingsMap.get('reciter')),
     playbackSpeed: toPlaybackSpeed(settingsMap.get('playbackSpeed')),
@@ -357,8 +508,13 @@ export async function loadAppStateFromDb(): Promise<MobileAppState> {
     mutashabihatMastered,
     lastSessionKeys,
     lastSessionCompletedAt: settingsMap.get('lastSessionCompletedAt') ?? null,
+    currentSessionNumber: parseInteger(settingsMap.get('currentSessionNumber'), 0, 0, 1_000_000),
+    currentSessionDate: settingsMap.get('currentSessionDate') ?? null,
+    surahSessions,
+    activeSessionDraft,
     dailyStages,
     verseRecords,
+    lessons,
     bookmarks: bookmarkRows.map((b) => b.verse_key),
     activityDates: activityRows.map((a) => a.date_iso),
   };
@@ -482,12 +638,17 @@ export async function resetLocalProgressInDb(): Promise<void> {
   const db = await getDatabase();
   await db.withTransactionAsync(async () => {
     await db.runAsync('DELETE FROM verse_records');
+    await db.runAsync('DELETE FROM lessons');
     await db.runAsync('DELETE FROM bookmarks');
     await db.runAsync('DELETE FROM activity_dates');
-    await db.runAsync('DELETE FROM settings WHERE key IN (?, ?, ?, ?, ?, ?, ?)', [
+    await db.runAsync('DELETE FROM settings WHERE key IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
       'dailyStages',
       'lastSessionKeys',
       'lastSessionCompletedAt',
+      'currentSessionNumber',
+      'currentSessionDate',
+      'surahSessions',
+      'activeSessionDraft',
       'surahCursors',
       'mutashabihatMastered',
       'lastSyncedAt',
@@ -502,6 +663,32 @@ export async function resetLocalProgressInDb(): Promise<void> {
       '1',
     ]);
   });
+}
+
+export async function upsertLessonToDb(lesson: LessonRecord): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    `INSERT OR REPLACE INTO lessons
+      (id, surah_id, start_verse, end_verse, lesson_state, hiding_level, consecutive_difficult_count, session_learned, last_reviewed_session, learned_date, last_reviewed_date, interval_sessions, next_review_session, last_evaluation, review_count)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      lesson.id,
+      lesson.surahId,
+      lesson.startVerse,
+      lesson.endVerse,
+      lesson.state,
+      lesson.hidingLevel,
+      lesson.consecutiveDifficultCount,
+      lesson.sessionLearned,
+      lesson.lastReviewedSession,
+      lesson.learnedDate,
+      lesson.lastReviewedDate,
+      lesson.interval,
+      lesson.nextReviewSession,
+      lesson.lastEvaluation ?? null,
+      lesson.reviewCount,
+    ],
+  );
 }
 
 export async function getCachedSurahFromDb(surahId: number): Promise<AyahEntry[] | null> {
