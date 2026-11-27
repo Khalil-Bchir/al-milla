@@ -1,0 +1,9 @@
+apps/mobile/release/
+apps/mobile/dist/
+apps/mobile/.expo/
+.agents/
+docs/
+marketing/
+.eas/
+*.apk
+*.jks
