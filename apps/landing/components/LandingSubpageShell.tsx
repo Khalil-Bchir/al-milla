@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { LivingPaperBackground } from '@/components/reactbits/LivingPaperBackground';
+import { LandingFooter } from '@/components/LandingFooter';
 import { LandingThemeSwitcher, type LandingTheme } from '@/components/LandingThemeSwitcher';
-import { LANDING_COPY, formatLandingNum } from '@/lib/landing-copy';
+import { LANDING_COPY } from '@/lib/landing-copy';
 
 const LANDING_THEME_STORAGE_KEY = 'milla_landing_theme';
 
@@ -96,24 +97,7 @@ export function LandingSubpageShell({ children }: LandingSubpageShellProps) {
         {children}
       </main>
 
-      <footer className="relative z-10 border-t border-border/70 bg-card/70 py-8 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 text-xs text-muted-foreground sm:flex-row sm:px-6">
-          <p>
-            © {formatLandingNum(2026, lang)} {copy.brand} • {copy.footerPrivacyNote}
-          </p>
-          <div className="flex flex-wrap items-center gap-4 font-semibold">
-            <Link href="/download" className="transition-colors hover:text-primary">
-              تحميل للأندرويد
-            </Link>
-            <Link href="/privacy" className="transition-colors hover:text-primary">
-              سياسة الخصوصية
-            </Link>
-            <Link href="/terms" className="transition-colors hover:text-primary">
-              شروط الاستخدام
-            </Link>
-          </div>
-        </div>
-      </footer>
+      <LandingFooter theme={theme} lang={lang} onToggleTheme={handleToggleTheme} isSubpage />
     </div>
   );
 }
