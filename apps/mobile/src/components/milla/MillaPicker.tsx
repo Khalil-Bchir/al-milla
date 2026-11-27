@@ -25,6 +25,7 @@ interface MillaPickerProps {
   onChange: (value: string) => void;
   title: string;
   ariaLabel: string;
+  placeholder?: string;
   searchable?: boolean;
   searchPlaceholder?: string;
   iconName?: 'book-outline' | 'volume-high-outline' | 'search-outline';
@@ -41,6 +42,7 @@ export function MillaPicker({
   onChange,
   title,
   ariaLabel,
+  placeholder,
   searchable = false,
   searchPlaceholder = 'ابحث بالاسم أو الرقم...',
   iconName,
@@ -55,7 +57,9 @@ export function MillaPicker({
   const [query, setQuery] = useState('');
 
   const isRtl = (state?.language ?? 'ar') === 'ar';
-  const selectedOption = options.find((o) => o.value === value) ?? options[0];
+  const selectedOption = value ? options.find((o) => o.value === value) : undefined;
+  const triggerDisplayText = selectedOption?.label ?? placeholder ?? options[0]?.label ?? '';
+  const isShowingPlaceholder = !selectedOption && Boolean(placeholder);
 
   const filteredOptions = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -100,11 +104,14 @@ export function MillaPicker({
             style={[
               styles.triggerText,
               compact ? styles.triggerTextCompact : styles.triggerTextRegular,
-              { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' },
+              {
+                color: isShowingPlaceholder ? theme.mutedForeground : theme.foreground,
+                textAlign: isRtl ? 'right' : 'left',
+              },
             ]}
             numberOfLines={1}
           >
-            {selectedOption?.label ?? ''}
+            {triggerDisplayText}
           </Text>
         </View>
         <Ionicons name="chevron-down" size={16} color={theme.mutedForeground} />
@@ -162,6 +169,7 @@ export function MillaPicker({
                     onChangeText={setQuery}
                     placeholder={searchPlaceholder}
                     placeholderTextColor={theme.mutedForeground}
+                    accessibilityLabel={searchPlaceholder}
                     style={[
                       styles.searchInput,
                       { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' },
@@ -341,8 +349,8 @@ const styles = StyleSheet.create({
   },
   sheetTitle: { fontSize: 16, fontWeight: '700' },
   closeBtn: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     borderRadius: RADII.control,
     borderWidth: 1,
     alignItems: 'center',
@@ -354,7 +362,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   searchInputWrap: {
-    minHeight: 46,
+    minHeight: 48,
     alignItems: 'center',
     gap: 8,
     borderRadius: RADII.control,
@@ -378,7 +386,7 @@ const styles = StyleSheet.create({
   optionDesc: { fontSize: 12, marginTop: 2 },
   optionActions: { alignItems: 'center', gap: 8 },
   previewBtn: {
-    minHeight: 34,
+    minHeight: 48,
     borderRadius: RADII.pill,
     borderWidth: 1,
     paddingHorizontal: 10,

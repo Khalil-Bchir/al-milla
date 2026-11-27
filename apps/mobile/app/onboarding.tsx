@@ -123,6 +123,7 @@ export default function OnboardingScreen() {
   const [previewingReciter, setPreviewingReciter] = useState<ReciterId | null>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [pickedSurahFromSearch, setPickedSurahFromSearch] = useState<boolean>(false);
 
   const scrollRef = useRef<React.ComponentRef<typeof ScrollView> | null>(null);
   const audioControllerRef = useRef<AyahAudioController | null>(null);
@@ -393,30 +394,7 @@ export default function OnboardingScreen() {
           </View>
         </View>
 
-        <AnimatedPressable
-          reduceMotion={reduceMotion}
-          hitSlop={6}
-          onPress={() => void setLargeUiMode(!largeUiMode)}
-          accessibilityRole="button"
-          accessibilityState={{ selected: largeUiMode }}
-          accessibilityLabel={copy.onboardingLargeText}
-          style={[
-            styles.largeAaBtn,
-            {
-              borderColor: largeUiMode ? theme.primary : theme.border,
-              backgroundColor: largeUiMode ? theme.primary : theme.card,
-            },
-          ]}
-        >
-          <Text
-            style={[
-              styles.largeAaText,
-              { color: largeUiMode ? theme.primaryForeground : theme.foreground },
-            ]}
-          >
-            Aa
-          </Text>
-        </AnimatedPressable>
+        <View style={styles.headerSpacer} />
       </View>
 
       {/* Scrollable Animated Step Body */}
@@ -447,6 +425,8 @@ export default function OnboardingScreen() {
                     source={MUSHAF_MORNING_IMG}
                     style={[styles.heroOverlay, { width: '100%', height: '100%' }]}
                     resizeMode="cover"
+                    accessible={false}
+                    importantForAccessibility="no"
                   />
                   <View
                     style={[
@@ -1042,8 +1022,12 @@ export default function OnboardingScreen() {
                   fullWidth
                   searchable
                   iconName="search-outline"
-                  value={String(currentSurahId)}
-                  onChange={(val) => void setCursor(Number(val), 1)}
+                  placeholder="ابحث باسم السورة أو رقمها..."
+                  value={pickedSurahFromSearch ? String(currentSurahId) : ''}
+                  onChange={(val) => {
+                    setPickedSurahFromSearch(true);
+                    void setCursor(Number(val), 1);
+                  }}
                   title={copy.onboardingSurahPickerTitle}
                   ariaLabel={copy.onboardingSurahPickerTitle}
                   options={SURAHS.map((s) => ({
@@ -1423,16 +1407,16 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   headerIconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: MIN_TOUCH_TARGET,
+    height: MIN_TOUCH_TARGET,
+    borderRadius: 12,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerSpacer: {
-    width: 36,
-    height: 36,
+    width: MIN_TOUCH_TARGET,
+    height: MIN_TOUCH_TARGET,
   },
   progressCenter: {
     flex: 1,
@@ -1452,19 +1436,6 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 4,
     borderRadius: RADII.pill,
-  },
-  largeAaBtn: {
-    minWidth: 36,
-    minHeight: 36,
-    borderRadius: 10,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 9,
-  },
-  largeAaText: {
-    fontSize: 13,
-    fontWeight: '700',
   },
   scroll: { flex: 1 },
   scrollContent: {

@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -35,7 +34,6 @@ import { createAyahAudioController } from '../src/services/audio';
 import { submitFeedbackToApi, type MobileFeedbackType } from '../src/services/feedback';
 import { MIN_TOUCH_TARGET, RADII, SPACING } from '../src/theme/tokens';
 
-const HERO_SPACE_IMG = require('../assets/images/hero-space.jpg');
 const TOTAL_QURAN_AYAHS = 6236;
 const SPEEDS: PlaybackSpeed[] = [0.75, 1.0, 1.25];
 const DAILY_TARGET_PRESETS = [3, 4, 5] as const;
@@ -52,6 +50,7 @@ export default function MySpaceScreen() {
   const {
     state,
     theme,
+    fs,
     isSyncing,
     syncError,
     setReciter,
@@ -304,9 +303,8 @@ export default function MySpaceScreen() {
       } else {
         setStatusMessage('التطبيق محدث لآخر إصدار.');
       }
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : 'تعذر التحقق من التحديثات';
-      setStatusMessage(`تعذر التحقق من التحديثات: ${msg}`);
+    } catch {
+      setStatusMessage('تعذر التحقق من التحديثات حالياً. تحقق من اتصالك بالإنترنت.');
     } finally {
       setCheckingUpdate(false);
     }
@@ -348,7 +346,7 @@ export default function MySpaceScreen() {
           <Text
             style={[
               styles.pageTitle,
-              { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' },
+              { color: theme.foreground, textAlign: isRtl ? 'right' : 'left', fontSize: fs(24) },
             ]}
           >
             {titleText}
@@ -356,7 +354,11 @@ export default function MySpaceScreen() {
           <Text
             style={[
               styles.pageSubtitle,
-              { color: theme.mutedForeground, textAlign: isRtl ? 'right' : 'left' },
+              {
+                color: theme.mutedForeground,
+                textAlign: isRtl ? 'right' : 'left',
+                fontSize: fs(13),
+              },
             ]}
           >
             {subtitleText}
@@ -376,62 +378,34 @@ export default function MySpaceScreen() {
           </View>
         ) : null}
 
-        {/* Quran Journey Overview Card */}
+        {/* Compact Profile Summary Strip (Settings-First Layout) */}
         <View
           style={[
-            styles.heroWrap,
+            styles.card,
             {
-              borderWidth: theme.isDark ? 1 : 0,
-              borderColor: theme.isDark ? theme.border : 'transparent',
+              backgroundColor: theme.heroBg,
+              borderColor: theme.isDark ? theme.border : 'rgba(255,255,255,0.08)',
             },
           ]}
         >
-          <View style={styles.heroBg}>
-            <Image
-              source={HERO_SPACE_IMG}
-              style={[styles.heroOverlay, { width: '100%', height: '100%' }]}
-              resizeMode="cover"
-            />
-            <View
-              style={[
-                styles.heroOverlay,
-                {
-                  backgroundColor: theme.isDark
-                    ? 'rgba(18, 20, 18, 0.80)'
-                    : 'rgba(7, 61, 53, 0.82)',
-                },
-              ]}
-            />
-            <View style={styles.heroCard}>
+          <ArabesqueBackdrop variant="featured" pattern="crescent" />
           <View style={[styles.rowBetween, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
-            <View style={[styles.heroPill, { backgroundColor: theme.accent }]}>
-              <Text
-                style={[
-                  styles.heroPillText,
-                  { color: theme.isDark ? theme.accentForeground : '#073d35' },
-                ]}
-              >
+            <View style={{ flex: 1, alignItems: isRtl ? 'flex-end' : 'flex-start', gap: 2 }}>
+              <Text style={[styles.settingSub, { color: theme.accent, fontWeight: '700' }]}>
                 رحلتي في القرآن
               </Text>
-            </View>
-            <View style={styles.heroGlassPill}>
-              <Text style={[styles.heroGlassText, { color: theme.accent }]}>
-                {formatNum(analytics.quranPercent, language)}%
+              <Text style={[styles.modalTitle, { color: '#ffffff' }]}>
+                {formatNum(analytics.totalMemorizedVerses, language)} آية محفوظة
+              </Text>
+              <Text style={[styles.settingSub, { color: 'rgba(255,255,255,0.86)' }]}>
+                {formatNum(analytics.quranPercent, language)}% من القرآن •{' '}
+                {formatNum(analytics.completedSurahsCount, language)} سورة مكتملة •{' '}
+                {formatNum(analytics.doneLessonsCount, language)} دروس ثابتة
               </Text>
             </View>
           </View>
 
-          <View style={{ gap: 4 }}>
-            <Text style={[styles.heroTitle, { textAlign: isRtl ? 'right' : 'left' }]}>
-              {formatNum(analytics.totalMemorizedVerses, language)} آية محفوظة
-            </Text>
-            <Text style={[styles.heroSub, { textAlign: isRtl ? 'right' : 'left' }]}>
-              من أصل {formatNum(TOTAL_QURAN_AYAHS, language)} آية •{' '}
-              {formatNum(analytics.startedSurahsCount, language)} سور مبدوءة
-            </Text>
-          </View>
-
-          <View style={styles.heroProgressTrack}>
+          <View style={[styles.heroProgressTrack, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
             <View
               style={[
                 styles.heroProgressFill,
@@ -442,33 +416,10 @@ export default function MySpaceScreen() {
               ]}
             />
           </View>
-
-          <View style={[styles.heroStatsGrid, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
-            <View style={styles.heroStatTile}>
-              <Text style={styles.heroStatVal}>
-                {formatNum(analytics.completedSurahsCount, language)}
-              </Text>
-              <Text style={styles.heroStatLbl}>سورة مكتملة</Text>
-            </View>
-            <View style={styles.heroStatTile}>
-              <Text style={styles.heroStatVal}>
-                {formatNum(analytics.totalSessions, language)}
-              </Text>
-              <Text style={styles.heroStatLbl}>جلسة مكتملة</Text>
-            </View>
-            <View style={styles.heroStatTile}>
-              <Text style={styles.heroStatVal}>
-                {formatNum(analytics.doneLessonsCount, language)}
-              </Text>
-              <Text style={styles.heroStatLbl}>دروس متقنة</Text>
-            </View>
-          </View>
-            </View>
-          </View>
         </View>
 
-        {/* Quick Appearance & Language Controls */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        {/* Quick Appearance Controls (30% Secondary Surface) */}
+        <View style={[styles.card, { backgroundColor: theme.secondary, borderColor: theme.border }]}>
           <ArabesqueBackdrop variant="subtle" pattern="arch" />
 
           <View style={[styles.rowBetween, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
@@ -1223,6 +1174,7 @@ export default function MySpaceScreen() {
                   onChangeText={setKeyInput}
                   placeholder="أدخل مفتاح النسخ الاحتياطي"
                   placeholderTextColor={theme.mutedForeground}
+                  accessibilityLabel="مفتاح النسخ الاحتياطي"
                   autoCapitalize="none"
                   autoCorrect={false}
                   style={[
@@ -1408,6 +1360,7 @@ export default function MySpaceScreen() {
                     <TextInput
                       value={feedbackMessage}
                       onChangeText={setFeedbackMessage}
+                      accessibilityLabel="رسالة الملاحظات أو الاقتراح"
                       placeholder={
                         feedbackType === 'bug'
                           ? 'صف المشكلة التي واجهتك باختصار...'
@@ -1441,6 +1394,7 @@ export default function MySpaceScreen() {
                       onChangeText={setFeedbackContact}
                       placeholder="بريد إلكتروني أو رقم هاتف للرد عليك"
                       placeholderTextColor={theme.mutedForeground}
+                      accessibilityLabel="بريد إلكتروني أو رقم هاتف للتواصل"
                       autoCapitalize="none"
                       style={[
                         styles.input,
@@ -1553,7 +1507,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   heroStatVal: { fontSize: 16, fontWeight: '700', color: '#ffffff' },
-  heroStatLbl: { fontSize: 10, color: 'rgba(255,255,255,0.82)', textAlign: 'center' },
+  heroStatLbl: { fontSize: 12, color: 'rgba(255,255,255,0.82)', textAlign: 'center' },
   card: {
     position: 'relative',
     overflow: 'hidden',
@@ -1593,6 +1547,9 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalSheet: {
+    width: '100%',
+    maxWidth: 680,
+    alignSelf: 'center',
     maxHeight: '85%',
     borderTopLeftRadius: RADII.hero,
     borderTopRightRadius: RADII.hero,
@@ -1621,7 +1578,7 @@ const styles = StyleSheet.create({
   fieldLabel: { fontSize: 13, fontWeight: '600' },
   chipsRow: { flexDirection: 'row', gap: 6 },
   chipBtn: {
-    minHeight: 36,
+    minHeight: MIN_TOUCH_TARGET,
     paddingHorizontal: 10,
     borderRadius: RADII.control,
     borderWidth: 1,
@@ -1631,8 +1588,8 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 12, fontWeight: '700' },
   stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   stepBtn: {
-    width: 40,
-    height: 40,
+    width: MIN_TOUCH_TARGET,
+    height: MIN_TOUCH_TARGET,
     borderRadius: RADII.control,
     borderWidth: 1,
     alignItems: 'center',
@@ -1645,7 +1602,7 @@ const styles = StyleSheet.create({
   keyLbl: { fontSize: 11 },
   keyVal: { fontSize: 13, fontWeight: '700' },
   primaryBtn: {
-    minHeight: 46,
+    minHeight: MIN_TOUCH_TARGET,
     borderRadius: RADII.control,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1660,7 +1617,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   secondaryBtn: {
-    minHeight: 44,
+    minHeight: MIN_TOUCH_TARGET,
     borderRadius: RADII.control,
     borderWidth: 1,
     alignItems: 'center',

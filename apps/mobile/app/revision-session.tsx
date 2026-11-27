@@ -1,7 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AccessibilityInfo,
   ActivityIndicator,
+  Alert,
   Animated,
+  BackHandler,
+  Easing,
   Pressable,
   StyleSheet,
   Text,
@@ -31,6 +35,7 @@ import { QuranText } from '../src/components/milla/QuranText';
 import { SegmentedControl } from '../src/components/milla/SegmentedControl';
 import { useMilla } from '../src/context/MillaContext';
 import { loadVerifiedSurahAyahs } from '../src/services/quran';
+import { animateLayout } from '../src/theme/motion';
 import { MIN_TOUCH_TARGET, RADII, SPACING } from '../src/theme/tokens';
 
 type ReviseViewMode = 'partial' | 'hidden' | 'revealed';
@@ -89,6 +94,89 @@ export default function RevisionSessionScreen() {
   const [loadingSurahId, setLoadingSurahId] = useState<number | null>(null);
 
   const fadeAnim = useRef(new Animated.Value(1)).current;
+  const doneCardScale = useRef(new Animated.Value(1.1)).current;
+  const doneCardY = useRef(new Animated.Value(90)).current;
+  const doneIconScale = useRef(new Animated.Value(0.3)).current;
+  const doneActionsOpacity = useRef(new Animated.Value(0)).current;
+  const reduceMotionRef = useRef(false);
+
+  useEffect(() => {
+    void AccessibilityInfo.isReduceMotionEnabled()
+      .then((enabled) => {
+        reduceMotionRef.current = enabled;
+      })
+      .catch(() => {
+        reduceMotionRef.current = false;
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!completed) return undefined;
+
+    if (reduceMotionRef.current) {
+      doneCardScale.setValue(1);
+      doneCardY.setValue(0);
+      doneIconScale.setValue(1);
+      doneActionsOpacity.setValue(1);
+      return undefined;
+    }
+
+    doneCardScale.setValue(1.1);
+    doneCardY.setValue(90);
+    doneIconScale.setValue(0.3);
+    doneActionsOpacity.setValue(0);
+
+    const anim = Animated.sequence([
+      Animated.spring(doneIconScale, {
+        toValue: 1,
+        friction: 6,
+        tension: 140,
+        useNativeDriver: true,
+      }),
+      Animated.parallel([
+        Animated.timing(doneCardScale, {
+          toValue: 1,
+          duration: 280,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(doneCardY, {
+          toValue: 0,
+          duration: 280,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(doneActionsOpacity, {
+          toValue: 1,
+          duration: 240,
+          delay: 40,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
+    ]);
+    anim.start();
+
+    return () => {
+      anim.stop();
+    };
+  }, [completed, doneCardScale, doneCardY, doneIconScale, doneActionsOpacity]);
+
+  useEffect(() => {
+    if (completed || queue.length === 0) return undefined;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      Alert.alert(
+        'مغادرة المراجعة؟',
+        'هل تريد الخروج من درس المراجعة الحالي؟',
+        [
+          { text: 'متابعة المراجعة', style: 'cancel' },
+          { text: 'مغادرة', style: 'destructive', onPress: () => router.back() },
+        ],
+      );
+      return true;
+    });
+    return () => sub.remove();
+  }, [completed, queue.length, router]);
 
   useEffect(() => {
     if (!state || queueInitialized) return;
@@ -201,7 +289,7 @@ export default function RevisionSessionScreen() {
     if (mode === 'care') return 'عناية خاصة';
     if (mode === 'surah_flow') return 'تسميع متصل';
     if (mode === 'surah_connections') return 'اختبار الروابط';
-    if (mode === 'surah_random') return 'استدعاء عشوائي';
+    if (mode === 'surah_random') return 'تسميع عشوائي';
     return 'المراجعة الذكية';
   };
 
@@ -249,10 +337,10 @@ export default function RevisionSessionScreen() {
         {queue.length === 0 ? (
           <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
             <Text style={[styles.stepHeading, { color: theme.foreground, textAlign: 'center' }]}>
-              لا توجد مقاطع متاحة في هذا الوضع حالياً
+              لا توجد دروس متاحة في هذا الوضع حالياً
             </Text>
             <Text style={[styles.stepSub, { color: theme.mutedForeground, textAlign: 'center' }]}>
-              أكمل حفظ مقاطع أو درسين متجاورين ليتم تجهيز مراجعتها هنا.
+              أكمل حفظ درس أو درسين متجاورين ليتم تجهيز مراجعتها هنا.
             </Text>
             <Pressable
               onPress={() => router.back()}
@@ -267,29 +355,45 @@ export default function RevisionSessionScreen() {
             </Pressable>
           </View>
         ) : completed ? (
-          <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <View style={[styles.doneIconWrap, { backgroundColor: `${theme.accent}24` }]}>
+          <Animated.View
+            style={[
+              styles.card,
+              {
+                backgroundColor: theme.card,
+                borderColor: theme.border,
+                transform: [{ translateY: doneCardY }, { scale: doneCardScale }],
+              },
+            ]}
+          >
+            <Animated.View
+              style={[
+                styles.doneIconWrap,
+                { backgroundColor: `${theme.accent}24`, transform: [{ scale: doneIconScale }] },
+              ]}
+            >
               <Ionicons name="checkmark-circle" size={34} color={theme.accent} />
-            </View>
+            </Animated.View>
             <Text style={[styles.stepHeading, { color: theme.foreground, textAlign: 'center' }]}>
               تمّت المراجعة بحمد الله
             </Text>
             <Text style={[styles.stepSub, { color: theme.mutedForeground, textAlign: 'center' }]}>
-              راجعت {formatNum(queue.length, language)} مقاطع ({formatNum(reviewedVersesCount, language)}{' '}
-              آية) وتم تحديث جدول استرجاعك تلقائياً دون تعديل ورد الحفظ الجديد.
+              راجعت {formatNum(queue.length, language)} دروس ({formatNum(reviewedVersesCount, language)}{' '}
+              آية) وتم تحديث جدول مراجعتك تلقائياً دون تعديل ورد الحفظ الجديد.
             </Text>
-            <Pressable
-              onPress={() => router.back()}
-              style={[
-                styles.primaryBtn,
-                { flexDirection: isRtl ? 'row-reverse' : 'row', backgroundColor: theme.primary },
-              ]}
-            >
-              <Text style={[styles.primaryBtnText, { color: theme.primaryForeground }]}>
-                العودة إلى المراجعة
-              </Text>
-            </Pressable>
-          </View>
+            <Animated.View style={{ opacity: doneActionsOpacity, width: '100%' }}>
+              <Pressable
+                onPress={() => router.back()}
+                style={[
+                  styles.primaryBtn,
+                  { flexDirection: isRtl ? 'row-reverse' : 'row', backgroundColor: theme.primary },
+                ]}
+              >
+                <Text style={[styles.primaryBtnText, { color: theme.primaryForeground }]}>
+                  العودة إلى المراجعة
+                </Text>
+              </Pressable>
+            </Animated.View>
+          </Animated.View>
         ) : activeItem ? (
           <>
             {/* Session Progress Card */}
@@ -326,7 +430,10 @@ export default function RevisionSessionScreen() {
                 </Text>
                 {viewMode === 'hidden' && hintPreview ? (
                   <Pressable
-                    onPress={() => setShowHint((v) => !v)}
+                    onPress={() => {
+                      animateLayout();
+                      setShowHint((v) => !v);
+                    }}
                     style={[
                       styles.hintChip,
                       {
@@ -398,15 +505,10 @@ export default function RevisionSessionScreen() {
 
                 {viewMode === 'hidden' ? (
                   <View style={styles.hiddenOverlay} pointerEvents="none">
-                    <View
-                      style={[
-                        styles.hiddenPill,
-                        { backgroundColor: theme.card, borderColor: theme.border },
-                      ]}
-                    >
-                      <Ionicons name="eye-off-outline" size={20} color={theme.accent} />
-                      <Text style={[styles.hiddenPillText, { color: theme.foreground }]}>
-                        سمّع المقطع غيباً
+                    <View style={styles.hiddenPill}>
+                      <Ionicons name="eye-off-outline" size={24} color={theme.mutedForeground} />
+                      <Text style={[styles.hiddenPillText, { color: theme.mutedForeground }]}>
+                        سمّع الدرس غيباً
                       </Text>
                       {showHint && hintPreview ? (
                         <QuranText align="center" color={theme.accent}>
@@ -459,7 +561,7 @@ export default function RevisionSessionScreen() {
                   { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' },
                 ]}
               >
-                كيف كان استرجاعك للمقطع؟
+                كيف كان حفظك لهذا الدرس؟
               </Text>
               <View style={[styles.evalGrid, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
                 {evalOptions.map((opt) => {
@@ -515,7 +617,7 @@ export default function RevisionSessionScreen() {
               accessibilityRole="button"
             >
               <Text style={[styles.primaryBtnText, { color: theme.primaryForeground }]}>
-                {itemIndex + 1 < queue.length ? 'المقطع التالي' : 'إنهاء المراجعة'}
+                {itemIndex + 1 < queue.length ? 'الدرس التالي' : 'إنهاء المراجعة'}
               </Text>
               <Ionicons name={dirArrow} size={18} color={theme.primaryForeground} />
             </Pressable>
@@ -531,7 +633,7 @@ const styles = StyleSheet.create({
   stack: { gap: SPACING.md },
   rowBetween: { alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   backPill: {
-    minHeight: 38,
+    minHeight: MIN_TOUCH_TARGET,
     borderRadius: RADII.pill,
     borderWidth: 1,
     paddingHorizontal: 12,
@@ -555,7 +657,7 @@ const styles = StyleSheet.create({
   stepSub: { fontSize: 13, lineHeight: 20 },
   stepSubBold: { fontSize: 13, fontWeight: '700', flex: 1 },
   hintChip: {
-    minHeight: 32,
+    minHeight: MIN_TOUCH_TARGET,
     borderRadius: RADII.pill,
     borderWidth: 1,
     paddingHorizontal: 10,
@@ -580,15 +682,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    borderRadius: RADII.card,
-    borderWidth: 1,
     paddingHorizontal: 18,
     paddingVertical: 14,
   },
-  hiddenPillText: { fontSize: 13, fontWeight: '700', textAlign: 'center' },
-  evalGrid: { gap: 8 },
+  hiddenPillText: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  evalGrid: { flexWrap: 'wrap', gap: 8 },
   evalTile: {
     flex: 1,
+    minWidth: 86,
     minHeight: MIN_TOUCH_TARGET,
     borderRadius: RADII.control,
     borderWidth: 1,

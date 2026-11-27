@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { formatNum } from '@al-milla/core';
 import { useMilla } from '../../context/MillaContext';
+import { animateLayout } from '../../theme/motion';
 import { MIN_TOUCH_TARGET, RADII, SPACING } from '../../theme/tokens';
 import { ArabesqueBackdrop } from './ArabesqueBackdrop';
 
@@ -46,6 +47,13 @@ export function QuietDhikrCard() {
   const { state, theme } = useMilla();
   const [dhikrIdx, setDhikrIdx] = useState(0);
   const [count, setCount] = useState(0);
+  const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
+    };
+  }, []);
 
   const language = state?.language ?? 'ar';
   const isRtl = language === 'ar';
@@ -58,22 +66,54 @@ export function QuietDhikrCard() {
         ? { title: 'Dhikr apaisant', next: 'Suivant', tapHint: 'Appuyez pour compter' }
         : { title: 'ذِكْرٌ هادئ', next: 'ذكر آخر', tapHint: 'اضغط للتسبيح' };
 
-  const handleNext = () => {
-    setDhikrIdx((i) => (i + 1) % ADHKAR.length);
+  const switchDhikr = (delta: number) => {
+    if (advanceTimerRef.current) {
+      clearTimeout(advanceTimerRef.current);
+      advanceTimerRef.current = null;
+    }
+    animateLayout();
+    setDhikrIdx((i) => (i + delta + ADHKAR.length) % ADHKAR.length);
     setCount(0);
+  };
+
+  const handleTapDhikr = () => {
+    if (count >= item.target) return;
+    const nextCount = count + 1;
+    setCount(nextCount);
+    if (nextCount >= item.target) {
+      advanceTimerRef.current = setTimeout(() => {
+        advanceTimerRef.current = null;
+        animateLayout();
+        setDhikrIdx((i) => (i + 1) % ADHKAR.length);
+        setCount(0);
+      }, 240);
+    }
   };
 
   const progressPct = Math.min(100, Math.round((count / item.target) * 100));
 
   return (
-    <View
-      style={[
+    <Pressable
+      onPress={handleTapDhikr}
+      accessibilityRole="button"
+      accessibilityLabel={`${item.ar} - ${labels.tapHint}`}
+      style={({ pressed }) => [
         styles.card,
-        { backgroundColor: theme.card, borderColor: theme.border },
+        {
+          backgroundColor: theme.card,
+          borderColor: theme.border,
+          opacity: pressed ? 0.96 : 1,
+        },
       ]}
     >
       <View style={styles.banner}>
-        <Image source={QUIET_STUDY_IMG} style={styles.bannerOverlay} resizeMode="cover" />
+        <Image
+          source={QUIET_STUDY_IMG}
+          style={styles.bannerOverlay}
+          resizeMode="cover"
+          accessible={false}
+          importantForAccessibility="no"
+        />
         <View
           style={[
             styles.bannerOverlay,
@@ -98,12 +138,9 @@ export function QuietDhikrCard() {
             <Text style={[styles.title, { color: theme.foreground }]}>{labels.title}</Text>
           </View>
 
-          <Pressable
-            onPress={handleNext}
-            accessibilityRole="button"
-            accessibilityLabel={labels.next}
+          <View
             style={[
-              styles.nextBtn,
+              styles.switcherPill,
               {
                 flexDirection: isRtl ? 'row-reverse' : 'row',
                 borderColor: theme.border,
@@ -111,18 +148,48 @@ export function QuietDhikrCard() {
               },
             ]}
           >
-            <Ionicons name="refresh-outline" size={14} color={theme.primary} />
-            <Text style={[styles.nextText, { color: theme.foreground }]}>{labels.next}</Text>
-          </Pressable>
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation();
+                switchDhikr(-1);
+              }}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="الذكر السابق"
+              style={styles.switcherStepBtn}
+            >
+              <Ionicons
+                name={isRtl ? 'chevron-forward' : 'chevron-back'}
+                size={16}
+                color={theme.primary}
+              />
+            </Pressable>
+
+            <Text style={[styles.switcherCount, { color: theme.foreground }]}>
+              {formatNum(dhikrIdx + 1, language)} / {formatNum(ADHKAR.length, language)}
+            </Text>
+
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation();
+                switchDhikr(1);
+              }}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={labels.next}
+              style={styles.switcherStepBtn}
+            >
+              <Ionicons
+                name={isRtl ? 'chevron-back' : 'chevron-forward'}
+                size={16}
+                color={theme.primary}
+              />
+            </Pressable>
+          </View>
         </View>
       </View>
 
-      <Pressable
-        onPress={() => setCount((c) => c + 1)}
-        accessibilityRole="button"
-        accessibilityLabel={`${item.ar} - ${labels.tapHint}`}
-        style={styles.tapBody}
-      >
+      <View style={styles.tapBody}>
         <ArabesqueBackdrop variant="subtle" pattern="rosette" />
 
         <Text style={[styles.dhikrArabic, { color: theme.foreground }]}>{item.ar}</Text>
@@ -151,8 +218,8 @@ export function QuietDhikrCard() {
             style={[styles.fill, { backgroundColor: theme.accent, width: `${progressPct}%` }]}
           />
         </View>
-      </Pressable>
-    </View>
+      </View>
+    </Pressable>
   );
 }
 
@@ -165,7 +232,8 @@ const styles = StyleSheet.create({
   banner: {
     position: 'relative',
     overflow: 'hidden',
-    height: 96,
+    minHeight: 96,
+    paddingTop: 14,
     justifyContent: 'flex-end',
   },
   bannerOverlay: {
@@ -192,15 +260,26 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   title: { fontSize: 14, fontWeight: '700' },
-  nextBtn: {
-    minHeight: 36,
+  switcherPill: {
+    minHeight: MIN_TOUCH_TARGET,
     alignItems: 'center',
-    gap: 6,
     borderRadius: RADII.control,
     borderWidth: 1,
-    paddingHorizontal: 12,
+    paddingHorizontal: 4,
+    gap: 2,
   },
-  nextText: { fontSize: 12, fontWeight: '600' },
+  switcherStepBtn: {
+    width: 36,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  switcherCount: {
+    fontSize: 12,
+    fontWeight: '700',
+    minWidth: 34,
+    textAlign: 'center',
+  },
   tapBody: {
     position: 'relative',
     overflow: 'hidden',

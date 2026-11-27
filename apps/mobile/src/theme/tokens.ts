@@ -31,7 +31,7 @@ export const LIGHT_THEME: MillaTheme = {
   secondary: '#e7ede5',
   secondaryForeground: '#073d35',
   muted: '#eaf0e8',
-  mutedForeground: '#777b74',
+  mutedForeground: '#5B6059',
   accent: '#ff8e79',
   accentForeground: '#242a25',
   destructive: '#ba1a1a',
@@ -81,4 +81,4 @@ export const RADII = {
   pill: 999,
 } as const;
 
-export const MIN_TOUCH_TARGET = 44;
+export const MIN_TOUCH_TARGET = 48;

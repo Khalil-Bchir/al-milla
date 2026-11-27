@@ -55,7 +55,7 @@ function todayIso(): string {
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { state, theme, isLoading } = useMilla();
+  const { state, theme, fs, isLoading } = useMilla();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
@@ -142,7 +142,7 @@ export default function HomeScreen() {
             ? `${formatNum(smartQueue5.length, language)} passages ready`
             : language === 'fr'
               ? `${formatNum(smartQueue5.length, language)} passages prêts`
-              : `${formatNum(smartQueue5.length, language)} مقاطع من محفوظك`
+              : `${formatNum(smartQueue5.length, language)} دروس من محفوظك`
           : needLessonFirst,
       icon: 'flash-outline',
       disabled: smartQueue5.length === 0,
@@ -166,7 +166,7 @@ export default function HomeScreen() {
               ? `${formatNum(careQueue.length, language)} challenging verses`
               : language === 'fr'
                 ? `${formatNum(careQueue.length, language)} passages difficiles`
-                : `${formatNum(careQueue.length, language)} مقاطع تحتاج عناية`,
+                : `${formatNum(careQueue.length, language)} دروس تحتاج عناية`,
           icon: 'sparkles-outline',
           onPress: () =>
             router.push({
@@ -236,7 +236,7 @@ export default function HomeScreen() {
           ? 'Portion & Voice'
           : language === 'fr'
             ? 'Portion & Voix'
-            : 'الورد والصوت',
+            : 'الدرس والصوت',
       subtitle: `${formatNum(state.dailyTarget, language)} ${copy.versesUnit} • ${activeReciterLabel}`,
       icon: 'options-outline',
       onPress: () => setSettingsOpen(true),
@@ -258,7 +258,7 @@ export default function HomeScreen() {
           <Text
             style={[
               styles.greeting,
-              { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' },
+              { color: theme.foreground, textAlign: isRtl ? 'right' : 'left', fontSize: fs(24) },
             ]}
           >
             {copy.homeGreeting}
@@ -266,7 +266,11 @@ export default function HomeScreen() {
           <Text
             style={[
               styles.subgreeting,
-              { color: theme.mutedForeground, textAlign: isRtl ? 'right' : 'left' },
+              {
+                color: theme.mutedForeground,
+                textAlign: isRtl ? 'right' : 'left',
+                fontSize: fs(13),
+              },
             ]}
           >
             {copy.homeSubgreeting}
@@ -285,6 +289,8 @@ export default function HomeScreen() {
               source={MUSHAF_MORNING_IMG}
               style={[styles.heroOverlay, { width: '100%', height: '100%' }]}
               resizeMode="cover"
+              accessible={false}
+              importantForAccessibility="no"
             />
             <View
               style={[
@@ -296,6 +302,7 @@ export default function HomeScreen() {
                 },
               ]}
             />
+            <ArabesqueBackdrop variant="featured" pattern="medallion" />
             <View style={styles.heroInner}>
               <View
                 style={[
@@ -310,7 +317,7 @@ export default function HomeScreen() {
                 </View>
                 <View style={styles.glassBadge}>
                   <Text style={styles.glassBadgeText}>
-                    جلسة {toArabicDigits(activeSessionNum)}
+                    الدرس {toArabicDigits(activeSessionNum)}
                     {surahPlan.allLessons.length > 0
                       ? ` • ${toArabicDigits(surahPlan.allLessons.length)} للمراجعة`
                       : ''}
@@ -399,87 +406,96 @@ export default function HomeScreen() {
           </Text>
 
           <View style={styles.shortcutsGrid}>
-            {featureActions.map((item, idx) => {
-              const isDisabled = Boolean(item.disabled);
-              const shortcutPattern =
-                ARABESQUE_CARD_PATTERNS[idx % ARABESQUE_CARD_PATTERNS.length] ?? 'medallion';
-              return (
-                <Pressable
-                  key={item.id}
-                  disabled={isDisabled}
-                  onPress={item.onPress}
-                  style={[
-                    styles.shortcutCard,
-                    {
-                      backgroundColor: theme.card,
-                      borderColor:
-                        theme.isDark || isDisabled ? theme.border : theme.primary,
-                      opacity: isDisabled ? 0.58 : 1,
-                    },
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: isDisabled }}
-                >
-                  <ArabesqueBackdrop variant="corner" pattern={shortcutPattern} />
-
-                  <View
-                    style={[
-                      styles.shortcutTop,
-                      { flexDirection: isRtl ? 'row-reverse' : 'row' },
-                    ]}
-                  >
-                    <View
+            {[0, 2].map((rowStart) => (
+              <View
+                key={rowStart}
+                style={[styles.shortcutsRow, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}
+              >
+                {featureActions.slice(rowStart, rowStart + 2).map((item, offset) => {
+                  const idx = rowStart + offset;
+                  const isDisabled = Boolean(item.disabled);
+                  const shortcutPattern =
+                    ARABESQUE_CARD_PATTERNS[idx % ARABESQUE_CARD_PATTERNS.length] ?? 'medallion';
+                  return (
+                    <Pressable
+                      key={item.id}
+                      disabled={isDisabled}
+                      onPress={item.onPress}
                       style={[
-                        styles.shortcutIconBox,
-                        { backgroundColor: isDisabled ? theme.muted : theme.secondary },
+                        styles.shortcutCard,
+                        {
+                          backgroundColor: theme.card,
+                          borderColor: theme.border,
+                          opacity: isDisabled ? 0.58 : 1,
+                        },
                       ]}
+                      accessibilityRole="button"
+                      accessibilityState={{ disabled: isDisabled }}
                     >
-                      <Ionicons
-                        name={item.icon}
-                        size={20}
-                        color={
-                          isDisabled
-                            ? theme.mutedForeground
-                            : theme.isDark
-                              ? theme.foreground
-                              : theme.primary
-                        }
-                      />
-                    </View>
-                    <Ionicons
-                      name={dirArrow}
-                      size={16}
-                      color={
-                        isDisabled
-                          ? theme.mutedForeground
-                          : theme.isDark
-                            ? theme.foreground
-                            : theme.primary
-                      }
-                    />
-                  </View>
+                      <ArabesqueBackdrop variant="corner" pattern={shortcutPattern} />
 
-                  <Text
-                    style={[
-                      styles.shortcutTitle,
-                      { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {item.label}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.shortcutSub,
-                      { color: theme.mutedForeground, textAlign: isRtl ? 'right' : 'left' },
-                    ]}
-                    numberOfLines={2}
-                  >
-                    {item.subtitle}
-                  </Text>
-                </Pressable>
-              );
-            })}
+                      <View
+                        style={[
+                          styles.shortcutTop,
+                          { flexDirection: isRtl ? 'row-reverse' : 'row' },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.shortcutIconBox,
+                            { backgroundColor: isDisabled ? theme.muted : theme.secondary },
+                          ]}
+                        >
+                          <Ionicons
+                            name={item.icon}
+                            size={20}
+                            color={
+                              isDisabled
+                                ? theme.mutedForeground
+                                : theme.isDark
+                                  ? theme.foreground
+                                  : theme.primary
+                            }
+                          />
+                        </View>
+                        <Ionicons
+                          name={dirArrow}
+                          size={16}
+                          color={
+                            isDisabled
+                              ? theme.mutedForeground
+                              : theme.isDark
+                                ? theme.foreground
+                                : theme.primary
+                          }
+                        />
+                      </View>
+
+                      <Text
+                        style={[
+                          styles.shortcutTitle,
+                          { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' },
+                        ]}
+                        numberOfLines={2}
+                        maxFontSizeMultiplier={1.25}
+                      >
+                        {item.label}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.shortcutSub,
+                          { color: theme.mutedForeground, textAlign: isRtl ? 'right' : 'left' },
+                        ]}
+                        numberOfLines={2}
+                        maxFontSizeMultiplier={1.2}
+                      >
+                        {item.subtitle}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ))}
           </View>
         </View>
 
@@ -518,6 +534,7 @@ const styles = StyleSheet.create({
   heroBadgesRow: {
     alignItems: 'center',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
     gap: 8,
   },
   coralBadge: {
@@ -599,14 +616,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   shortcutsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    gap: 10,
+  },
+  shortcutsRow: {
     gap: 10,
   },
   shortcutCard: {
+    flex: 1,
     position: 'relative',
     overflow: 'hidden',
-    width: '48.5%',
     minHeight: 116,
     borderRadius: RADII.card,
     borderWidth: 1,
@@ -631,7 +649,7 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   soonBadgeText: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '600',
   },
   shortcutTitle: {

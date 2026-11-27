@@ -23,6 +23,8 @@ export interface AyahAudioController {
     onFinish: () => void;
     onError: (message: string) => void;
   }) => Promise<void>;
+  setSpeed: (speed: PlaybackSpeed) => void;
+  setRepeats: (repeats: number) => void;
   stop: () => Promise<void>;
 }
 
@@ -34,6 +36,8 @@ export function createAyahAudioController(): AyahAudioController {
   let activePlayer: AudioPlayer | null = null;
   let activeSubscription: EventSubscription | null = null;
   let cancelled = false;
+  let currentSpeed: PlaybackSpeed = 1.0;
+  let targetRepeats = 1;
 
   function disposeActive(): void {
     if (activeSubscription) {
@@ -81,12 +85,13 @@ export function createAyahAudioController(): AyahAudioController {
         });
 
         const url = getEveryAyahAudioUrl(reciter, surahId, ayahNumber);
-        const total = Math.max(1, repeats);
+        currentSpeed = speed;
+        targetRepeats = Math.max(1, repeats);
         let completed = 0;
 
         const player = createAudioPlayer({ uri: url });
         player.shouldCorrectPitch = true;
-        player.setPlaybackRate(speed, 'high');
+        player.setPlaybackRate(currentSpeed, 'high');
         activePlayer = player;
 
         activeSubscription = player.addListener(
@@ -96,19 +101,19 @@ export function createAyahAudioController(): AyahAudioController {
             if (status.duration > 0) {
               const ratio = Math.min(1, Math.max(0, status.currentTime / status.duration));
               const remainingSec = Math.max(0, status.duration - status.currentTime);
-              const remainingMs = Math.round((remainingSec * 1000) / Math.max(0.5, speed));
+              const remainingMs = Math.round((remainingSec * 1000) / Math.max(0.5, currentSpeed));
               onPlaybackProgress?.(ratio, remainingMs, status.playing);
             }
             if (!status.didJustFinish) return;
             completed += 1;
-            if (completed < total) {
+            if (completed < targetRepeats) {
               const nextRepeat = completed + 1;
               void player
                 .seekTo(0)
                 .then(() => {
                   if (!cancelled) {
                     onPlaybackProgress?.(0, 0, true);
-                    onRepeatAdvance?.(nextRepeat, total);
+                    onRepeatAdvance?.(nextRepeat, targetRepeats);
                     player.play();
                   }
                 })
@@ -124,13 +129,28 @@ export function createAyahAudioController(): AyahAudioController {
           },
         );
 
-        onRepeatAdvance?.(1, total);
+        onRepeatAdvance?.(1, targetRepeats);
         player.play();
       } catch (err) {
         disposeActive();
         const message = err instanceof Error ? err.message : 'تعذّر تشغيل التلاوة';
         onError(message);
       }
+    },
+
+    setSpeed(nextSpeed) {
+      currentSpeed = nextSpeed;
+      if (activePlayer) {
+        try {
+          activePlayer.setPlaybackRate(nextSpeed, 'high');
+        } catch {
+          // Ignore rate update error if player is not ready
+        }
+      }
+    },
+
+    setRepeats(nextRepeats) {
+      targetRepeats = Math.max(1, nextRepeats);
     },
 
     async stop() {

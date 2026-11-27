@@ -34,7 +34,6 @@ import { useMilla } from '../src/context/MillaContext';
 import { MIN_TOUCH_TARGET, RADII, SPACING } from '../src/theme/tokens';
 
 const QUIET_STUDY_IMG = require('../assets/images/quiet-study.jpg');
-const HERO_MEMORIZE_IMG = require('../assets/images/hero-memorize.jpg');
 
 type AllSurahsModalMode = 'ongoing' | 'completed';
 type SurahItem = (typeof SURAHS)[number];
@@ -58,7 +57,7 @@ interface SurahProgressRow {
 
 export default function MemorizeDashboardScreen() {
   const router = useRouter();
-  const { state, theme, setCursor } = useMilla();
+  const { state, theme, fs, setCursor } = useMilla();
 
   const [allSurahsModalMode, setAllSurahsModalMode] = useState<AllSurahsModalMode | null>(null);
   const [allSurahsSearch, setAllSurahsSearch] = useState('');
@@ -218,11 +217,11 @@ export default function MemorizeDashboardScreen() {
             : 'متوازن';
 
   const formatLessonState = (lesson: LessonRecord): string => {
-    if (lesson.state === 'learning') return 'قيد التعلّم';
+    if (lesson.state === 'learning') return 'قيد الحفظ';
     if (lesson.state === 'strengthening') {
-      return `ترسيخ (${formatNum(lesson.hidingLevel, language)}/${formatNum(3, language)})`;
+      return `تثبيت (${formatNum(lesson.hidingLevel, language)}/${formatNum(3, language)})`;
     }
-    return 'متقن';
+    return 'حفظ قوي';
   };
 
   const formatEval = (rating: SelfEvalRating | undefined): string => {
@@ -259,7 +258,7 @@ export default function MemorizeDashboardScreen() {
             <Text
               style={[
                 styles.pageTitle,
-                { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' },
+                { color: theme.foreground, textAlign: isRtl ? 'right' : 'left', fontSize: fs(24) },
               ]}
             >
               {language === 'en'
@@ -278,7 +277,7 @@ export default function MemorizeDashboardScreen() {
                 ? 'A few verses with presence and calm build lasting memory.'
                 : language === 'fr'
                   ? 'Quelques versets avec calme et présence ancrent la mémoire.'
-                  : 'آيات قليلة بتأنٍّ وحضور قلب، تُثمر حفظاً راسخاً.'}
+                  : 'آيات قليلة كل يوم بهدوء، تثبت في قلبك طويلاً.'}
             </Text>
           </View>
 
@@ -299,179 +298,82 @@ export default function MemorizeDashboardScreen() {
           </Pressable>
         </View>
 
-        {/* Active / Ongoing Surah Hero Card */}
+        {/* Compact Active Surah Banner + Quick Resume (Library-First Layout) */}
         <View
           style={[
-            styles.heroWrap,
+            styles.compactResumeBar,
             {
-              borderWidth: theme.isDark ? 1 : 0,
-              borderColor: theme.isDark ? theme.border : 'transparent',
+              flexDirection: isRtl ? 'row-reverse' : 'row',
+              backgroundColor: theme.heroBg,
+              borderColor: theme.isDark ? theme.border : 'rgba(255,255,255,0.08)',
             },
           ]}
         >
-          <View style={styles.heroBg}>
-            <Image
-              source={HERO_MEMORIZE_IMG}
-              style={[styles.heroOverlay, { width: '100%', height: '100%' }]}
-              resizeMode="cover"
-            />
-            <View
-              style={[
-                styles.heroOverlay,
-                {
-                  backgroundColor: theme.isDark
-                    ? 'rgba(18, 20, 18, 0.80)'
-                    : 'rgba(7, 61, 53, 0.82)',
-                },
-              ]}
-            />
-            <View style={styles.heroCard}>
-              <View style={[styles.rowBetween, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
-                <View style={[styles.heroPill, { backgroundColor: theme.accent }]}>
-                  <Text
-                    style={[
-                      styles.heroPillDarkText,
-                      { color: theme.isDark ? theme.accentForeground : '#073d35' },
-                    ]}
-                  >
-                    {isCurrentSurahDone
-                      ? 'سورة مكتملة • أتممت حفظها'
-                      : `السورة الجارية • جلسة ${formatNum(activeSessionNum, language)}`}
-                  </Text>
-                </View>
-                <View style={styles.heroGlassPill}>
-                  <Text style={[styles.heroGlassText, { color: theme.accent }]}>
-                    {formatNum(currentSurahProgress.percent, language)}%
-                  </Text>
-                </View>
-              </View>
-
-              <View style={{ gap: 4 }}>
-                <Text style={[styles.heroTitle, { textAlign: isRtl ? 'right' : 'left' }]}>
-                  {getSurahDisplayName(currentSurah, language)}
-                </Text>
-                <Text style={[styles.heroSub, { textAlign: isRtl ? 'right' : 'left' }]}>
-                  {isCurrentSurahDone
-                    ? `أتممت حفظ ${formatNum(currentSurah.totalAyahs, language)} آية • اختر سورة جديدة للمتابعة`
-                    : `ورد اليوم: الآيات ${formatNum(portionStart, language)} - ${formatNum(portionEnd, language)}${currentPlan.allLessons.length > 0
-                      ? ` • ${formatNum(currentPlan.allLessons.length, language)} للمراجعة`
-                      : ''
-                    }`}
-                </Text>
-              </View>
-
-              <View style={styles.heroProgressTrack}>
-                <View
-                  style={[
-                    styles.heroProgressFill,
-                    {
-                      width: `${Math.min(100, Math.max(0, currentSurahProgress.percent))}%`,
-                      backgroundColor: theme.accent,
-                    },
-                  ]}
-                />
-              </View>
-
-              {/* Choice: Continue ongoing surah OR start a new surah */}
-              {isCurrentSurahDone ? (
-                <Pressable
-                  onPress={() => {
-                    setSurahSearch('');
-                    setShowNewSurahModal(true);
-                  }}
-                  style={[
-                    styles.heroCta,
-                    {
-                      flexDirection: isRtl ? 'row-reverse' : 'row',
-                      backgroundColor: theme.isDark ? theme.primary : '#f7f5ed',
-                    },
-                  ]}
-                  accessibilityRole="button"
-                >
-                  <Ionicons
-                    name="add-circle-outline"
-                    size={20}
-                    color={theme.isDark ? theme.primaryForeground : '#073d35'}
-                  />
-                  <Text
-                    style={[
-                      styles.heroCtaText,
-                      { color: theme.isDark ? theme.primaryForeground : '#073d35' },
-                    ]}
-                  >
-                    بدء سورة جديدة
-                  </Text>
-                  <Ionicons
-                    name={dirArrow}
-                    size={18}
-                    color={theme.isDark ? theme.primaryForeground : '#073d35'}
-                  />
-                </Pressable>
-              ) : (
-                <View style={[styles.heroActions, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
-                  <Pressable
-                    onPress={() => router.push('/memorize-session')}
-                    style={[
-                      styles.heroCta,
-                      {
-                        flexDirection: isRtl ? 'row-reverse' : 'row',
-                        backgroundColor: theme.isDark ? theme.primary : '#f7f5ed',
-                      },
-                    ]}
-                    accessibilityRole="button"
-                  >
-                    <Text
-                      style={[
-                        styles.heroCtaText,
-                        { color: theme.isDark ? theme.primaryForeground : '#073d35' },
-                      ]}
-                    >
-                      متابعة الحفظ
-                    </Text>
-                    <Ionicons
-                      name={dirArrow}
-                      size={18}
-                      color={theme.isDark ? theme.primaryForeground : '#073d35'}
-                    />
-                  </Pressable>
-
-                  <Pressable
-                    onPress={() => {
-                      setSurahSearch('');
-                      setShowNewSurahModal(true);
-                    }}
-                    style={[
-                      styles.heroSecondaryCta,
-                      {
-                        flexDirection: isRtl ? 'row-reverse' : 'row',
-                        borderColor: theme.isDark ? theme.border : 'rgba(255,255,255,0.26)',
-                      },
-                    ]}
-                    accessibilityRole="button"
-                  >
-                    <Ionicons name="add-circle-outline" size={18} color={theme.accent} />
-                    <Text style={styles.heroSecondaryText}>سورة جديدة</Text>
-                  </Pressable>
-                </View>
-              )}
-            </View>
+          <ArabesqueBackdrop variant="featured" pattern="arch" />
+          <View style={{ flex: 1, alignItems: isRtl ? 'flex-end' : 'flex-start', gap: 2 }}>
+            <Text style={[styles.metaText, { color: theme.accent, fontWeight: '700' }]}>
+              {isCurrentSurahDone
+                ? 'أتممت السورة الحالية'
+                : `السورة الجارية • الدرس ${formatNum(activeSessionNum, language)}`}
+            </Text>
+            <Text style={[styles.surahName, { color: '#ffffff' }]} numberOfLines={1}>
+              {getSurahDisplayName(currentSurah, language)}
+            </Text>
+            <Text style={[styles.metaText, { color: 'rgba(255,255,255,0.85)' }]} numberOfLines={1}>
+              {isCurrentSurahDone
+                ? `${formatNum(currentSurah.totalAyahs, language)} آية • اختر سورة جديدة`
+                : `آيات اليوم: ${formatNum(portionStart, language)} - ${formatNum(portionEnd, language)} (${formatNum(currentSurahProgress.percent, language)}%)`}
+            </Text>
           </View>
+
+          <Pressable
+            onPress={() => {
+              if (isCurrentSurahDone) {
+                setSurahSearch('');
+                setShowNewSurahModal(true);
+              } else {
+                router.push('/memorize-session');
+              }
+            }}
+            style={[
+              styles.compactResumeBtn,
+              {
+                flexDirection: isRtl ? 'row-reverse' : 'row',
+                backgroundColor: theme.isDark ? theme.primary : '#f7f5ed',
+              },
+            ]}
+            accessibilityRole="button"
+          >
+            <Text
+              style={[
+                styles.compactResumeBtnText,
+                { color: theme.isDark ? theme.primaryForeground : '#073d35' },
+              ]}
+            >
+              {isCurrentSurahDone ? 'سورة جديدة' : 'متابعة'}
+            </Text>
+            <Ionicons
+              name={isCurrentSurahDone ? 'add-circle-outline' : dirArrow}
+              size={16}
+              color={theme.isDark ? theme.primaryForeground : '#073d35'}
+            />
+          </Pressable>
         </View>
 
-        {/* Memorization Plan & Pace Analytics */}
-        <View style={[styles.statsCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        {/* Memorization Plan & Pace Analytics (30% Secondary Surface) */}
+        <View style={[styles.statsCard, { backgroundColor: theme.secondary, borderColor: theme.border }]}>
           <ArabesqueBackdrop variant="subtle" pattern="arch" />
 
           <View style={[styles.statsGrid, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
-            <View style={[styles.statTile, { backgroundColor: theme.secondary }]}>
+            <View style={[styles.statTile, { backgroundColor: theme.card }]}>
               <Text style={[styles.statVal, { color: theme.isDark ? theme.foreground : theme.primary }]}>
                 {formatNum(state.dailyTarget, language)}
               </Text>
               <Text style={[styles.statLbl, { color: theme.mutedForeground }]}>
-                {language === 'en' ? 'Daily Portion' : language === 'fr' ? 'Portion/jour' : 'الورد اليومي'}
+                {language === 'en' ? 'Daily Portion' : language === 'fr' ? 'Portion/jour' : 'آيات الدرس'}
               </Text>
             </View>
-            <View style={[styles.statTile, { backgroundColor: theme.secondary }]}>
+            <View style={[styles.statTile, { backgroundColor: theme.card }]}>
               <Text style={[styles.statVal, { color: theme.isDark ? theme.foreground : theme.primary }]}>
                 {formatNum(ongoingRows.length, language)}
               </Text>
@@ -479,7 +381,7 @@ export default function MemorizeDashboardScreen() {
                 {language === 'en' ? 'In Progress' : language === 'fr' ? 'En cours' : 'سور قيد الحفظ'}
               </Text>
             </View>
-            <View style={[styles.statTile, { backgroundColor: theme.secondary }]}>
+            <View style={[styles.statTile, { backgroundColor: theme.card }]}>
               <Text style={[styles.statVal, { color: theme.isDark ? theme.foreground : theme.primary }]}>
                 {formatNum(remainingAyahs, language)}
               </Text>
@@ -530,7 +432,7 @@ export default function MemorizeDashboardScreen() {
                     ? `~${formatNum(estimatedSessionsLeft, language)} sessions left`
                     : language === 'fr'
                       ? `~${formatNum(estimatedSessionsLeft, language)} séances`
-                      : `المتبقّي ~${formatNum(estimatedSessionsLeft, language)} جلسات`}
+                      : `المتبقّي ~${formatNum(estimatedSessionsLeft, language)} دروس`}
               </Text>
             </View>
           </View>
@@ -651,7 +553,7 @@ export default function MemorizeDashboardScreen() {
                       <Text style={[styles.metaText, { color: theme.mutedForeground }]}>
                         {formatNum(row.memorizedCount, language)} /{' '}
                         {formatNum(row.totalAyahs, language)} آية •{' '}
-                        {formatNum(row.sessionsCompleted, language)} جلسات
+                        {formatNum(row.sessionsCompleted, language)} دروس
                       </Text>
                       {row.latestLesson ? (
                         <Text style={[styles.metaText, { color: theme.mutedForeground }]}>
@@ -686,7 +588,7 @@ export default function MemorizeDashboardScreen() {
                             },
                           ]}
                         >
-                          {isSelected ? 'متابعة الجلسة' : 'استكمال الحفظ'}
+                          {isSelected ? 'متابعة الدرس' : 'استكمال الحفظ'}
                         </Text>
                         <Ionicons
                           name={dirArrow}
@@ -860,6 +762,7 @@ export default function MemorizeDashboardScreen() {
                 onChangeText={setSurahSearch}
                 placeholder="ابحث باسم السورة أو رقمها..."
                 placeholderTextColor={theme.mutedForeground}
+                accessibilityLabel="ابحث باسم السورة أو رقمها"
                 style={[
                   styles.searchInput,
                   { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' },
@@ -1030,7 +933,7 @@ export default function MemorizeDashboardScreen() {
                     ]}
                   >
                     <Text style={[styles.startSurahBtnText, { color: theme.primaryForeground }]}>
-                      ابدأ جلسة في هذه السورة
+                      ابدأ درساً في هذه السورة
                     </Text>
                     <Ionicons name={dirArrow} size={16} color={theme.primaryForeground} />
                   </Pressable>
@@ -1087,6 +990,7 @@ export default function MemorizeDashboardScreen() {
                 onChangeText={setAllSurahsSearch}
                 placeholder="ابحث باسم السورة أو رقمها..."
                 placeholderTextColor={theme.mutedForeground}
+                accessibilityLabel="ابحث باسم السورة أو رقمها"
                 style={[
                   styles.searchInput,
                   { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' },
@@ -1213,6 +1117,33 @@ const styles = StyleSheet.create({
   headerBlock: { flex: 1, gap: 4 },
   pageTitle: { fontSize: 24, fontWeight: '700' },
   pageSubtitle: { fontSize: 13, lineHeight: 20 },
+  compactResumeBar: {
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: RADII.card,
+    borderWidth: 1,
+    padding: SPACING.md,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  compactResumeBtn: {
+    minHeight: MIN_TOUCH_TARGET,
+    borderRadius: RADII.control,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  compactResumeBtnText: { fontSize: 13, fontWeight: '700' },
+  activeSurahCard: {
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: RADII.card,
+    borderWidth: 1,
+    padding: SPACING.xl,
+    gap: 14,
+  },
   heroWrap: {
     borderRadius: RADII.hero,
     overflow: 'hidden',
@@ -1318,7 +1249,7 @@ const styles = StyleSheet.create({
   sectionBlock: { gap: SPACING.md },
   sectionTitle: { fontSize: 16, fontWeight: '700' },
   newSurahChip: {
-    minHeight: 34,
+    minHeight: MIN_TOUCH_TARGET,
     borderRadius: RADII.pill,
     borderWidth: 1,
     paddingHorizontal: 12,
@@ -1380,7 +1311,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 2,
   },
-  weakBadgeText: { fontSize: 10, fontWeight: '700' },
+  weakBadgeText: { fontSize: 12, fontWeight: '700' },
   cardActions: { gap: 8, marginTop: 2 },
   cardPrimaryBtn: {
     flex: 1.3,
@@ -1409,6 +1340,9 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalSheet: {
+    width: '100%',
+    maxWidth: 680,
+    alignSelf: 'center',
     maxHeight: '82%',
     borderTopLeftRadius: RADII.hero,
     borderTopRightRadius: RADII.hero,

@@ -138,6 +138,7 @@ export function FloatingBottomNav() {
       ]}
     >
       <View
+        accessibilityRole="tablist"
         onLayout={(e) => {
           const nextW = e.nativeEvent.layout.width;
           if (nextW > 0 && nextW !== dockWidth) {
@@ -199,7 +200,7 @@ export function FloatingBottomNav() {
               }
             }}
             style={styles.navItem}
-            accessibilityRole="button"
+            accessibilityRole="tab"
             accessibilityLabel={item.label}
             accessibilityState={{ selected: item.active }}
           >
@@ -271,7 +272,7 @@ const styles = StyleSheet.create({
   },
   navItem: {
     flex: 1,
-    minHeight: 46,
+    minHeight: 48,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,

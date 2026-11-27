@@ -1,11 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Animated,
+  BackHandler,
+  Easing,
+  Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -37,6 +43,7 @@ import { SegmentedControl } from '../src/components/milla/SegmentedControl';
 import { SurahProgressBar } from '../src/components/milla/SurahProgressBar';
 import { useMilla } from '../src/context/MillaContext';
 import { loadSurahArabicTafsir, loadVerifiedSurahAyahs } from '../src/services/quran';
+import { animateLayout } from '../src/theme/motion';
 import { MIN_TOUCH_TARGET, RADII, SPACING } from '../src/theme/tokens';
 
 type MemorizeStepId = 'revise' | 'memorize' | 'test' | 'link';
@@ -200,6 +207,11 @@ export default function MemorizeSessionScreen() {
   const [testAudioOffset, setTestAudioOffset] = useState(0);
   const [testRating, setTestRating] = useState<SelfEvalRating | null>(null);
   const [testHardAyahs, setTestHardAyahs] = useState<number[]>([]);
+  const [ratingModalVisible, setRatingModalVisible] = useState(false);
+  const [submittingRating, setSubmittingRating] = useState(false);
+  const [pauseModalVisible, setPauseModalVisible] = useState(false);
+  const [isPausing, setIsPausing] = useState(false);
+  const [showFirstTimeTip, setShowFirstTimeTip] = useState(true);
 
   // Step 4 (Link) state
   const [linkAudioIdx, setLinkAudioIdx] = useState(0);
@@ -209,8 +221,202 @@ export default function MemorizeSessionScreen() {
   // Session progression
   const [stepIndex, setStepIndex] = useState(0);
   const [highestStepIndex, setHighestStepIndex] = useState(0);
-  const [endPhase, setEndPhase] = useState<'active' | 'completed' | 'finished_early'>('active');
+  const [endPhase, setEndPhase] = useState<'active' | 'completed'>('active');
   const [justFinishedSurah, setJustFinishedSurah] = useState(false);
+  const [nextSurahId, setNextSurahId] = useState<number | null>(null);
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const [completionOverlayActive, setCompletionOverlayActive] = useState(false);
+  const heroCardRef = useRef<React.ComponentRef<typeof View> | null>(null);
+  const heroTargetRectRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
+  const overlayTop = useRef(new Animated.Value(0)).current;
+  const overlayLeft = useRef(new Animated.Value(0)).current;
+  const overlayWidth = useRef(new Animated.Value(screenWidth)).current;
+  const overlayHeight = useRef(new Animated.Value(screenHeight)).current;
+  const overlayRadius = useRef(new Animated.Value(0)).current;
+  const overlayContentOpacity = useRef(new Animated.Value(1)).current;
+  const doneMedalScale = useRef(new Animated.Value(0.3)).current;
+  const doneRingScale = useRef(new Animated.Value(0.85)).current;
+  const doneRingOpacity = useRef(new Animated.Value(0)).current;
+  const doneRestOpacity = useRef(new Animated.Value(0)).current;
+  const doneRestY = useRef(new Animated.Value(20)).current;
+  const reduceMotionRef = useRef(false);
+
+  useEffect(() => {
+    void AccessibilityInfo.isReduceMotionEnabled()
+      .then((enabled) => {
+        reduceMotionRef.current = enabled;
+      })
+      .catch(() => {
+        reduceMotionRef.current = false;
+      });
+  }, []);
+
+  useEffect(() => {
+    if (endPhase !== 'completed') {
+      setCompletionOverlayActive(false);
+      heroTargetRectRef.current = null;
+      return undefined;
+    }
+
+    if (reduceMotionRef.current) {
+      setCompletionOverlayActive(false);
+      doneMedalScale.setValue(1);
+      doneRingOpacity.setValue(0);
+      doneRestOpacity.setValue(1);
+      doneRestY.setValue(0);
+      return undefined;
+    }
+
+    setCompletionOverlayActive(true);
+    overlayTop.setValue(0);
+    overlayLeft.setValue(0);
+    overlayWidth.setValue(screenWidth);
+    overlayHeight.setValue(screenHeight);
+    overlayRadius.setValue(0);
+    overlayContentOpacity.setValue(1);
+    doneMedalScale.setValue(0.3);
+    doneRingScale.setValue(0.85);
+    doneRingOpacity.setValue(0.65);
+    doneRestOpacity.setValue(0);
+    doneRestY.setValue(20);
+
+    let cancelled = false;
+
+    const medalAnim = Animated.parallel([
+      Animated.spring(doneMedalScale, {
+        toValue: 1,
+        friction: 6,
+        tension: 140,
+        useNativeDriver: true,
+      }),
+      Animated.timing(doneRingScale, {
+        toValue: 1.75,
+        duration: 280,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(doneRingOpacity, {
+        toValue: 0,
+        duration: 280,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]);
+
+    const runZoomOut = () => {
+      if (cancelled) return;
+      const rect = heroTargetRectRef.current;
+      if (!rect || rect.w <= 0 || rect.h <= 0) {
+        doneRestOpacity.setValue(1);
+        doneRestY.setValue(0);
+        setCompletionOverlayActive(false);
+        return;
+      }
+
+      Animated.parallel([
+        Animated.timing(overlayTop, {
+          toValue: rect.y,
+          duration: 300,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: false,
+        }),
+        Animated.timing(overlayLeft, {
+          toValue: rect.x,
+          duration: 300,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: false,
+        }),
+        Animated.timing(overlayWidth, {
+          toValue: rect.w,
+          duration: 300,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: false,
+        }),
+        Animated.timing(overlayHeight, {
+          toValue: rect.h,
+          duration: 300,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: false,
+        }),
+        Animated.timing(overlayRadius, {
+          toValue: RADII.hero,
+          duration: 300,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: false,
+        }),
+        Animated.timing(overlayContentOpacity, {
+          toValue: 0,
+          duration: 180,
+          delay: 120,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(doneRestOpacity, {
+          toValue: 1,
+          duration: 260,
+          delay: 90,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(doneRestY, {
+          toValue: 0,
+          duration: 280,
+          delay: 90,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        if (!cancelled) {
+          setCompletionOverlayActive(false);
+        }
+      });
+    };
+
+    medalAnim.start(() => {
+      if (cancelled) return;
+      if (heroTargetRectRef.current) {
+        runZoomOut();
+      } else if (heroCardRef.current) {
+        heroCardRef.current.measureInWindow((x, y, w, h) => {
+          if (w > 0 && h > 0) {
+            heroTargetRectRef.current = { x, y, w, h };
+          }
+          runZoomOut();
+        });
+      } else {
+        runZoomOut();
+      }
+    });
+
+    const safetyTimer = setTimeout(() => {
+      if (!cancelled) {
+        doneRestOpacity.setValue(1);
+        doneRestY.setValue(0);
+        setCompletionOverlayActive(false);
+      }
+    }, 1200);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(safetyTimer);
+      medalAnim.stop();
+    };
+  }, [
+    endPhase,
+    screenWidth,
+    screenHeight,
+    overlayTop,
+    overlayLeft,
+    overlayWidth,
+    overlayHeight,
+    overlayRadius,
+    overlayContentOpacity,
+    doneMedalScale,
+    doneRingScale,
+    doneRingOpacity,
+    doneRestOpacity,
+    doneRestY,
+  ]);
   const [completedRange, setCompletedRange] = useState<{
     start: number;
     end: number;
@@ -439,9 +645,9 @@ export default function MemorizeSessionScreen() {
       return 'مراجعة ذات أولوية';
     }
     if (surahPlan.lastSessionLessons.some((l) => l.id === lesson.id)) {
-      return 'الجلسة السابقة';
+      return 'الدرس السابق';
     }
-    return 'جلسات سابقة';
+    return 'دروس سابقة';
   };
 
   const handleReviseModeChange = (nextMode: 'partial' | 'hidden' | 'revealed') => {
@@ -521,6 +727,7 @@ export default function MemorizeSessionScreen() {
 
     if (stepIndex + 1 < sessionSteps.length) {
       const nextIdx = stepIndex + 1;
+      animateLayout();
       setStepIndex(nextIdx);
       setHighestStepIndex((prev) => Math.max(prev, nextIdx));
       return;
@@ -560,6 +767,7 @@ export default function MemorizeSessionScreen() {
   };
 
   const handleMemPrevAyah = () => {
+    animateLayout();
     setVerseRepeatCount(0);
     setShowTafsirBox(false);
     setMemOffset((o) => Math.max(0, o - 1));
@@ -568,6 +776,7 @@ export default function MemorizeSessionScreen() {
   const handleMemNextAyah = async () => {
     if (!activeMemAyah) return;
     await setVerseStatus(surah.id, activeMemAyah.number, 'in_progress');
+    animateLayout();
     setVerseRepeatCount(0);
     setShowTafsirBox(false);
     const nextOff = Math.min(portionAyahs.length - 1, memOffset + 1);
@@ -603,49 +812,75 @@ export default function MemorizeSessionScreen() {
   };
 
   const submitFinalLessonRating = async (markVerseConnection: boolean) => {
-    if (!testRating || portionAyahs.length === 0) return;
+    if (!testRating || portionAyahs.length === 0 || submittingRating) return;
     const first = portionAyahs[0];
     const last = portionAyahs[portionAyahs.length - 1];
     if (!first || !last) return;
 
-    await recordLessonTest({
-      surahId: surah.id,
-      startVerse: first.number,
-      endVerse: last.number,
-      rating: testRating,
-      hardAyahNumbers: testRating === 'difficult' ? testHardAyahs : [],
-    });
+    setSubmittingRating(true);
+    try {
+      await recordLessonTest({
+        surahId: surah.id,
+        startVerse: first.number,
+        endVerse: last.number,
+        rating: testRating,
+        hardAyahNumbers: testRating === 'difficult' ? testHardAyahs : [],
+      });
 
-    for (const lessonId of reviewedLessonIds) {
-      await evaluateLessonReview({ lessonId, rating: testRating, hardAyahNumbers: [] });
-    }
-
-    if (markVerseConnection) {
-      await setDailyStage('verseConnection', true);
-    }
-
-    const shouldAdvance = testRating !== 'difficult';
-    await advanceToNextStep(shouldAdvance);
-  };
-
-  const handleFinishEarly = async () => {
-    isEndingSessionRef.current = true;
-    setEndPhase('finished_early');
-    if (currentPhase === 'memorize' && portionAyahs.length > 0) {
-      const learnedCount = Math.max(1, Math.max(memOffset, highestLearnedOffset) + 1);
-      const learnedSlice = portionAyahs.slice(0, learnedCount);
-      const first = learnedSlice[0];
-      const last = learnedSlice[learnedSlice.length - 1];
-      if (first && last) {
-        await saveLearningLesson({
-          surahId: surah.id,
-          startVerse: first.number,
-          endVerse: last.number,
-        });
+      for (const lessonId of reviewedLessonIds) {
+        await evaluateLessonReview({ lessonId, rating: testRating, hardAyahNumbers: [] });
       }
+
+      if (markVerseConnection) {
+        await setDailyStage('verseConnection', true);
+      }
+
+      setRatingModalVisible(false);
+      const shouldAdvance = testRating !== 'difficult';
+      await advanceToNextStep(shouldAdvance);
+    } finally {
+      setSubmittingRating(false);
     }
-    await finishSessionEarly();
   };
+
+  const executePauseAndExit = async () => {
+    if (isPausing) return;
+    setIsPausing(true);
+    try {
+      isEndingSessionRef.current = true;
+      if (currentPhase === 'memorize' && portionAyahs.length > 0) {
+        const learnedCount = Math.max(1, Math.max(memOffset, highestLearnedOffset) + 1);
+        const learnedSlice = portionAyahs.slice(0, learnedCount);
+        const first = learnedSlice[0];
+        const last = learnedSlice[learnedSlice.length - 1];
+        if (first && last) {
+          await saveLearningLesson({
+            surahId: surah.id,
+            startVerse: first.number,
+            endVerse: last.number,
+          });
+        }
+      }
+      await finishSessionEarly();
+      setPauseModalVisible(false);
+      router.replace('/memorize');
+    } finally {
+      setIsPausing(false);
+    }
+  };
+
+  const handleFinishEarly = () => {
+    setPauseModalVisible(true);
+  };
+
+  useEffect(() => {
+    if (endPhase !== 'active') return undefined;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      handleFinishEarly();
+      return true;
+    });
+    return () => sub.remove();
+  });
 
   const handleStartNextSession = () => {
     const nextSessionNum = getSurahActiveSessionNumber(state.surahSessions, surah.id);
@@ -677,6 +912,7 @@ export default function MemorizeSessionScreen() {
     setLinkViewMode('revealed');
     setAcceptedTarget(null);
     setJustFinishedSurah(false);
+    setNextSurahId(null);
     setCompletedRange(null);
     setStepIndex(0);
     setHighestStepIndex(0);
@@ -709,9 +945,12 @@ export default function MemorizeSessionScreen() {
             <Pressable
               key={item.id}
               onPress={() => {
+                animateLayout();
                 setTestRating(item.id);
                 if (item.id !== 'difficult') setTestHardAyahs([]);
               }}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
               style={[
                 styles.evalTile,
                 {
@@ -792,18 +1031,21 @@ export default function MemorizeSessionScreen() {
   const lastPortionNum = portionAyahs[portionAyahs.length - 1]?.number ?? portionStartAyah;
 
   return (
-    <AppShell
-      title={`${surah.nameAr} • جلسة ${toArabicDigits(activeSessionNum)}`}
-      subtitle={`الآيات ${toArabicDigits(firstPortionNum)} - ${toArabicDigits(lastPortionNum)}`}
-      hideBottomNav
-    >
+    <View style={{ flex: 1 }}>
+      <AppShell
+        title={`${surah.nameAr} • الدرس ${toArabicDigits(activeSessionNum)}`}
+        subtitle={`الآيات ${toArabicDigits(firstPortionNum)} - ${toArabicDigits(lastPortionNum)}`}
+        hideBottomNav
+      >
       <View style={styles.stack}>
         {endPhase === 'active' ? (
           <>
             {/* Back to Memorize Dashboard + Active Learning Notice */}
             <View style={[styles.rowBetween, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
               <Pressable
-                onPress={() => router.back()}
+                onPress={handleFinishEarly}
+                accessibilityRole="button"
+                accessibilityLabel="العودة إلى الحفظ"
                 style={[
                   styles.backPill,
                   {
@@ -826,7 +1068,7 @@ export default function MemorizeSessionScreen() {
             <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
               <View style={[styles.rowBetween, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
                 <Text style={[styles.progressTitle, { color: theme.foreground }]}>
-                  مسار الجلسة
+                  مراحل الدرس
                 </Text>
                 <Text style={[styles.progressCount, { color: theme.mutedForeground }]}>
                   {`الخطوة ${toArabicDigits(stepIndex + 1)} من ${toArabicDigits(sessionSteps.length)}`}
@@ -1005,9 +1247,9 @@ export default function MemorizeSessionScreen() {
                 {reviseViewMode === 'hidden' ||
                 (reviseViewMode === 'partial' && activeReviseLesson.state !== 'strengthening') ? (
                   <View style={styles.hiddenOverlay} pointerEvents="none">
-                    <View style={[styles.hiddenPill, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                      <Ionicons name="eye-off-outline" size={20} color={theme.primary} />
-                      <Text style={[styles.hiddenPillText, { color: theme.foreground }]}>
+                    <View style={styles.hiddenPill}>
+                      <Ionicons name="eye-off-outline" size={24} color={theme.mutedForeground} />
+                      <Text style={[styles.hiddenPillText, { color: theme.mutedForeground }]}>
                         سمّع الدرس غيباً
                       </Text>
                     </View>
@@ -1097,7 +1339,7 @@ export default function MemorizeSessionScreen() {
                 >
                   {plannerSuggestion.kind === 'lighter_portion'
                     ? `بعد انقطاع، هل تفضّل ورداً أخف اليوم (${toArabicDigits(plannerSuggestion.suggestedTarget)} آيات بدل ${toArabicDigits(plannerSuggestion.normalTarget)})؟`
-                    : `لديك آيات تحتاج تثبيتاً، هل تخفف الورد اليوم إلى ${toArabicDigits(plannerSuggestion.suggestedTarget)} آيات؟`}
+                    : `لديك آيات تحتاج تثبيتاً، هل تخفف الدرس اليوم إلى ${toArabicDigits(plannerSuggestion.suggestedTarget)} آيات؟`}
                 </Text>
                 <View style={[styles.evalGrid, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
                   <Pressable
@@ -1130,13 +1372,14 @@ export default function MemorizeSessionScreen() {
               style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}
             >
               <View style={[styles.rowBetween, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
-                <View style={{ alignItems: isRtl ? 'flex-end' : 'flex-start' }}>
+                <View style={{ flex: 1, alignItems: isRtl ? 'flex-end' : 'flex-start' }}>
                   <Text style={[styles.stepHeading, { color: theme.foreground }]}>
                     الحفظ
                   </Text>
                   <Text style={[styles.stepSub, { color: theme.mutedForeground }]}>
                     الآية {toArabicDigits(memOffset + 1)} من{' '}
-                    {toArabicDigits(portionAyahs.length || 1)} في ورد اليوم
+                    {toArabicDigits(portionAyahs.length || 1)} • استمع أو كرّر{' '}
+                    {formatNum(state.mandatoryRepeats, language)} مرات لتختفي الكلمات تدريجياً
                   </Text>
                 </View>
 
@@ -1151,7 +1394,7 @@ export default function MemorizeSessionScreen() {
                     },
                   ]}
                   accessibilityRole="button"
-                  accessibilityLabel="تدرّج إخفاء الآية"
+                  accessibilityLabel="تكرار الآية وإخفاء الكلمات تدريجياً"
                 >
                   <Ionicons
                     name={
@@ -1168,11 +1411,45 @@ export default function MemorizeSessionScreen() {
                       { color: verseRepeatCount > 0 ? theme.primaryForeground : theme.foreground },
                     ]}
                   >
-                    تدرّج: {formatNum(verseRepeatCount, language)} /{' '}
+                    التكرار: {formatNum(verseRepeatCount, language)} /{' '}
                     {formatNum(state.mandatoryRepeats, language)}
                   </Text>
                 </Pressable>
               </View>
+
+              {activeSessionNum === 1 && memOffset === 0 && showFirstTimeTip ? (
+                <View
+                  style={[
+                    styles.tipBanner,
+                    {
+                      flexDirection: isRtl ? 'row-reverse' : 'row',
+                      backgroundColor: theme.secondary,
+                      borderColor: theme.border,
+                    },
+                  ]}
+                >
+                  <Ionicons name="bulb-outline" size={18} color={theme.primary} />
+                  <Text
+                    style={[
+                      styles.tipBannerText,
+                      { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' },
+                    ]}
+                  >
+                    اضغط تشغيل للاستماع والتكرار التلقائي، أو انقر على زر التكرار بعد كل قراءة.
+                  </Text>
+                  <Pressable
+                    onPress={() => {
+                      animateLayout();
+                      setShowFirstTimeTip(false);
+                    }}
+                    hitSlop={10}
+                    accessibilityRole="button"
+                    accessibilityLabel="إخفاء التلميح"
+                  >
+                    <Ionicons name="close" size={16} color={theme.mutedForeground} />
+                  </Pressable>
+                </View>
+              ) : null}
 
               {surah.id !== 1 && surah.id !== 9 && activeMemAyah?.number === 1 ? (
                 <QuranText
@@ -1213,75 +1490,6 @@ export default function MemorizeSessionScreen() {
                       </Text>
                     </View>
                   ) : null}
-
-                  <Pressable
-                    onPress={() => setShowTafsirBox((v) => !v)}
-                    style={[
-                      styles.tafsirToggle,
-                      {
-                        flexDirection: isRtl ? 'row-reverse' : 'row',
-                        borderColor: theme.border,
-                        backgroundColor: theme.background,
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.tafsirToggleText, { color: theme.foreground }]}>
-                      التفسير الميسّر للآية
-                    </Text>
-                    <Ionicons
-                      name={showTafsirBox ? 'chevron-up' : 'chevron-down'}
-                      size={16}
-                      color={theme.mutedForeground}
-                    />
-                  </Pressable>
-
-                  {showTafsirBox ? (
-                    <View style={[styles.tafsirBody, { backgroundColor: theme.muted }]}>
-                      <Text style={[styles.transText, { color: theme.foreground }]}>
-                        {tafsirMap[activeMemAyah.number] ??
-                          (loadingTafsir
-                            ? 'جاري تحميل التفسير الميسّر...'
-                            : 'التفسير الميسّر غير متوفر حالياً دون اتصال.')}
-                      </Text>
-                    </View>
-                  ) : null}
-
-                  <View style={[styles.evalGrid, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
-                    <Pressable
-                      disabled={memOffset === 0}
-                      onPress={handleMemPrevAyah}
-                      style={[
-                        styles.compactBtn,
-                        {
-                          borderWidth: 1,
-                          borderColor: theme.border,
-                          backgroundColor: theme.background,
-                          opacity: memOffset === 0 ? 0.4 : 1,
-                        },
-                      ]}
-                    >
-                      <Text style={[styles.compactBtnText, { color: theme.foreground }]}>
-                        الآية السابقة
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      disabled={memOffset + 1 >= portionAyahs.length}
-                      onPress={() => void handleMemNextAyah()}
-                      style={[
-                        styles.compactBtn,
-                        {
-                          borderWidth: 1,
-                          borderColor: theme.border,
-                          backgroundColor: theme.background,
-                          opacity: memOffset + 1 >= portionAyahs.length ? 0.4 : 1,
-                        },
-                      ]}
-                    >
-                      <Text style={[styles.compactBtnText, { color: theme.foreground }]}>
-                        الآية التالية
-                      </Text>
-                    </Pressable>
-                  </View>
                 </>
               ) : (
                 <Text style={[styles.stepSub, { color: theme.mutedForeground }]}>
@@ -1301,26 +1509,102 @@ export default function MemorizeSessionScreen() {
               }}
             />
 
-            <Pressable
-              disabled={!activeMemAyah || highestLearnedOffset + 1 < portionAyahs.length}
-              onPress={() => void handleReadyToTest()}
-              style={[
-                styles.primaryBtn,
-                {
-                  flexDirection: isRtl ? 'row-reverse' : 'row',
-                  backgroundColor: theme.primary,
-                  opacity:
-                    activeMemAyah && highestLearnedOffset + 1 >= portionAyahs.length ? 1 : 0.45,
-                },
-              ]}
-            >
-              <Ionicons name="checkmark-circle-outline" size={20} color={theme.primaryForeground} />
-              <Text style={[styles.primaryBtnText, { color: theme.primaryForeground }]}>
-                {highestLearnedOffset + 1 >= portionAyahs.length
-                  ? 'أنا جاهز للتسميع'
-                  : 'أكمل المرور على جميع الآيات أولاً'}
-              </Text>
-            </Pressable>
+            {activeMemAyah ? (
+              <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                <Pressable
+                  onPress={() => {
+                    animateLayout();
+                    setShowTafsirBox((v) => !v);
+                  }}
+                  style={[
+                    styles.tafsirToggle,
+                    {
+                      flexDirection: isRtl ? 'row-reverse' : 'row',
+                      borderColor: theme.border,
+                      backgroundColor: theme.background,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.tafsirToggleText, { color: theme.foreground }]}>
+                    التفسير الميسّر للآية
+                  </Text>
+                  <Ionicons
+                    name={showTafsirBox ? 'chevron-up' : 'chevron-down'}
+                    size={16}
+                    color={theme.mutedForeground}
+                  />
+                </Pressable>
+
+                {showTafsirBox ? (
+                  <View style={[styles.tafsirBody, { backgroundColor: theme.muted }]}>
+                    <Text style={[styles.transText, { color: theme.foreground }]}>
+                      {tafsirMap[activeMemAyah.number] ??
+                        (loadingTafsir
+                          ? 'جاري تحميل التفسير الميسّر...'
+                          : 'التفسير الميسّر غير متوفر حالياً دون اتصال.')}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+
+            <View style={[styles.evalGrid, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
+              {memOffset > 0 ? (
+                <Pressable
+                  onPress={handleMemPrevAyah}
+                  style={[
+                    styles.outlineBtn,
+                    {
+                      borderColor: theme.border,
+                      backgroundColor: theme.card,
+                      paddingHorizontal: 16,
+                    },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="الآية السابقة"
+                >
+                  <Text style={[styles.outlineBtnText, { color: theme.foreground }]}>
+                    الآية السابقة
+                  </Text>
+                </Pressable>
+              ) : null}
+
+              <Pressable
+                disabled={!activeMemAyah}
+                onPress={() => {
+                  if (memOffset + 1 < portionAyahs.length) {
+                    void handleMemNextAyah();
+                  } else {
+                    void handleReadyToTest();
+                  }
+                }}
+                style={[
+                  styles.primaryBtn,
+                  {
+                    flex: 1,
+                    flexDirection: isRtl ? 'row-reverse' : 'row',
+                    backgroundColor: theme.primary,
+                    opacity: activeMemAyah ? 1 : 0.45,
+                  },
+                ]}
+                accessibilityRole="button"
+              >
+                <Ionicons
+                  name={
+                    memOffset + 1 < portionAyahs.length
+                      ? dirArrow
+                      : 'checkmark-circle-outline'
+                  }
+                  size={20}
+                  color={theme.primaryForeground}
+                />
+                <Text style={[styles.primaryBtnText, { color: theme.primaryForeground }]}>
+                  {memOffset + 1 < portionAyahs.length
+                    ? `الآية التالية (${toArabicDigits(memOffset + 2)} من ${toArabicDigits(portionAyahs.length)})`
+                    : 'أنا جاهز للتسميع'}
+                </Text>
+              </Pressable>
+            </View>
           </View>
         ) : null}
 
@@ -1369,14 +1653,17 @@ export default function MemorizeSessionScreen() {
                   <View style={styles.loadingBox}>
                     <Ionicons name="eye-off-outline" size={28} color={theme.mutedForeground} />
                     <Text style={[styles.hiddenHint, { color: theme.mutedForeground }]}>
-                      [ نص الورد محجوب للتسميع معاً ]
+                      الآيات مخفية — سمّعها غيباً ثم اكشفها للتحقق
                     </Text>
                   </View>
                 )}
               </View>
 
               <Pressable
-                onPress={() => setTestRevealed((v) => !v)}
+                onPress={() => {
+                  animateLayout();
+                  setTestRevealed((v) => !v);
+                }}
                 style={[
                   styles.outlineBtn,
                   { borderColor: theme.border, backgroundColor: theme.secondary },
@@ -1412,8 +1699,6 @@ export default function MemorizeSessionScreen() {
               />
             ) : null}
 
-            {!hasLinkStep ? lessonRatingCard : null}
-
             {hasLinkStep ? (
               <Pressable
                 onPress={() => void advanceToNextStep()}
@@ -1432,19 +1717,17 @@ export default function MemorizeSessionScreen() {
               </Pressable>
             ) : (
               <Pressable
-                disabled={!testRating}
-                onPress={() => void submitFinalLessonRating(false)}
+                onPress={() => setRatingModalVisible(true)}
                 style={[
                   styles.primaryBtn,
                   {
                     flexDirection: isRtl ? 'row-reverse' : 'row',
                     backgroundColor: theme.primary,
-                    opacity: testRating ? 1 : 0.45,
                   },
                 ]}
               >
                 <Text style={[styles.primaryBtnText, { color: theme.primaryForeground }]}>
-                  تثبيت التقييم وإنهاء الجلسة
+                  تقييم وإتمام الدرس
                 </Text>
                 <Ionicons name={dirArrow} size={18} color={theme.primaryForeground} />
               </Pressable>
@@ -1463,8 +1746,8 @@ export default function MemorizeSessionScreen() {
                 <View style={[styles.badge, { backgroundColor: theme.secondary }]}>
                   <Text style={[styles.badgeText, { color: theme.primary }]}>
                     {linkAnchor.oldVerseCount > 0
-                      ? `آخر ${formatNum(linkAnchor.oldVerseCount, language)} آيات + ورد اليوم`
-                      : 'ورد اليوم'}
+                      ? `آخر ${formatNum(linkAnchor.oldVerseCount, language)} آيات + درس اليوم`
+                      : 'درس اليوم'}
                   </Text>
                 </View>
               </View>
@@ -1500,7 +1783,7 @@ export default function MemorizeSessionScreen() {
                           ]}
                         >
                           <Text style={[styles.stepSub, { color: theme.primary }]}>
-                            ورد اليوم
+                            درس اليوم
                           </Text>
                         </View>
                       ) : null}
@@ -1526,15 +1809,10 @@ export default function MemorizeSessionScreen() {
 
                 {linkViewMode === 'hidden' ? (
                   <View style={styles.hiddenOverlay} pointerEvents="none">
-                    <View
-                      style={[
-                        styles.hiddenPill,
-                        { backgroundColor: theme.card, borderColor: theme.border },
-                      ]}
-                    >
-                      <Ionicons name="eye-off-outline" size={20} color={theme.primary} />
-                      <Text style={[styles.hiddenPillText, { color: theme.foreground }]}>
-                        سمّع المقطع متصلاً غيباً
+                    <View style={styles.hiddenPill}>
+                      <Ionicons name="eye-off-outline" size={24} color={theme.mutedForeground} />
+                      <Text style={[styles.hiddenPillText, { color: theme.mutedForeground }]}>
+                        سمّع الدرس متصلاً غيباً
                       </Text>
                     </View>
                   </View>
@@ -1572,23 +1850,19 @@ export default function MemorizeSessionScreen() {
               />
             ) : null}
 
-            {lessonRatingCard}
-
             <Pressable
-              disabled={!testRating}
-              onPress={() => void submitFinalLessonRating(true)}
+              onPress={() => setRatingModalVisible(true)}
               style={[
                 styles.primaryBtn,
                 {
                   flexDirection: isRtl ? 'row-reverse' : 'row',
                   backgroundColor: theme.primary,
-                  opacity: testRating ? 1 : 0.45,
                 },
               ]}
             >
               <Ionicons name="checkmark-circle-outline" size={20} color={theme.primaryForeground} />
               <Text style={[styles.primaryBtnText, { color: theme.primaryForeground }]}>
-                تثبيت التقييم وإنهاء الجلسة
+                تقييم وإتمام الدرس
               </Text>
             </Pressable>
           </View>
@@ -1597,7 +1871,7 @@ export default function MemorizeSessionScreen() {
         {/* Finish Early */}
         {endPhase === 'active' ? (
           <Pressable
-            onPress={() => void handleFinishEarly()}
+            onPress={handleFinishEarly}
             style={[
               styles.outlineBtn,
               { borderColor: theme.border, backgroundColor: theme.card },
@@ -1605,13 +1879,13 @@ export default function MemorizeSessionScreen() {
           >
             <Ionicons name="pause-circle-outline" size={16} color={theme.mutedForeground} />
             <Text style={[styles.outlineBtnText, { color: theme.mutedForeground }]}>
-              إنهاء الجلسة الآن وحفظ ما أتممته
+              حفظ التقدّم والخروج مؤقتاً
             </Text>
           </Pressable>
         ) : null}
 
-        {/* SESSION COMPLETE OR FINISHED EARLY */}
-        {endPhase !== 'active' ? (() => {
+        {/* SESSION COMPLETE */}
+        {endPhase === 'completed' ? (() => {
           const { memorizedCount: memorizedInSurah, percent: surahPct } = computeSurahProgress({
             surahId: surah.id,
             totalAyahs: surah.totalAyahs,
@@ -1627,15 +1901,23 @@ export default function MemorizeSessionScreen() {
             )[0];
           const lessonStateLabel =
             latestSurahLesson?.state === 'done'
-              ? 'متقن'
+              ? 'حفظ قوي'
               : latestSurahLesson?.state === 'strengthening'
                 ? 'تثبيت'
-                : 'قيد التعلّم';
+                : 'قيد الحفظ';
 
           return (
             <View style={[styles.stack, { paddingTop: SPACING.sm }]}>
               {/* Editorial Hero Summary */}
               <View
+                ref={heroCardRef}
+                onLayout={() => {
+                  heroCardRef.current?.measureInWindow((x, y, w, h) => {
+                    if (w > 0 && h > 0) {
+                      heroTargetRectRef.current = { x, y, w, h };
+                    }
+                  });
+                }}
                 style={[
                   styles.doneHeroCard,
                   {
@@ -1643,45 +1925,40 @@ export default function MemorizeSessionScreen() {
                     paddingVertical: SPACING.xl,
                     borderWidth: 1,
                     borderColor: theme.isDark ? theme.border : 'rgba(255,255,255,0.08)',
+                    opacity: completionOverlayActive ? 0 : 1,
                   },
                 ]}
               >
                 <View style={[styles.rowBetween, { flexDirection: isRtl ? 'row-reverse' : 'row', width: '100%' }]}>
                   <View style={[styles.badge, { backgroundColor: theme.accent }]}>
                     <Text style={styles.doneHeroPillText}>
-                      {endPhase === 'finished_early' ? 'توقّف مؤقت' : 'جلسة مكتملة'}
+                      درس مكتمل
                     </Text>
                   </View>
                   <View style={styles.doneGlassPill}>
                     <Text style={styles.doneGlassText}>
-                      {surah.nameAr} • جلسة {formatNum(Math.max(1, state.surahSessions[surah.id] ?? activeSessionNum), language)}
+                      {surah.nameAr} • الدرس {formatNum(Math.max(1, state.surahSessions[surah.id] ?? activeSessionNum), language)}
                     </Text>
                   </View>
                 </View>
 
-                <View style={styles.doneMedal}>
-                  <Ionicons
-                    name={endPhase === 'finished_early' ? 'bookmark' : 'checkmark-done'}
-                    size={30}
-                    color={theme.isDark ? theme.accentForeground : '#073d35'}
-                  />
+                <View style={styles.doneMedalWrap}>
+                  <View style={styles.doneMedal}>
+                    <Ionicons
+                      name="checkmark-done"
+                      size={30}
+                      color={theme.isDark ? theme.accentForeground : '#073d35'}
+                    />
+                  </View>
                 </View>
 
                 <Text style={styles.doneHeroTitle}>
-                  {endPhase === 'finished_early'
-                    ? 'بارك الله فيك، حُفظ تقدّمك'
-                    : language === 'en'
-                      ? 'Well done, keep going'
-                      : language === 'fr'
-                        ? 'Bravo, continuez ainsi'
-                        : 'أحسنت، واصل'}
+                  بارك الله فيك! أحسنت
                 </Text>
                 <Text style={styles.doneHeroSub}>
-                  {endPhase === 'finished_early'
-                    ? 'تم حفظ ما أتممته اليوم. يمكنك المتابعة في أي وقت.'
-                    : justFinishedSurah
-                      ? `أتممت بفضل الله ${surah.nameAr}. اختر السورة التالية للبدء بها.`
-                      : `الآيات ${formatNum(completedRange?.start ?? firstPortionNum, language)} - ${formatNum(completedRange?.end ?? lastPortionNum, language)} من ${surah.nameAr}`}
+                  {justFinishedSurah
+                    ? `أتممت بفضل الله ${surah.nameAr}. اختر السورة التالية للبدء بها.`
+                    : `الآيات ${formatNum(completedRange?.start ?? firstPortionNum, language)} - ${formatNum(completedRange?.end ?? lastPortionNum, language)} من ${surah.nameAr}`}
                 </Text>
 
                 {/* Surah Progress Bar */}
@@ -1703,6 +1980,15 @@ export default function MemorizeSessionScreen() {
                 </View>
               </View>
 
+              <Animated.View
+                style={[
+                  styles.stack,
+                  {
+                    opacity: doneRestOpacity,
+                    transform: [{ translateY: doneRestY }],
+                  },
+                ]}
+              >
               {/* Session Metrics & Completed Steps */}
               <View
                 style={[
@@ -1729,7 +2015,7 @@ export default function MemorizeSessionScreen() {
                     >
                       {formatNum(completedRange?.count ?? portionAyahs.length, language)}
                     </Text>
-                    <Text style={[styles.doneStatLbl, { color: theme.mutedForeground }]}>آيات الورد</Text>
+                    <Text style={[styles.doneStatLbl, { color: theme.mutedForeground }]}>آيات اليوم</Text>
                   </View>
                   <View
                     style={[
@@ -1749,7 +2035,7 @@ export default function MemorizeSessionScreen() {
                     >
                       {lessonStateLabel}
                     </Text>
-                    <Text style={[styles.doneStatLbl, { color: theme.mutedForeground }]}>حالة الدرس</Text>
+                    <Text style={[styles.doneStatLbl, { color: theme.mutedForeground }]}>مستوى الحفظ</Text>
                   </View>
                   <View
                     style={[
@@ -1769,7 +2055,7 @@ export default function MemorizeSessionScreen() {
                     >
                       {formatNum(currentAyah, language)}
                     </Text>
-                    <Text style={[styles.doneStatLbl, { color: theme.mutedForeground }]}>الموضع القادم</Text>
+                    <Text style={[styles.doneStatLbl, { color: theme.mutedForeground }]}>الآية القادمة</Text>
                   </View>
                 </View>
 
@@ -1826,11 +2112,12 @@ export default function MemorizeSessionScreen() {
                   <MillaPicker
                     searchable
                     fullWidth
-                    value={String(surah.id)}
+                    placeholder="ابحث واختر السورة التالية..."
+                    value={nextSurahId !== null ? String(nextSurahId) : ''}
                     onChange={(val) => {
                       const nextId = Number(val);
+                      setNextSurahId(nextId);
                       void setCursor(nextId, state.surahCursors[nextId] ?? 1);
-                      handleStartNextSession();
                     }}
                     title="اختر السورة التالية"
                     ariaLabel="اختر السورة التالية"
@@ -1848,6 +2135,7 @@ export default function MemorizeSessionScreen() {
               {/* Actions */}
               <View style={styles.doneActions}>
                 <Pressable
+                  disabled={justFinishedSurah && nextSurahId === null}
                   onPress={handleStartNextSession}
                   style={[
                     styles.primaryBtn,
@@ -1855,11 +2143,14 @@ export default function MemorizeSessionScreen() {
                       width: '100%',
                       flexDirection: isRtl ? 'row-reverse' : 'row',
                       backgroundColor: theme.primary,
+                      opacity: justFinishedSurah && nextSurahId === null ? 0.45 : 1,
                     },
                   ]}
                 >
                   <Text style={[styles.primaryBtnText, { color: theme.primaryForeground }]}>
-                    {endPhase === 'finished_early' ? 'استئناف الجلسة' : 'بدء الجلسة التالية الآن'}
+                    {justFinishedSurah && nextSurahId === null
+                      ? 'اختر السورة التالية أولاً'
+                      : 'بدء الدرس التالي الآن'}
                   </Text>
                   <Ionicons name={dirArrow} size={18} color={theme.primaryForeground} />
                 </Pressable>
@@ -1881,11 +2172,334 @@ export default function MemorizeSessionScreen() {
                   </Text>
                 </Pressable>
               </View>
+              </Animated.View>
             </View>
           );
         })() : null}
       </View>
+
+      {/* Required Lesson Rating Popup */}
+      <Modal
+        visible={ratingModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!submittingRating) setRatingModalVisible(false);
+        }}
+      >
+        <View style={styles.modalBackdrop}>
+          <View
+            style={[
+              styles.modalCard,
+              { backgroundColor: theme.background, borderColor: theme.border, maxHeight: '85%' },
+            ]}
+          >
+            <View style={[styles.rowBetween, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
+              <View style={[styles.modalTitleGroup, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
+                <View style={{ flex: 1, alignItems: isRtl ? 'flex-end' : 'flex-start' }}>
+                  <Text style={[styles.stepHeading, { color: theme.foreground }]}>
+                    قيّم حفظك لإتمام الدرس
+                  </Text>
+                  <Text style={[styles.stepSub, { color: theme.mutedForeground }]}>
+                    {surah.nameAr} • الآيات {toArabicDigits(firstPortionNum)} - {toArabicDigits(lastPortionNum)}
+                  </Text>
+                </View>
+              </View>
+              <Pressable
+                disabled={submittingRating}
+                onPress={() => setRatingModalVisible(false)}
+                style={[styles.modalCloseBtn, { borderColor: theme.border, backgroundColor: theme.card }]}
+                accessibilityRole="button"
+                accessibilityLabel="إغلاق"
+              >
+                <Ionicons name="close" size={20} color={theme.foreground} />
+              </Pressable>
+            </View>
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ gap: SPACING.md }}
+            >
+              <Text
+                style={[
+                  styles.stepSub,
+                  { color: theme.mutedForeground, textAlign: isRtl ? 'right' : 'left', lineHeight: 20 },
+                ]}
+              >
+                كيف كان حفظك اليوم؟ اختيارك يساعدنا نرتّب لك المراجعة المناسبة.
+              </Text>
+
+              {lessonRatingCard}
+
+              {testRating === 'difficult' ? (
+                <View
+                  style={[
+                    styles.tipBanner,
+                    {
+                      flexDirection: isRtl ? 'row-reverse' : 'row',
+                      backgroundColor: theme.secondary,
+                      borderColor: theme.border,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.tipBannerText,
+                      { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' },
+                    ]}
+                  >
+                    ممتاز أنك قيّمت بصدق — سنعيدها لك في المراجعة القادمة حتى تثبت بسهولة.
+                  </Text>
+                </View>
+              ) : null}
+            </ScrollView>
+
+            <View style={[styles.evalGrid, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
+              <Pressable
+                disabled={submittingRating}
+                onPress={() => setRatingModalVisible(false)}
+                style={[
+                  styles.outlineBtn,
+                  { borderColor: theme.border, backgroundColor: theme.card, paddingHorizontal: 16 },
+                ]}
+              >
+                <Text style={[styles.outlineBtnText, { color: theme.foreground }]}>
+                  عودة
+                </Text>
+              </Pressable>
+
+              <Pressable
+                disabled={!testRating || submittingRating}
+                onPress={() => void submitFinalLessonRating(hasLinkStep)}
+                style={[
+                  styles.primaryBtn,
+                  {
+                    flex: 1,
+                    flexDirection: isRtl ? 'row-reverse' : 'row',
+                    backgroundColor: theme.primary,
+                    opacity: testRating && !submittingRating ? 1 : 0.45,
+                  },
+                ]}
+              >
+                {submittingRating ? (
+                  <ActivityIndicator size="small" color={theme.primaryForeground} />
+                ) : (
+                  <Ionicons name="checkmark-circle-outline" size={20} color={theme.primaryForeground} />
+                )}
+                <Text style={[styles.primaryBtnText, { color: theme.primaryForeground }]}>
+                  {submittingRating
+                    ? 'جاري الحفظ...'
+                    : testRating
+                      ? 'حفظ التقييم وإتمام الدرس'
+                      : 'اختر تقييمك أولاً'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Pause & Save Progress Confirmation Modal */}
+      <Modal
+        visible={pauseModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!isPausing) setPauseModalVisible(false);
+        }}
+      >
+        <View style={styles.modalBackdrop}>
+          <View
+            style={[
+              styles.modalCard,
+              { backgroundColor: theme.background, borderColor: theme.border },
+            ]}
+          >
+            <View style={[styles.rowBetween, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
+              <View style={[styles.modalTitleGroup, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
+                <View style={[styles.modalIconBox, { backgroundColor: theme.secondary }]}>
+                  <Ionicons name="bookmark-outline" size={20} color={theme.primary} />
+                </View>
+                <View style={{ flex: 1, alignItems: isRtl ? 'flex-end' : 'flex-start' }}>
+                  <Text style={[styles.stepHeading, { color: theme.foreground }]}>
+                    حفظ التقدّم والخروج مؤقتاً؟
+                  </Text>
+                  <Text style={[styles.stepSub, { color: theme.mutedForeground }]}>
+                    الخطوة {toArabicDigits(stepIndex + 1)} من {toArabicDigits(sessionSteps.length)} •{' '}
+                    {sessionSteps[stepIndex]?.label ?? 'الحفظ'}
+                  </Text>
+                </View>
+              </View>
+              <Pressable
+                disabled={isPausing}
+                onPress={() => setPauseModalVisible(false)}
+                style={[styles.modalCloseBtn, { borderColor: theme.border, backgroundColor: theme.card }]}
+                accessibilityRole="button"
+                accessibilityLabel="إغلاق"
+              >
+                <Ionicons name="close" size={20} color={theme.foreground} />
+              </Pressable>
+            </View>
+
+            <View
+              style={[
+                styles.card,
+                { backgroundColor: theme.card, borderColor: theme.border, gap: 10 },
+              ]}
+            >
+              <View style={[styles.stepsGrid, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
+                {sessionSteps.map((s, idx) => {
+                  const isCurrent = idx === stepIndex;
+                  const isDone = idx < stepIndex;
+                  return (
+                    <View key={s.id} style={styles.stepCol}>
+                      <View
+                        style={[
+                          styles.stepBar,
+                          {
+                            backgroundColor: isCurrent
+                              ? theme.accent
+                              : isDone
+                                ? theme.primary
+                                : theme.border,
+                          },
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.stepLbl,
+                          {
+                            color: isCurrent ? theme.foreground : theme.mutedForeground,
+                            fontWeight: isCurrent ? '700' : '500',
+                          },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {s.label}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+
+              <Text
+                style={[
+                  styles.stepSubBold,
+                  { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' },
+                ]}
+              >
+                موضعك المحفوظ: {sessionSteps[stepIndex]?.label ?? 'الحفظ'}
+                {currentPhase === 'memorize' && portionAyahs.length > 0
+                  ? ` — الآية ${toArabicDigits(memOffset + 1)} من ${toArabicDigits(portionAyahs.length)}`
+                  : ''}
+              </Text>
+              <Text
+                style={[
+                  styles.stepSub,
+                  { color: theme.mutedForeground, textAlign: isRtl ? 'right' : 'left', lineHeight: 20 },
+                ]}
+              >
+                لن يُحتسب الدرس مكتملاً بعد، وعند عودتك ستستأنف مباشرة من هذه الخطوة.
+              </Text>
+            </View>
+
+            <View style={[styles.evalGrid, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
+              <Pressable
+                disabled={isPausing}
+                onPress={() => setPauseModalVisible(false)}
+                style={[
+                  styles.outlineBtn,
+                  {
+                    flex: 1,
+                    borderColor: theme.border,
+                    backgroundColor: theme.card,
+                    paddingHorizontal: 14,
+                  },
+                ]}
+              >
+                <Text style={[styles.outlineBtnText, { color: theme.foreground }]}>
+                  متابعة الدرس
+                </Text>
+              </Pressable>
+
+              <Pressable
+                disabled={isPausing}
+                onPress={() => void executePauseAndExit()}
+                style={[
+                  styles.primaryBtn,
+                  {
+                    flex: 1,
+                    flexDirection: isRtl ? 'row-reverse' : 'row',
+                    backgroundColor: theme.primary,
+                    opacity: isPausing ? 0.6 : 1,
+                  },
+                ]}
+              >
+                {isPausing ? (
+                  <ActivityIndicator size="small" color={theme.primaryForeground} />
+                ) : (
+                  <Ionicons name="bookmark-outline" size={18} color={theme.primaryForeground} />
+                )}
+                <Text style={[styles.primaryBtnText, { color: theme.primaryForeground }]}>
+                  {isPausing ? 'جاري الحفظ...' : 'حفظ والخروج'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </AppShell>
+
+      {endPhase === 'completed' && completionOverlayActive ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.completionOverlay,
+            {
+              backgroundColor: theme.heroBg,
+              top: overlayTop,
+              left: overlayLeft,
+              width: overlayWidth,
+              height: overlayHeight,
+              borderRadius: overlayRadius,
+            },
+          ]}
+        >
+          <Animated.View
+            style={[
+              styles.completionOverlayInner,
+              { opacity: overlayContentOpacity },
+            ]}
+          >
+            <View style={styles.doneMedalWrap}>
+              <Animated.View
+                style={[
+                  styles.doneMedalRing,
+                  {
+                    borderColor: theme.accent,
+                    opacity: doneRingOpacity,
+                    transform: [{ scale: doneRingScale }],
+                  },
+                ]}
+              />
+              <Animated.View
+                style={[
+                  styles.doneMedal,
+                  { transform: [{ scale: doneMedalScale }] },
+                ]}
+              >
+                <Ionicons
+                  name="checkmark-done"
+                  size={34}
+                  color={theme.isDark ? theme.accentForeground : '#073d35'}
+                />
+              </Animated.View>
+            </View>
+            <Text style={styles.doneHeroTitle}>بارك الله فيك! أحسنت</Text>
+          </Animated.View>
+        </Animated.View>
+      ) : null}
+    </View>
   );
 }
 
@@ -1916,11 +2530,11 @@ const styles = StyleSheet.create({
   stepsGrid: { gap: 6 },
   stepCol: { flex: 1, alignItems: 'center', gap: 4 },
   stepBar: { width: '100%', height: 6, borderRadius: 3 },
-  stepLbl: { fontSize: 10, textAlign: 'center' },
+  stepLbl: { fontSize: 12, textAlign: 'center' },
   stepNavRow: { gap: 8, marginTop: 4 },
   stepNavBtn: {
     flex: 1,
-    minHeight: 38,
+    minHeight: MIN_TOUCH_TARGET,
     borderRadius: RADII.control,
     borderWidth: 1,
     paddingHorizontal: 10,
@@ -1950,15 +2564,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   hiddenPill: {
-    flexDirection: 'row-reverse',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
-    borderRadius: RADII.pill,
-    borderWidth: 1,
     paddingHorizontal: 16,
-    paddingVertical: 10,
   },
-  hiddenPillText: { fontSize: 13, fontWeight: '700' },
+  hiddenPillText: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
   segmentedWrap: {
     borderRadius: RADII.control,
     borderWidth: 1,
@@ -1987,9 +2598,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   outlineBtnText: { fontSize: 13, fontWeight: '600' },
-  evalGrid: { flexDirection: 'row-reverse', gap: 8 },
+  evalGrid: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 },
   evalTile: {
     flex: 1,
+    minWidth: 86,
     minHeight: 56,
     borderRadius: RADII.control,
     borderWidth: 1,
@@ -1998,7 +2610,51 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   evalTitle: { fontSize: 13, fontWeight: '700' },
-  evalSub: { fontSize: 10, marginTop: 2 },
+  evalSub: { fontSize: 12, marginTop: 2 },
+  tipBanner: {
+    borderRadius: RADII.control,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+    gap: 8,
+  },
+  tipBannerText: { flex: 1, fontSize: 12, lineHeight: 18 },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.52)',
+    justifyContent: 'center',
+    padding: SPACING.lg,
+  },
+  modalCard: {
+    borderRadius: RADII.hero,
+    borderWidth: 1,
+    padding: SPACING.lg,
+    gap: SPACING.md,
+    maxWidth: 540,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  modalTitleGroup: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 10,
+  },
+  modalIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: RADII.control,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCloseBtn: {
+    width: MIN_TOUCH_TARGET,
+    height: MIN_TOUCH_TARGET,
+    borderRadius: RADII.control,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   hardBox: {
     borderRadius: RADII.control,
     borderWidth: 1,
@@ -2075,6 +2731,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
+  completionOverlay: {
+    position: 'absolute',
+    zIndex: 50,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  completionOverlayInner: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
   doneHeroPillText: { fontSize: 11, fontWeight: '700', color: '#073d35' },
   doneGlassPill: {
     borderRadius: RADII.pill,
@@ -2083,6 +2751,20 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   doneGlassText: { fontSize: 11, fontWeight: '600', color: '#ffffff' },
+  doneMedalWrap: {
+    width: 68,
+    height: 68,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+  },
+  doneMedalRing: {
+    position: 'absolute',
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 2,
+  },
   doneMedal: {
     width: 64,
     height: 64,
@@ -2090,7 +2772,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#f7f5ed',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 4,
   },
   doneHeroTitle: { fontSize: 22, fontWeight: '700', color: '#ffffff', textAlign: 'center' },
   doneHeroSub: { fontSize: 13, color: 'rgba(255,255,255,0.88)', textAlign: 'center', lineHeight: 20 },

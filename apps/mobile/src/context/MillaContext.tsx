@@ -38,6 +38,7 @@ import { getTheme, type MillaTheme } from '../theme/tokens';
 interface MillaContextValue {
   state: MobileAppState | null;
   theme: MillaTheme;
+  fs: (base: number) => number;
   isLoading: boolean;
   isSyncing: boolean;
   syncError: string | null;
@@ -718,12 +719,17 @@ export function MillaProvider({ children }: { children: React.ReactNode }) {
   }, [reloadFromDb]);
 
   const theme = getTheme(state?.nightMode ?? false);
+  const fs = useCallback(
+    (base: number): number => Math.round(base * (state?.largeUiMode ? 1.12 : 1)),
+    [state?.largeUiMode],
+  );
 
   return (
     <MillaContext.Provider
       value={{
         state,
         theme,
+        fs,
         isLoading,
         isSyncing,
         syncError,

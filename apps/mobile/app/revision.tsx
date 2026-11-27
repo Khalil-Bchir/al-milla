@@ -31,7 +31,6 @@ import { useMilla } from '../src/context/MillaContext';
 import { MIN_TOUCH_TARGET, RADII, SPACING } from '../src/theme/tokens';
 
 const QUIET_STUDY_IMG = require('../assets/images/quiet-study.jpg');
-const HERO_REVISION_IMG = require('../assets/images/hero-revision.jpg');
 const TIME_PRESETS: readonly { minutes: RevisionTimePreset; label: string }[] = [
   { minutes: 5, label: 'سريعة' },
   { minutes: 10, label: 'متوسطة' },
@@ -40,11 +39,14 @@ const TIME_PRESETS: readonly { minutes: RevisionTimePreset; label: string }[] = 
 
 export default function RevisionDashboardScreen() {
   const router = useRouter();
-  const { state, theme } = useMilla();
+  const { state, theme, fs } = useMilla();
 
   const [timePreset, setTimePreset] = useState<RevisionTimePreset>(10);
   const [selectedSurahId, setSelectedSurahId] = useState<number | null>(null);
   const [showAllSurahsModal, setShowAllSurahsModal] = useState(false);
+  const [pendingMode, setPendingMode] = useState<
+    'surah_flow' | 'surah_connections' | 'surah_random' | null
+  >(null);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [surahSearch, setSurahSearch] = useState('');
 
@@ -86,14 +88,18 @@ export default function RevisionDashboardScreen() {
   const previewSummaries = useMemo(() => surahSummaries.slice(0, 4), [surahSummaries]);
 
   const modalFilteredSummaries = useMemo(() => {
+    const base =
+      pendingMode === 'surah_connections'
+        ? surahSummaries.filter((item) => item.hasConnections)
+        : surahSummaries;
     const q = surahSearch.trim().toLowerCase();
-    if (!q) return surahSummaries;
-    return surahSummaries.filter((item) => {
+    if (!q) return base;
+    return base.filter((item) => {
       const s = getSurahById(item.surahId);
       const hay = `${item.surahId} ${s.nameAr} ${s.nameEn} ${s.nameFr}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [surahSummaries, surahSearch]);
+  }, [surahSummaries, surahSearch, pendingMode]);
 
   if (!state) {
     return (
@@ -150,15 +156,26 @@ export default function RevisionDashboardScreen() {
     (l) => l.state === 'done' && l.lastEvaluation !== 'difficult' && l.consecutiveDifficultCount === 0,
   ).length;
   const steadyLessonsCount = Math.max(0, totalLessonsCount - strongLessonsCount - careLessonsCount);
+  const connectionSummaries = surahSummaries.filter((s) => s.hasConnections);
   const readySurahId = surahSummaries[0]?.surahId ?? null;
-  const connectionsSurahId = surahSummaries.find((s) => s.hasConnections)?.surahId ?? null;
+  const connectionsSurahId = connectionSummaries[0]?.surahId ?? null;
 
-  const modesHeading =
-    language === 'en'
-      ? 'Revision Modes'
-      : language === 'fr'
-        ? 'Modes de révision'
-        : 'أساليب المراجعة';
+  const openSurahPickerForMode = (
+    targetMode: 'surah_flow' | 'surah_connections' | 'surah_random',
+  ) => {
+    const eligible =
+      targetMode === 'surah_connections' ? connectionSummaries : surahSummaries;
+    if (eligible.length === 0) return;
+    if (eligible.length === 1 && eligible[0]) {
+      handleLaunchSurahMode(eligible[0].surahId, targetMode);
+      return;
+    }
+    setPendingMode(targetMode);
+    setSurahSearch('');
+    setShowAllSurahsModal(true);
+  };
+
+  const modesHeading = 'أساليب المراجعة';
 
   const modeCards: readonly {
     id: string;
@@ -172,51 +189,41 @@ export default function RevisionDashboardScreen() {
     {
       id: 'flow',
       icon: 'reader-outline',
-      title: language === 'en' ? 'Connected Flow' : language === 'fr' ? 'Flux continu' : 'تلاوة متصلة',
-      subtitle: readySurahId
-        ? getSurahDisplayName(getSurahById(readySurahId), language)
-        : language === 'en'
-          ? 'Start memorizing first'
-          : language === 'fr'
-            ? 'Commencez à mémoriser'
+      title: 'تلاوة متصلة',
+      subtitle:
+        surahSummaries.length > 1
+          ? `اختر السورة (${formatNum(surahSummaries.length, language)})`
+          : readySurahId
+            ? getSurahDisplayName(getSurahById(readySurahId), language)
             : 'ابدأ الحفظ أولاً',
       disabled: readySurahId === null,
-      onPress: () => {
-        if (readySurahId !== null) handleLaunchSurahMode(readySurahId, 'surah_flow');
-      },
+      onPress: () => openSurahPickerForMode('surah_flow'),
     },
     {
       id: 'connections',
       icon: 'git-merge-outline',
-      title:
-        language === 'en' ? 'Verse Linking' : language === 'fr' ? 'Liaison des versets' : 'ربط الآيات',
-      subtitle: connectionsSurahId
-        ? getSurahDisplayName(getSurahById(connectionsSurahId), language)
-        : language === 'en'
-          ? 'Needs 2 passages in a surah'
-          : language === 'fr'
-            ? 'Requiert 2 passages'
+      title: 'ربط الآيات',
+      subtitle:
+        connectionSummaries.length > 1
+          ? `اختر السورة (${formatNum(connectionSummaries.length, language)})`
+          : connectionsSurahId
+            ? getSurahDisplayName(getSurahById(connectionsSurahId), language)
             : 'يتطلب مقطعين في سورة',
       disabled: connectionsSurahId === null,
-      onPress: () => {
-        if (connectionsSurahId !== null) handleLaunchSurahMode(connectionsSurahId, 'surah_connections');
-      },
+      onPress: () => openSurahPickerForMode('surah_connections'),
     },
     {
       id: 'random',
       icon: 'shuffle-outline',
-      title: language === 'en' ? 'Random Recall' : language === 'fr' ? 'Rappel aléatoire' : 'اختبار عشوائي',
-      subtitle: readySurahId
-        ? getSurahDisplayName(getSurahById(readySurahId), language)
-        : language === 'en'
-          ? 'Start memorizing first'
-          : language === 'fr'
-            ? 'Commencez à mémoriser'
+      title: 'تسميع عشوائي',
+      subtitle:
+        surahSummaries.length > 1
+          ? `اختر السورة (${formatNum(surahSummaries.length, language)})`
+          : readySurahId
+            ? getSurahDisplayName(getSurahById(readySurahId), language)
             : 'ابدأ الحفظ أولاً',
       disabled: readySurahId === null,
-      onPress: () => {
-        if (readySurahId !== null) handleLaunchSurahMode(readySurahId, 'surah_random');
-      },
+      onPress: () => openSurahPickerForMode('surah_random'),
     },
     {
       id: 'care',
@@ -248,7 +255,7 @@ export default function RevisionDashboardScreen() {
             <Text
               style={[
                 styles.pageTitle,
-                { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' },
+                { color: theme.foreground, textAlign: isRtl ? 'right' : 'left', fontSize: fs(24) },
               ]}
             >
               {language === 'en'
@@ -287,69 +294,142 @@ export default function RevisionDashboardScreen() {
           </Pressable>
         </View>
 
-        {/* Smart Daily Revision Hero */}
+        {/* Revision Modes Grid FIRST (Toolbox-First Layout) */}
+        <View style={styles.sectionBlock}>
+          <Text
+            style={[
+              styles.sectionTitle,
+              { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' },
+            ]}
+          >
+            {modesHeading}
+          </Text>
+
+          <View style={styles.modesGrid}>
+            {[0, 2].map((rowStart) => (
+              <View
+                key={rowStart}
+                style={[styles.modesRow, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}
+              >
+                {modeCards.slice(rowStart, rowStart + 2).map((modeItem, offset) => {
+                  const idx = rowStart + offset;
+                  const modePattern =
+                    ARABESQUE_CARD_PATTERNS[idx % ARABESQUE_CARD_PATTERNS.length] ?? 'arch';
+                  return (
+                    <Pressable
+                      key={modeItem.id}
+                      disabled={modeItem.disabled}
+                      onPress={modeItem.onPress}
+                      style={[
+                        styles.modeGridCard,
+                        {
+                          backgroundColor: theme.card,
+                          borderColor: theme.border,
+                          opacity: modeItem.disabled ? 0.56 : 1,
+                        },
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityState={{ disabled: modeItem.disabled }}
+                    >
+                      <ArabesqueBackdrop variant="corner" pattern={modePattern} />
+
+                      <View
+                        style={[
+                          styles.modeGridTop,
+                          { flexDirection: isRtl ? 'row-reverse' : 'row' },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.modeGridIconBox,
+                            { backgroundColor: modeItem.disabled ? theme.muted : theme.secondary },
+                          ]}
+                        >
+                          <Ionicons
+                            name={modeItem.icon}
+                            size={19}
+                            color={
+                              modeItem.disabled
+                                ? theme.mutedForeground
+                                : theme.isDark
+                                  ? theme.foreground
+                                  : theme.primary
+                            }
+                          />
+                        </View>
+                        {modeItem.badge ? (
+                          <View style={[styles.modeBadgePill, { backgroundColor: theme.accent }]}>
+                            <Text style={[styles.modeBadgeText, { color: theme.accentForeground }]}>
+                              {modeItem.badge}
+                            </Text>
+                          </View>
+                        ) : (
+                          <Ionicons
+                            name={dirArrow}
+                            size={16}
+                            color={
+                              modeItem.disabled
+                                ? theme.mutedForeground
+                                : theme.isDark
+                                  ? theme.foreground
+                                  : theme.primary
+                            }
+                          />
+                        )}
+                      </View>
+
+                      <Text
+                        style={[
+                          styles.modeGridTitle,
+                          { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' },
+                        ]}
+                        numberOfLines={2}
+                        maxFontSizeMultiplier={1.25}
+                      >
+                        {modeItem.title}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.modeGridSub,
+                          { color: theme.mutedForeground, textAlign: isRtl ? 'right' : 'left' },
+                        ]}
+                        numberOfLines={2}
+                        maxFontSizeMultiplier={1.2}
+                      >
+                        {modeItem.subtitle}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* Compact Time-Box Smart Revision Bar */}
         <View
           style={[
-            styles.heroWrap,
+            styles.studioCard,
             {
-              borderWidth: theme.isDark ? 1 : 0,
-              borderColor: theme.isDark ? theme.border : 'transparent',
+              backgroundColor: theme.heroBg,
+              borderColor: theme.isDark ? theme.border : 'rgba(255,255,255,0.08)',
             },
           ]}
         >
-          <View style={styles.heroBg}>
-            <Image
-              source={HERO_REVISION_IMG}
-              style={[styles.heroOverlay, { width: '100%', height: '100%' }]}
-              resizeMode="cover"
-            />
-            <View
-              style={[
-                styles.heroOverlay,
-                {
-                  backgroundColor: theme.isDark
-                    ? 'rgba(18, 20, 18, 0.80)'
-                    : 'rgba(7, 61, 53, 0.82)',
-                },
-              ]}
-            />
-            <View style={styles.heroCard}>
+          <ArabesqueBackdrop variant="featured" pattern="rosette" />
           <View style={[styles.rowBetween, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
-            <View style={[styles.heroPill, { backgroundColor: theme.accent }]}>
-              <Text
-                style={[
-                  styles.heroPillDarkText,
-                  { color: theme.isDark ? theme.accentForeground : '#073d35' },
-                ]}
-              >
-                المراجعة الذكية
-              </Text>
-            </View>
+            <Text style={[styles.sectionTitle, { color: '#ffffff' }]}>
+              مراجعة سريعة حسب وقتك
+            </Text>
             {hasSmartItems ? (
               <View style={styles.heroGlassPill}>
                 <Text style={[styles.heroGlassText, { color: theme.accent }]}>
-                  {formatNum(smartQueue.length, language)} مقاطع
+                  {formatNum(smartQueue.length, language)} دروس
                 </Text>
               </View>
             ) : null}
           </View>
 
-          <View style={{ gap: 4 }}>
-            <Text style={[styles.heroTitle, { textAlign: isRtl ? 'right' : 'left' }]}>
-              راجع محفوظك
-            </Text>
-            <Text style={[styles.heroSub, { textAlign: isRtl ? 'right' : 'left' }]}>
-              {hasSmartItems
-                ? smartSurahNames.length === 1
-                  ? `${formatNum(smartQueue.length, language)} مقاطع من ${smartSurahNames[0]}`
-                  : `${formatNum(smartQueue.length, language)} مقاطع من ${formatNum(smartSurahNames.length, language)} سور`
-                : hasSavedContent
-                  ? 'اختر أي سورة بالأسفل لمراجعتها'
-                  : 'احفظ أول درس لتبدأ خطة مراجعتك'}
-            </Text>
-          </View>
-
-          {/* Time-box Selector */}
           <View style={[styles.timeRow, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
             {TIME_PRESETS.map((preset) => {
               const selected = timePreset === preset.minutes;
@@ -405,16 +485,14 @@ export default function RevisionDashboardScreen() {
               color={theme.isDark ? theme.primaryForeground : '#073d35'}
             />
           </Pressable>
-            </View>
-          </View>
         </View>
 
-        {/* Revision Strength & Overview Analytics */}
-        <View style={[styles.statsCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        {/* Revision Strength & Overview Analytics (30% Secondary Surface) */}
+        <View style={[styles.statsCard, { backgroundColor: theme.secondary, borderColor: theme.border }]}>
           <ArabesqueBackdrop variant="subtle" pattern="arch" />
 
           <View style={[styles.statsGrid, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
-            <View style={[styles.statTile, { backgroundColor: theme.secondary }]}>
+            <View style={[styles.statTile, { backgroundColor: theme.card }]}>
               <Text style={[styles.statVal, { color: theme.isDark ? theme.foreground : theme.primary }]}>
                 {formatNum(surahSummaries.length, language)}
               </Text>
@@ -422,7 +500,7 @@ export default function RevisionDashboardScreen() {
                 {language === 'en' ? 'Surahs' : language === 'fr' ? 'Sourates' : 'سورة للمراجعة'}
               </Text>
             </View>
-            <View style={[styles.statTile, { backgroundColor: theme.secondary }]}>
+            <View style={[styles.statTile, { backgroundColor: theme.card }]}>
               <Text style={[styles.statVal, { color: theme.isDark ? theme.foreground : theme.primary }]}>
                 {formatNum(smartQueue.length, language)}
               </Text>
@@ -431,10 +509,10 @@ export default function RevisionDashboardScreen() {
                   ? "Today's Passages"
                   : language === 'fr'
                     ? 'Passages du jour'
-                    : 'مقاطع اليوم'}
+                    : 'دروس اليوم'}
               </Text>
             </View>
-            <View style={[styles.statTile, { backgroundColor: theme.secondary }]}>
+            <View style={[styles.statTile, { backgroundColor: theme.card }]}>
               <Text style={[styles.statVal, { color: theme.isDark ? theme.foreground : theme.primary }]}>
                 {formatNum(careLessonsCount, language)}
               </Text>
@@ -446,7 +524,7 @@ export default function RevisionDashboardScreen() {
 
           {totalLessonsCount > 0 ? (
             <View style={styles.masteryWrap}>
-              <View style={[styles.masteryTrack, { backgroundColor: theme.secondary }]}>
+              <View style={[styles.masteryTrack, { backgroundColor: theme.card }]}>
                 {strongLessonsCount > 0 ? (
                   <View
                     style={[
@@ -478,7 +556,7 @@ export default function RevisionDashboardScreen() {
                 <View style={[styles.legendItem, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
                   <View style={[styles.legendDot, { backgroundColor: theme.primary }]} />
                   <Text style={[styles.metaText, { color: theme.mutedForeground }]}>
-                    {language === 'en' ? 'Strong' : language === 'fr' ? 'Maîtrisé' : 'متقن'} (
+                    {language === 'en' ? 'Strong' : language === 'fr' ? 'Maîtrisé' : 'حفظ قوي'} (
                     {formatNum(strongLessonsCount, language)})
                   </Text>
                 </View>
@@ -499,119 +577,6 @@ export default function RevisionDashboardScreen() {
               </View>
             </View>
           ) : null}
-        </View>
-
-        {/* Quick Revision Modes 2x2 Grid */}
-        <View style={styles.sectionBlock}>
-          <Text
-            style={[
-              styles.sectionTitle,
-              { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' },
-            ]}
-          >
-            {modesHeading}
-          </Text>
-
-          <View style={styles.modesGrid}>
-            {modeCards.map((item, idx) => {
-              const modePattern =
-                ARABESQUE_CARD_PATTERNS[idx % ARABESQUE_CARD_PATTERNS.length] ?? 'medallion';
-              return (
-                <Pressable
-                  key={item.id}
-                  disabled={item.disabled}
-                  onPress={item.onPress}
-                  style={[
-                    styles.modeGridCard,
-                    {
-                      backgroundColor: theme.card,
-                      borderColor:
-                        theme.isDark || item.disabled ? theme.border : theme.primary,
-                      opacity: item.disabled ? 0.58 : 1,
-                    },
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: item.disabled }}
-                >
-                  <ArabesqueBackdrop variant="corner" pattern={modePattern} />
-
-                  <View
-                    style={[
-                      styles.modeGridTop,
-                      { flexDirection: isRtl ? 'row-reverse' : 'row' },
-                    ]}
-                  >
-                    <View
-                      style={[
-                        styles.modeGridIconBox,
-                        { backgroundColor: item.disabled ? theme.muted : theme.secondary },
-                      ]}
-                    >
-                      <Ionicons
-                        name={item.icon}
-                        size={20}
-                        color={
-                          item.disabled
-                            ? theme.mutedForeground
-                            : theme.isDark
-                              ? theme.foreground
-                              : theme.primary
-                        }
-                      />
-                    </View>
-                    {item.badge ? (
-                      <View
-                        style={[
-                          styles.modeBadgePill,
-                          { backgroundColor: `${theme.accent}28` },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.modeBadgeText,
-                            { color: theme.isDark ? theme.accent : theme.foreground },
-                          ]}
-                        >
-                          {item.badge}
-                        </Text>
-                      </View>
-                    ) : (
-                      <Ionicons
-                        name={dirArrow}
-                        size={16}
-                        color={
-                          item.disabled
-                            ? theme.mutedForeground
-                            : theme.isDark
-                              ? theme.foreground
-                              : theme.primary
-                        }
-                      />
-                    )}
-                  </View>
-
-                  <Text
-                    style={[
-                      styles.modeGridTitle,
-                      { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {item.title}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.modeGridSub,
-                      { color: theme.mutedForeground, textAlign: isRtl ? 'right' : 'left' },
-                    ]}
-                    numberOfLines={2}
-                  >
-                    {item.subtitle}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
         </View>
 
         {/* Revise by Surah */}
@@ -744,7 +709,7 @@ export default function RevisionDashboardScreen() {
                     >
                       {formatNum(summary.memorizedCount, language)} /{' '}
                       {formatNum(summary.totalAyahs, language)} آية •{' '}
-                      {formatNum(summary.lessonCount, language)} مقاطع
+                      {formatNum(summary.lessonCount, language)} دروس
                     </Text>
                   </Pressable>
                 );
@@ -922,7 +887,10 @@ export default function RevisionDashboardScreen() {
         visible={showAllSurahsModal}
         animationType="slide"
         transparent
-        onRequestClose={() => setShowAllSurahsModal(false)}
+        onRequestClose={() => {
+          setShowAllSurahsModal(false);
+          setPendingMode(null);
+        }}
       >
         <View style={styles.modalBackdrop}>
           <View
@@ -933,10 +901,19 @@ export default function RevisionDashboardScreen() {
           >
             <View style={[styles.rowBetween, { flexDirection: isRtl ? 'row-reverse' : 'row' }]}>
               <Text style={[styles.modalTitle, { color: theme.foreground }]}>
-                جميع السور ({formatNum(surahSummaries.length, language)})
+                {pendingMode === 'surah_flow'
+                  ? 'اختر سورة للتلاوة المتصلة'
+                  : pendingMode === 'surah_connections'
+                    ? 'اختر سورة لربط الآيات'
+                    : pendingMode === 'surah_random'
+                      ? 'اختر سورة للتسميع العشوائي'
+                      : `جميع السور (${formatNum(surahSummaries.length, language)})`}
               </Text>
               <Pressable
-                onPress={() => setShowAllSurahsModal(false)}
+                onPress={() => {
+                  setShowAllSurahsModal(false);
+                  setPendingMode(null);
+                }}
                 style={styles.modalCloseBtn}
                 accessibilityRole="button"
                 accessibilityLabel="إغلاق"
@@ -961,6 +938,7 @@ export default function RevisionDashboardScreen() {
                 onChangeText={setSurahSearch}
                 placeholder="ابحث باسم السورة أو رقمها..."
                 placeholderTextColor={theme.mutedForeground}
+                accessibilityLabel="ابحث باسم السورة أو رقمها"
                 style={[
                   styles.searchInput,
                   { color: theme.foreground, textAlign: isRtl ? 'right' : 'left' },
@@ -985,8 +963,14 @@ export default function RevisionDashboardScreen() {
                 return (
                   <Pressable
                     onPress={() => {
+                      const chosenMode = pendingMode;
                       setShowAllSurahsModal(false);
-                      setSelectedSurahId(item.surahId);
+                      setPendingMode(null);
+                      if (chosenMode) {
+                        handleLaunchSurahMode(item.surahId, chosenMode);
+                      } else {
+                        setSelectedSurahId(item.surahId);
+                      }
                     }}
                     style={[
                       styles.compactRow,
@@ -1071,23 +1055,23 @@ export default function RevisionDashboardScreen() {
               {[
                 {
                   title: 'المراجعة الذكية',
-                  body: 'تختار لك تلقائياً أهم ما يحتاج إلى مراجعة بناءً على تقييمك السابق وحالة الدروس دون خلط بين السور ودون بدء درس حفظ جديد. اختر «سريعة» (حتى مقطعين)، «متوسطة» (حتى ٤ مقاطع)، أو «شاملة» (حتى ٨ مقاطع).',
+                  body: 'تختار لك تلقائياً أهم ما يحتاج إلى مراجعة بناءً على تقييمك السابق وحالة الدروس دون خلط بين السور ودون بدء درس حفظ جديد. اختر «سريعة» (حتى درسين)، «متوسطة» (حتى ٤ دروس)، أو «شاملة» (حتى ٨ دروس).',
                 },
                 {
-                  title: 'مقاطع تحتاج عناية',
-                  body: 'تظهر تلقائياً عند وجود مقاطع قيّمتها كـ «صعب» أو لا تزال قيد التعلّم، لتثبيتها بهدوء بالاستماع والتدرّج.',
+                  title: 'دروس تحتاج عناية',
+                  body: 'تظهر تلقائياً عند وجود دروس قيّمتها كـ «تحتاج تكرار» أو لا تزال قيد الحفظ، لتثبيتها بهدوء بالاستماع والتكرار.',
                 },
                 {
                   title: 'أساليب مراجعة السورة',
-                  body: '• تسميع بالترتيب: مراجعة مقاطع السورة بالتسلسل من بدايتها.\n• اختبار الربط: التركيز على مواضع الوصل بين الدروس المتجاورة.\n• تسميع عشوائي: استدعاء مقاطع متفرقة لكسر الاعتماد على الترتيب فقط.',
+                  body: '• تسميع بالترتيب: مراجعة دروس السورة بالتسلسل من بدايتها.\n• ربط الآيات: التركيز على وصل الدروس المتجاورة ببعضها.\n• تسميع عشوائي: تسميع دروس متفرقة حتى لا تعتمد على الترتيب فقط.',
                 },
                 {
                   title: 'التلميح والتقييم',
-                  body: 'أثناء الإخفاء الكامل يمكنك استخدام زر «تلميح» لإظهار الكلمات الأولى فقط من الآية. تقييمك بعد كل مقطع يحدّث أولوية مراجعتك القادمة وشريط قوة الحفظ دون تغيير موضع حفظك الجديد.',
+                  body: 'أثناء الإخفاء الكامل يمكنك استخدام زر «تلميح» لإظهار الكلمات الأولى فقط من الآية. تقييمك بعد كل درس يحدّث أولوية مراجعتك القادمة وشريط قوة الحفظ دون تغيير درس حفظك الجديد.',
                 },
                 {
                   title: 'كيف يؤثر التقييم على المراجعة؟',
-                  body: '• صعب: يرفع أولوية المقطع فوراً إلى مقدّمة المراجعة الذكية ويضيفه إلى «عناية خاصة».\n• جيد: يثبّت المقطع بالإخفاء التدريجي (١/٣ ثم ٢/٣ ثم ٣/٣) ويعيده للمراجعة قريباً.\n• سهل: يرفع حالة المقطع إلى «متقن» ويباعد بين جلسات مراجعته (١، ٣، ٧، ١٤، ٣٠ جلسة).',
+                  body: '• تحتاج تكرار: يرفع أولوية الدرس فوراً إلى مقدّمة المراجعة الذكية ويضيفه إلى «عناية خاصة».\n• حفظتها جيداً: يثبّت الدرس بالإخفاء التدريجي (١/٣ ثم ٢/٣ ثم ٣/٣) ويعيده للمراجعة قريباً.\n• سهلة وثابتة: يرفع حالة الدرس إلى «حفظ قوي» ويباعد بين مواعيد مراجعته (١، ٣، ٧، ١٤، ٣٠ درساً).',
                 },
               ].map((item) => (
                 <View
@@ -1133,6 +1117,14 @@ const styles = StyleSheet.create({
   pageTitle: { fontSize: 24, fontWeight: '700' },
   pageSubtitle: { fontSize: 13, lineHeight: 20 },
   rowBetween: { alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  studioCard: {
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: RADII.card,
+    borderWidth: 1,
+    padding: SPACING.xl,
+    gap: 14,
+  },
   heroWrap: {
     borderRadius: RADII.hero,
     overflow: 'hidden',
@@ -1169,7 +1161,7 @@ const styles = StyleSheet.create({
   timeRow: { gap: 8 },
   timeChip: {
     flex: 1,
-    minHeight: 38,
+    minHeight: MIN_TOUCH_TARGET,
     borderRadius: RADII.control,
     borderWidth: 1,
     alignItems: 'center',
@@ -1231,14 +1223,15 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   modesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    gap: 10,
+  },
+  modesRow: {
     gap: 10,
   },
   modeGridCard: {
+    flex: 1,
     position: 'relative',
     overflow: 'hidden',
-    width: '48.5%',
     minHeight: 116,
     borderRadius: RADII.card,
     borderWidth: 1,
@@ -1318,7 +1311,7 @@ const styles = StyleSheet.create({
   surahPct: { fontSize: 13, fontWeight: '700' },
   metaText: { fontSize: 11, lineHeight: 16 },
   chooseModeBtn: {
-    minHeight: 36,
+    minHeight: MIN_TOUCH_TARGET,
     borderRadius: RADII.control,
     borderWidth: 1,
     paddingHorizontal: 12,
