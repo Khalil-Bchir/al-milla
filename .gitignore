@@ -62,7 +62,12 @@ yarn-error.log*
 
 upload/
 pdf/
-./agents/*
+.agents/
+docs/
+marketing/
+.eas/
+*.apk
+*.jks
 .env*
 !.env.example
 !.env.unified.example

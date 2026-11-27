@@ -24,11 +24,6 @@ function isLandingTheme(value: string | null): value is LandingTheme {
   return value === 'light' || value === 'dark';
 }
 
-const APP_URL =
-  process.env.NEXT_PUBLIC_APP_URL ??
-  (process.env.NODE_ENV === 'development'
-    ? 'http://localhost:3001'
-    : 'https://app.al-milla.khalilbchir.pro');
 
 export default function LandingPage() {
   const lang: LandingLang = 'ar';
@@ -37,7 +32,7 @@ export default function LandingPage() {
   const [mobileNavOpen, setMobileNavOpen] = useState<boolean>(false);
   const copy = LANDING_COPY[lang];
   const DirArrow = ArrowLeft;
-  const appHref = APP_URL;
+  const appHref = '/download';
 
   useEffect(() => {
     try {

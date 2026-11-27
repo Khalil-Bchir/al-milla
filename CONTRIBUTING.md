@@ -44,7 +44,7 @@ pnpm check-types
 
 ## Commit & Branch Conventions
 
-- **Branching:** Target `dev` for feature/fix pull requests unless instructed otherwise.
+- **Branching:** Target `main` for feature/fix pull requests.
 - **Conventional Commits:** Commits are validated via `commitlint` + `husky`:
   - `feat: ...` for new features
   - `fix: ...` for bug fixes

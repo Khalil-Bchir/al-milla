@@ -13,9 +13,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-22.x-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![pnpm](https://img.shields.io/badge/pnpm-9.0.0-F69220?logo=pnpm&logoColor=white)](https://pnpm.io/)
-[![CI](https://github.com/Khalil-Bchir/al-milla/actions/workflows/ci.yml/badge.svg)](https://github.com/Khalil-Bchir/al-milla/actions/workflows/ci.yml)
-
-[Live Landing Page](https://al-milla-landing-pv8lmz7ef-khalils-projects-48833437.vercel.app) · [Web App](https://al-milla.khalilbchir.pro) · [Report a Bug](https://github.com/Khalil-Bchir/al-milla/issues/new?template=bug_report.yml) · [Request a Feature](https://github.com/Khalil-Bchir/al-milla/issues/new?template=feature_request.yml)
+[Website](https://al-milla.khalilbchir.pro) · [Download Android APK](https://al-milla.khalilbchir.pro/download) · [GitHub Releases](https://github.com/Khalil-Bchir/al-milla/releases) · [Report a Bug](https://github.com/Khalil-Bchir/al-milla/issues/new?template=bug_report.yml) · [Request a Feature](https://github.com/Khalil-Bchir/al-milla/issues/new?template=feature_request.yml)
 
 </div>
 
@@ -57,9 +55,8 @@ This repository is a **Turborepo** + **pnpm** (`pnpm@9.0.0`, Node `22.x`) monore
 
 | Workspace | Package | Stack | Purpose |
 | :--- | :--- | :--- | :--- |
-| [`apps/mobile`](./apps/mobile) | `@al-milla/mobile` | Expo, React Native, SQLite | Primary iOS/Android app (Arabic UI, 4-step session, audio, local-first storage) |
-| [`apps/landing`](./apps/landing) | `@al-milla/landing` | Next.js 16, Tailwind CSS v4 | Public Arabic landing page with live interactive 4-step preview, features, and FAQ |
-| [`apps/web`](./apps/web) | `web` | Next.js 16, React 19, Zustand | Companion web application |
+| [`apps/mobile`](./apps/mobile) | `@al-milla/mobile` | Expo, React Native, SQLite | Primary Android app (Arabic UI, 4-step session, audio, local-first storage, APK updates) |
+| [`apps/landing`](./apps/landing) | `@al-milla/landing` | Next.js 16, Tailwind CSS v4 | Public Arabic landing page, `/download` APK page, `/privacy`, `/terms`, and `version.json` |
 | [`apps/api`](./apps/api) | `api` | Hono.js, `@hono/zod-openapi` | REST API for optional sync (`/api/v1/sync`) and Swagger docs (`/docs`) |
 | [`packages/core`](./packages/core) | `@al-milla/core` | TypeScript | Shared domain engine (lesson planner, revision engine, verse masking, Quran metadata) |
 | [`packages/database`](./packages/database) | `@al-milla/database` | Prisma | Database schema, migrations, and typed client |
@@ -105,14 +102,12 @@ pnpm check-types
 pnpm format
 ```
 
-> **Note:** Environment files (`.env.development`, `.env.staging`, `.env.production`, `apps/web/.env.local`) are gitignored and never committed. See [CONTRIBUTING.md](./CONTRIBUTING.md) for contributor setup details.
+> **Note:** Environment files (`.env.development`, `.env.staging`, `.env.production`) are gitignored and never committed. See [CONTRIBUTING.md](./CONTRIBUTING.md) for contributor setup details.
 
 ---
 
 ## Documentation
 
-- [Project Brief](./docs/references/PROJECT_BRIEF.md) — Product scope, philosophy, and non-goals
-- [Design System](./docs/references/DESIGN.md) — 60-30-10 color tokens, typography, and Quiet Devotion UI principles
 - [Contributing Guide](./CONTRIBUTING.md) — Branching, Conventional Commits, and PR expectations
 - [Security Policy](./SECURITY.md) — Responsible vulnerability reporting
 

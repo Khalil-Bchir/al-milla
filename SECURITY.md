@@ -15,6 +15,6 @@ Instead, report it privately by contacting the maintainer via GitHub Security Ad
 3. Include:
    - A clear description of the issue and potential impact.
    - Steps to reproduce or a minimal proof of concept.
-   - Affected workspace(s) (e.g., `apps/mobile`, `apps/api`, `apps/web`, `apps/landing`).
+   - Affected workspace(s) (e.g., `apps/mobile`, `apps/api`, `apps/landing`).
 
 We will acknowledge your report as soon as possible and work with you to validate and resolve the issue before any public disclosure.

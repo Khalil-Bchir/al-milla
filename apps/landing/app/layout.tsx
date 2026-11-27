@@ -3,7 +3,6 @@ import { IBM_Plex_Sans_Arabic, Inter, Amiri_Quran } from 'next/font/google';
 import './globals.css';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://al-milla.khalilbchir.pro';
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.al-milla.khalilbchir.pro';
 
 const ibmArabic = IBM_Plex_Sans_Arabic({
   subsets: ['arabic', 'latin'],
@@ -112,9 +111,9 @@ const LANDING_JSON_LD = {
       '@type': 'SoftwareApplication',
       '@id': `${SITE_URL}/#app`,
       name: 'المِلّة',
-      url: APP_URL,
+      url: `${SITE_URL}/download`,
       applicationCategory: 'EducationalApplication',
-      operatingSystem: 'iOS, Android',
+      operatingSystem: 'Android',
       isAccessibleForFree: true,
       inLanguage: ['ar'],
       offers: {
