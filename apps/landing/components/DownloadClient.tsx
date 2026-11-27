@@ -21,7 +21,7 @@ interface InstallStep {
 const INSTALL_STEPS: readonly InstallStep[] = [
   {
     step: '١',
-    title: 'حمّل ملف التطبيق (APK)',
+    title: 'حمّل ملف التطبيق',
     body: 'اضغط على زر التحميل المباشر ليبدأ تنزيل ملف al-milla-release.apk على هاتفك من GitHub Releases.',
   },
   {
@@ -73,7 +73,7 @@ export function DownloadClient() {
                     className="inline-flex min-h-[52px] flex-1 items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-3 text-base font-bold text-primary-foreground shadow-xs transition-opacity hover:opacity-95"
                   >
                     <Download className="h-5 w-5" aria-hidden="true" />
-                    <span>تحميل مباشر (APK)</span>
+                    <span>تحميل التطبيق مباشرة</span>
                   </a>
                 </Magnet>
 
