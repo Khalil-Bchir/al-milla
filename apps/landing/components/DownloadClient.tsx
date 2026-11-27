@@ -5,7 +5,7 @@ import { AnimatedContent } from '@/components/reactbits/AnimatedContent';
 import { BlurText } from '@/components/reactbits/BlurText';
 import { Magnet } from '@/components/reactbits/Magnet';
 import { SpotlightCard } from '@/components/reactbits/SpotlightCard';
-import { ArabesqueBackdrop, type ArabesquePattern } from '@/components/ArabesqueBackdrop';
+import { ArabesqueBackdrop } from '@/components/ArabesqueBackdrop';
 import { LandingSubpageShell } from '@/components/LandingSubpageShell';
 
 const GITHUB_RELEASES_URL = 'https://github.com/Khalil-Bchir/al-milla/releases';
@@ -16,7 +16,6 @@ interface InstallStep {
   step: string;
   title: string;
   body: string;
-  pattern: ArabesquePattern;
 }
 
 const INSTALL_STEPS: readonly InstallStep[] = [
@@ -24,19 +23,16 @@ const INSTALL_STEPS: readonly InstallStep[] = [
     step: '١',
     title: 'حمّل ملف التطبيق (APK)',
     body: 'اضغط على زر التحميل المباشر ليبدأ تنزيل ملف al-milla-release.apk على هاتفك من GitHub Releases.',
-    pattern: 'rosette',
   },
   {
     step: '٢',
     title: 'اسمح بالتثبيت من المتصفح',
     body: 'عند فتح الملف قد يطلب منك أندرويد تفعيل «السماح بالتثبيت من هذا المصدر» (Install unknown apps). فعّله لمتابعة التثبيت.',
-    pattern: 'lattice',
   },
   {
     step: '٣',
     title: 'تأكيد التثبيت بأمان',
     body: 'إذا ظهر تنبيه فحص Google Play Protect، فهذا طبيعي لأي تطبيق يُثبّت من خارج متجر Play؛ اختر «تثبيت على أي حال» ليبدأ التطبيق فوراً.',
-    pattern: 'arch',
   },
 ];
 
@@ -47,7 +43,7 @@ export function DownloadClient() {
         {/* Main Download Card */}
         <AnimatedContent>
           <section className="relative overflow-hidden rounded-3xl border border-border bg-card p-6 text-card-foreground shadow-sm sm:p-10">
-            <ArabesqueBackdrop variant="featured" pattern="rosette" />
+            <ArabesqueBackdrop variant="subtle" pattern="rosette" />
 
             <div className="relative z-10 space-y-5">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -97,10 +93,8 @@ export function DownloadClient() {
 
         {/* Step-by-Step Installation Guide */}
         <AnimatedContent delay={0.08}>
-          <section className="relative overflow-hidden rounded-3xl border border-border bg-card p-6 shadow-2xs sm:p-8">
-            <ArabesqueBackdrop variant="subtle" pattern="medallion" />
-
-            <div className="relative z-10 space-y-5">
+          <section className="rounded-3xl border border-border bg-card p-6 shadow-2xs sm:p-8">
+            <div className="space-y-5">
               <div className="flex items-center gap-2.5">
                 <ShieldCheck className="h-5 w-5 text-primary" aria-hidden="true" />
                 <h2 className="text-lg font-bold text-foreground">طريقة التثبيت في ٣ خطوات</h2>
@@ -113,8 +107,7 @@ export function DownloadClient() {
                     className="bg-background/80 p-4"
                     spotlightColor="rgba(255, 142, 121, 0.08)"
                   >
-                    <ArabesqueBackdrop variant="corner" pattern={item.pattern} />
-                    <div className="relative z-10 flex items-start gap-3">
+                    <div className="flex items-start gap-3">
                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-secondary text-sm font-bold text-primary">
                         {item.step}
                       </span>

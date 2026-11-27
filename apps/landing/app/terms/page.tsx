@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
-import { FileText } from 'lucide-react';
-import { LandingSubpageShell } from '@/components/LandingSubpageShell';
+import { LegalPageClient, type LegalSection } from '@/components/LegalPageClient';
 
 export const metadata: Metadata = {
   title: 'شروط الاستخدام',
@@ -10,7 +9,7 @@ export const metadata: Metadata = {
   },
 };
 
-const TERMS_SECTIONS = [
+const TERMS_SECTIONS: readonly LegalSection[] = [
   {
     title: '١. طبيعة التطبيق والهدف منه',
     body: 'المِلّة تطبيق مجاني فردي مخصص لمساعدة المسلم على حفظ القرآن الكريم ومراجعته يومياً بهدوء، بدون إعلانات أو اشتراكات مدفوعة.',
@@ -27,36 +26,16 @@ const TERMS_SECTIONS = [
     title: '٤. التحديثات والاستمرارية',
     body: 'نعمل على تحسين التطبيق وإصدار تحديثات دورية مجانية لإصلاح الأعطال وتحسين تجربة القراءة والحفظ دون التزام بجدول زمني محدد.',
   },
-] as const;
+];
 
 export default function TermsPage() {
   return (
-    <LandingSubpageShell>
-      <div className="space-y-6 rounded-3xl border border-border/80 bg-card/90 p-6 shadow-2xs sm:p-10">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-secondary text-primary">
-            <FileText className="h-5 w-5" aria-hidden="true" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">شروط الاستخدام</h1>
-            <p className="text-xs text-muted-foreground">آخر تحديث: نوفمبر ٢٠٢٦</p>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          {TERMS_SECTIONS.map((sec) => (
-            <section
-              key={sec.title}
-              className="space-y-1.5 rounded-2xl border border-border bg-background/80 p-4"
-            >
-              <h2 className="text-sm font-bold text-foreground sm:text-base">{sec.title}</h2>
-              <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">
-                {sec.body}
-              </p>
-            </section>
-          ))}
-        </div>
-      </div>
-    </LandingSubpageShell>
+    <LegalPageClient
+      title="شروط الاستخدام"
+      updatedAt="آخر تحديث: نوفمبر ٢٠٢٦"
+      icon="file"
+      pattern="arch"
+      sections={TERMS_SECTIONS}
+    />
   );
 }
