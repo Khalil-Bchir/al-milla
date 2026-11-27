@@ -64,6 +64,20 @@ This repository is a **Turborepo** + **pnpm** (`pnpm@9.0.0`, Node `22.x`) monore
 | [`packages/eslint-config`](./packages/eslint-config) | `@repo/eslint-config` | ESLint | Shared lint rules |
 | [`packages/typescript-config`](./packages/typescript-config) | `@repo/typescript-config` | TypeScript | Shared `tsconfig` presets |
 
+```mermaid
+flowchart LR
+  Mobile["apps/mobile (Expo + SQLite)"] --> Core["packages/core (Planner · Revision · Masking)"]
+  Mobile -. "Optional syncKey (HTTPS)" .-> API["apps/api (Hono + Zod OpenAPI)"]
+  API --> DB["packages/database (Prisma + Postgres)"]
+  Landing["apps/landing (Next.js)"] -. "version.json / APK" .-> Mobile
+```
+
+### Sync & Privacy Model
+
+- **Local by default:** All memorization progress, bookmarks, and revision schedules live in on-device SQLite (`apps/mobile`).
+- **Pseudonymous sync key:** When you opt into cloud backup (`GET`/`POST /api/v1/sync`), your portfolio snapshot (narration, daily target, bookmarks, activity dates, and verse review states) is stored in Postgres keyed solely by your `syncKey`—with **no name, email, or account**.
+- **Conflict-safe merging:** Updates are merged deterministically using `mergePortfolioStates()` in `packages/core` over HTTPS. (Snapshots are stored as structured JSON rather than client-side E2EE, so keep your `syncKey` private.)
+
 ---
 
 ## Getting Started
@@ -102,7 +116,7 @@ pnpm check-types
 pnpm format
 ```
 
-> **Note:** Environment files (`.env.development`, `.env.staging`, `.env.production`) are gitignored and never committed. See [CONTRIBUTING.md](./CONTRIBUTING.md) for contributor setup details.
+> **Note:** Environment files (`.env.development`, `.env.staging`, `.env.production`) are gitignored and never committed. Use `.env.example` for `apps/api` / database setup, or copy `.env.unified.example` to `.env.unified` and run `pnpm env:sync` to populate all workspaces at once. See [CONTRIBUTING.md](./CONTRIBUTING.md) for contributor setup details.
 
 ---
 
