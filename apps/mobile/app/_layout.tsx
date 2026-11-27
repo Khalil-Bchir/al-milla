@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View } from 'react-native';
+import { Alert, Linking, View } from 'react-native';
 import {
   Stack,
   usePathname,
@@ -14,6 +14,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { FloatingBottomNav } from '../src/components/milla/FloatingBottomNav';
 import { SplashOverlay } from '../src/components/milla/SplashOverlay';
 import { MillaProvider, useMilla } from '../src/context/MillaContext';
+import { checkRemoteApkUpdate } from '../src/services/apkUpdate';
 
 function RootNavigator() {
   const router = useRouter();
@@ -39,6 +40,32 @@ function RootNavigator() {
       setInitialRouteReady(true);
     }, 3000);
     return () => clearTimeout(safetyTimer);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const apkCheck = await checkRemoteApkUpdate();
+      if (!cancelled && apkCheck.hasUpdate && apkCheck.remote) {
+        const { versionName, releaseNotesAr, downloadUrl } = apkCheck.remote;
+        Alert.alert(
+          `تحديث جديد متوفر (${versionName})`,
+          releaseNotesAr ?? 'يتوفر إصدار جديد من تطبيق المِلّة. يمكنك تحميله وتثبيته الآن.',
+          [
+            { text: 'لاحقاً', style: 'cancel' },
+            {
+              text: 'تحميل التحديث',
+              onPress: () => {
+                void Linking.openURL(downloadUrl);
+              },
+            },
+          ],
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {

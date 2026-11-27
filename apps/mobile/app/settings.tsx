@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -31,6 +32,7 @@ import { QuranText } from '../src/components/milla/QuranText';
 import { useMilla } from '../src/context/MillaContext';
 import type { PlaybackSpeed } from '../src/db/database';
 import { createAyahAudioController } from '../src/services/audio';
+import { checkRemoteApkUpdate } from '../src/services/apkUpdate';
 import { submitFeedbackToApi, type MobileFeedbackType } from '../src/services/feedback';
 import { MIN_TOUCH_TARGET, RADII, SPACING } from '../src/theme/tokens';
 
@@ -284,16 +286,36 @@ export default function MySpaceScreen() {
 
   const handleCheckUpdates = async () => {
     if (checkingUpdate) return;
-    if (!Updates.isEnabled) {
-      setStatusMessage('التحديثات التلقائية غير مفعّلة في هذا البناء.');
-      return;
-    }
     setCheckingUpdate(true);
     setStatusMessage(null);
     try {
+      const apkCheck = await checkRemoteApkUpdate();
+      if (apkCheck.hasUpdate && apkCheck.remote) {
+        const { versionName, releaseNotesAr, downloadUrl } = apkCheck.remote;
+        Alert.alert(
+          `تحديث جديد متوفر (${versionName})`,
+          releaseNotesAr ?? 'يتوفر إصدار جديد من تطبيق المِلّة. يمكنك تحميله وتثبيته الآن.',
+          [
+            { text: 'لاحقاً', style: 'cancel' },
+            {
+              text: 'تحميل التحديث',
+              onPress: () => {
+                void Linking.openURL(downloadUrl);
+              },
+            },
+          ],
+        );
+        return;
+      }
+
+      if (!Updates.isEnabled) {
+        setStatusMessage('التطبيق محدّث لآخر إصدار.');
+        return;
+      }
+
       const check = await Updates.checkForUpdateAsync();
       if (!check.isAvailable) {
-        setStatusMessage('التطبيق محدث لآخر إصدار.');
+        setStatusMessage('التطبيق محدّث لآخر إصدار.');
         return;
       }
       setStatusMessage('جارٍ تحميل التحديث الجديد...');
@@ -301,7 +323,7 @@ export default function MySpaceScreen() {
       if (fetched.isNew) {
         await Updates.reloadAsync();
       } else {
-        setStatusMessage('التطبيق محدث لآخر إصدار.');
+        setStatusMessage('التطبيق محدّث لآخر إصدار.');
       }
     } catch {
       setStatusMessage('تعذر التحقق من التحديثات حالياً. تحقق من اتصالك بالإنترنت.');

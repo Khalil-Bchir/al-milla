@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { motion } from 'motion/react';
-import { ArrowLeft, ArrowUp, BookOpen, Menu, X } from 'lucide-react';
+import { ArrowLeft, ArrowUp, BookOpen, Download, Menu, X } from 'lucide-react';
 import { AnimatedContent } from '@/components/reactbits/AnimatedContent';
 import { BlurText } from '@/components/reactbits/BlurText';
 import { CountUp } from '@/components/reactbits/CountUp';
@@ -114,6 +115,12 @@ export default function LandingPage() {
               >
                 {copy.navFaq}
               </a>
+              <Link
+                href="/download"
+                className="rounded-xl px-3.5 py-2 text-sm font-semibold text-primary transition-colors hover:bg-secondary/70"
+              >
+                تحميل للأندرويد
+              </Link>
             </nav>
 
             <div className="flex items-center gap-2">
@@ -169,6 +176,13 @@ export default function LandingPage() {
               >
                 {copy.navFaq}
               </a>
+              <Link
+                href="/download"
+                onClick={() => setMobileNavOpen(false)}
+                className="rounded-xl px-3 py-2 text-sm font-semibold text-primary hover:bg-secondary/60"
+              >
+                تحميل للأندرويد (APK)
+              </Link>
             </nav>
           )}
         </div>
@@ -199,6 +213,14 @@ export default function LandingPage() {
                     <DirArrow className="h-4 w-4" aria-hidden="true" />
                   </a>
                 </Magnet>
+
+                <Link
+                  href="/download"
+                  className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-2xl border border-border bg-card/80 px-5 text-sm font-bold text-foreground transition-colors hover:bg-secondary"
+                >
+                  <Download className="h-4 w-4 text-primary" aria-hidden="true" />
+                  <span>تحميل للأندرويد (APK)</span>
+                </Link>
 
                 <a
                   href="#method"
@@ -517,6 +539,31 @@ export default function LandingPage() {
                     <span>{copy.footerOpenApp}</span>
                     <DirArrow className="h-3.5 w-3.5" aria-hidden="true" />
                   </a>
+                </li>
+                <li>
+                  <Link
+                    href="/download"
+                    className="inline-flex items-center gap-1.5 font-bold text-primary hover:underline"
+                  >
+                    <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>تحميل للأندرويد (APK)</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/privacy"
+                    className="text-foreground/85 transition-colors hover:text-primary"
+                  >
+                    سياسة الخصوصية
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/terms"
+                    className="text-foreground/85 transition-colors hover:text-primary"
+                  >
+                    شروط الاستخدام
+                  </Link>
                 </li>
               </ul>
             </div>
