@@ -110,12 +110,6 @@ export default function LandingPage() {
               >
                 {copy.navFaq}
               </a>
-              <Link
-                href="/download"
-                className="rounded-xl px-3.5 py-2 text-sm font-semibold text-primary transition-colors hover:bg-secondary/70"
-              >
-                تحميل للأندرويد
-              </Link>
             </nav>
 
             <div className="flex items-center gap-2">
@@ -171,13 +165,6 @@ export default function LandingPage() {
               >
                 {copy.navFaq}
               </a>
-              <Link
-                href="/download"
-                onClick={() => setMobileNavOpen(false)}
-                className="rounded-xl px-3 py-2 text-sm font-semibold text-primary hover:bg-secondary/60"
-              >
-                تحميل للأندرويد (APK)
-              </Link>
             </nav>
           )}
         </div>
@@ -200,22 +187,15 @@ export default function LandingPage() {
 
               <div className="flex flex-wrap items-center gap-3 pt-1">
                 <Magnet>
-                  <a
+                  <Link
                     href={appHref}
                     className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-2xl bg-primary px-7 text-base font-bold text-primary-foreground shadow-sm transition-opacity hover:opacity-95"
                   >
+                    <Download className="h-4 w-4" aria-hidden="true" />
                     <span>{copy.heroPrimaryCta}</span>
                     <DirArrow className="h-4 w-4" aria-hidden="true" />
-                  </a>
+                  </Link>
                 </Magnet>
-
-                <Link
-                  href="/download"
-                  className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-2xl border border-border bg-card/80 px-5 text-sm font-bold text-foreground transition-colors hover:bg-secondary"
-                >
-                  <Download className="h-4 w-4 text-primary" aria-hidden="true" />
-                  <span>تحميل للأندرويد (APK)</span>
-                </Link>
 
                 <a
                   href="#method"
@@ -527,21 +507,12 @@ export default function LandingPage() {
                   </a>
                 </li>
                 <li>
-                  <a
-                    href={appHref}
-                    className="inline-flex items-center gap-1.5 font-bold text-primary hover:underline"
-                  >
-                    <span>{copy.footerOpenApp}</span>
-                    <DirArrow className="h-3.5 w-3.5" aria-hidden="true" />
-                  </a>
-                </li>
-                <li>
                   <Link
                     href="/download"
                     className="inline-flex items-center gap-1.5 font-bold text-primary hover:underline"
                   >
                     <Download className="h-3.5 w-3.5" aria-hidden="true" />
-                    <span>تحميل للأندرويد (APK)</span>
+                    <span>{copy.footerOpenApp}</span>
                   </Link>
                 </li>
                 <li>
